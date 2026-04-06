@@ -279,9 +279,9 @@ export const MACHINE_PRESETS: MachinePreset[] = [
   },
   {
     name: "Hinged Walker",
-    description: "A wide body with 4 hinged legs that swing to walk.",
+    description: "A wide body with 4 hinged legs driven by motors.",
     build: buildWalker,
-    autoInput: { hingeSpin: 1 },
+    autoInput: { hingeSpin: 3 },
     cameraPosition: [6, 4, 6],
   },
   {

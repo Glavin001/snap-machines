@@ -2,7 +2,7 @@
  * Extended block catalog for the demo, adding structural beams and motor-wheel
  * blocks on top of the core example catalog.
  */
-import { BlockDefinition, vec3, lookRotation, VEC3_Y, VEC3_Z } from "snap-construction-system";
+import { BlockDefinition, vec3, lookRotation, VEC3_Y, VEC3_Z, QUAT_IDENTITY } from "snap-construction-system";
 import { exampleCatalog } from "snap-construction-system/examples/catalog.js";
 
 function sideAnchor(
@@ -104,7 +104,7 @@ export const motorWheelBlock: BlockDefinition = {
       radius: 0.8,
       halfHeight: 0.15,
       axis: "z",
-      transform: { position: vec3(0, 0, 0.3), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      transform: { position: vec3(0, 0, 0.3), rotation: QUAT_IDENTITY },
     },
   ],
   colliders: [
@@ -120,7 +120,7 @@ export const motorWheelBlock: BlockDefinition = {
       halfHeight: 0.15,
       axis: "z",
       friction: 2.0,
-      transform: { position: vec3(0, 0, 0.3), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      transform: { position: vec3(0, 0, 0.3), rotation: QUAT_IDENTITY },
     },
   ],
   anchors: [

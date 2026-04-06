@@ -12,6 +12,10 @@ import {
   MachinePartMountPlan,
   NormalizedGeometryDefinition,
   RuntimeInputState,
+  VEC3_Y,
+  quatFromUnitVectors,
+  axisNameToVector,
+  mulQuat,
 } from "snap-construction-system";
 
 interface PhysicsSceneProps {
@@ -203,11 +207,16 @@ function GeometryMesh({ geometry, color }: { geometry: NormalizedGeometryDefinit
           <meshStandardMaterial color={color} />
         </mesh>
       );
-    case "cylinder":
+    case "cylinder": {
+      // Three.js CylinderGeometry defaults to Y-axis. Apply axis correction.
+      const axisRot = geometry.axis && geometry.axis !== "y"
+        ? quatFromUnitVectors(VEC3_Y, axisNameToVector(geometry.axis))
+        : null;
+      const rot = axisRot ? mulQuat(t.rotation, axisRot) : t.rotation;
       return (
         <mesh
           position={[t.position.x, t.position.y, t.position.z]}
-          quaternion={[t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w]}
+          quaternion={[rot.x, rot.y, rot.z, rot.w]}
           castShadow
           receiveShadow
         >
@@ -215,6 +224,7 @@ function GeometryMesh({ geometry, color }: { geometry: NormalizedGeometryDefinit
           <meshStandardMaterial color={color} />
         </mesh>
       );
+    }
     default:
       return null;
   }
