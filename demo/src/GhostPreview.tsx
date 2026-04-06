@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
   BlockCatalog,
   NormalizedGeometryDefinition,
@@ -11,7 +11,7 @@ interface GhostPreviewProps {
   catalog: BlockCatalog;
 }
 
-export function GhostPreview({ typeId, blockTransform, catalog }: GhostPreviewProps) {
+export const GhostPreview = memo(function GhostPreview({ typeId, blockTransform, catalog }: GhostPreviewProps) {
   const block = useMemo(() => catalog.get(typeId), [catalog, typeId]);
   const pos = blockTransform.position;
   const rot = blockTransform.rotation;
@@ -49,7 +49,7 @@ export function GhostPreview({ typeId, blockTransform, catalog }: GhostPreviewPr
         })}
     </group>
   );
-}
+});
 
 function GhostGeometry({ geometry }: { geometry: NormalizedGeometryDefinition }) {
   const t = geometry.transform;
