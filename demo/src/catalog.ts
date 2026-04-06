@@ -207,6 +207,219 @@ export const thrusterUpBlock: BlockDefinition = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Walker blocks – Theo Jansen linkage components
+// ---------------------------------------------------------------------------
+
+// Walker collision group: only collides with ground (group 1), not other walker parts.
+// Rapier collision groups packed as (membership << 16) | filter.
+const WALKER_COLLISION_GROUP = (2 << 16) | 1;
+
+/** 10×2×6 chassis with hinge anchor points on both Z faces */
+export const walkerChassisBlock: BlockDefinition = {
+  id: "walker.chassis",
+  name: "Walker Chassis",
+  category: "structure",
+  mass: 120,
+  geometry: [{ kind: "box", size: vec3(10, 2, 6) }],
+  colliders: [{
+    kind: "box",
+    halfExtents: vec3(5, 1, 3),
+    friction: 0.5,
+    collisionGroups: WALKER_COLLISION_GROUP,
+  }],
+  anchors: [
+    // Right side (+Z face) – upper front leg, crank, back leg
+    sideAnchor("r.ufl", vec3(-2, 0, 3), vec3(0, 0, 1)),
+    sideAnchor("r.crank", vec3(-5, 0, 3), vec3(0, 0, 1)),
+    sideAnchor("r.back", vec3(5, 0, 3), vec3(0, 0, 1)),
+    // Left side (-Z face)
+    sideAnchor("l.ufl", vec3(-2, 0, -3), vec3(0, 0, -1)),
+    sideAnchor("l.crank", vec3(-5, 0, -3), vec3(0, 0, -1)),
+    sideAnchor("l.back", vec3(5, 0, -3), vec3(0, 0, -1)),
+  ],
+};
+
+/** 1×3×0.3 upper front leg bar */
+export const walkerBarUpperBlock: BlockDefinition = {
+  id: "walker.bar.upper",
+  name: "Walker Upper Leg",
+  category: "structure",
+  mass: 1,
+  geometry: [{ kind: "box", size: vec3(1, 3, 0.3) }],
+  colliders: [{
+    kind: "box",
+    halfExtents: vec3(0.5, 1.5, 0.15),
+    friction: 0.5,
+    collisionGroups: WALKER_COLLISION_GROUP,
+  }],
+  anchors: [
+    sideAnchor("yn", vec3(0, -1.5, 0), vec3(0, -1, 0)),
+    sideAnchor("yp", vec3(0, 1.5, 0), vec3(0, 1, 0)),
+  ],
+};
+
+/** 0.5×1×0.3 crank bar (motor-driven) */
+export const walkerBarCrankBlock: BlockDefinition = {
+  id: "walker.bar.crank",
+  name: "Walker Crank",
+  category: "structure",
+  mass: 0.2,
+  geometry: [{ kind: "box", size: vec3(0.5, 1, 0.3) }],
+  colliders: [{
+    kind: "box",
+    halfExtents: vec3(0.25, 0.5, 0.15),
+    friction: 0.5,
+    collisionGroups: WALKER_COLLISION_GROUP,
+  }],
+  anchors: [
+    sideAnchor("yp", vec3(0, 0.5, 0), vec3(0, 1, 0)),
+    sideAnchor("yn", vec3(0, -0.5, 0), vec3(0, -1, 0)),
+  ],
+};
+
+/** 1×6×0.3 leg bar (used for front and back legs) */
+export const walkerBarLegBlock: BlockDefinition = {
+  id: "walker.bar.leg",
+  name: "Walker Leg",
+  category: "structure",
+  mass: 2,
+  geometry: [{ kind: "box", size: vec3(1, 6, 0.3) }],
+  colliders: [{
+    kind: "box",
+    halfExtents: vec3(0.5, 3, 0.15),
+    friction: 0.5,
+    collisionGroups: WALKER_COLLISION_GROUP,
+  }],
+  anchors: [
+    sideAnchor("center.a", vec3(0, 0, 0), vec3(1, 0, 0)),
+    sideAnchor("center.b", vec3(0, 0, 0), vec3(-1, 0, 0)),
+    sideAnchor("upper", vec3(0, 2.5, 0), vec3(0, 1, 0)),
+  ],
+};
+
+/** 1×10×0.3 horizontal bar */
+export const walkerBarHorizBlock: BlockDefinition = {
+  id: "walker.bar.horiz",
+  name: "Walker Horizontal Bar",
+  category: "structure",
+  mass: 3,
+  geometry: [{ kind: "box", size: vec3(1, 10, 0.3) }],
+  colliders: [{
+    kind: "box",
+    halfExtents: vec3(0.5, 5, 0.15),
+    friction: 0.5,
+    collisionGroups: WALKER_COLLISION_GROUP,
+  }],
+  anchors: [
+    sideAnchor("yn", vec3(0, -5, 0), vec3(0, -1, 0)),
+    sideAnchor("yp", vec3(0, 5, 0), vec3(0, 1, 0)),
+  ],
+};
+
+/** Minimal passive pivot – Z-axis revolute joint, sensor colliders */
+export const walkerPivotBlock: BlockDefinition = {
+  id: "walker.pivot",
+  name: "Walker Pivot",
+  category: "joints",
+  parts: [
+    { id: "base", mass: 0.01 },
+    { id: "rotor", mass: 0.01 },
+  ],
+  geometry: [],
+  colliders: [
+    { kind: "box", partId: "base", halfExtents: vec3(0.05, 0.05, 0.05), sensor: true, mass: 0.01 },
+    { kind: "box", partId: "rotor", halfExtents: vec3(0.05, 0.05, 0.05), sensor: true, mass: 0.01 },
+  ],
+  anchors: [
+    {
+      id: "base.mount", partId: "base",
+      position: vec3(0, 0, 0), normal: vec3(-1, 0, 0),
+      orientation: lookRotation(vec3(-1, 0, 0), VEC3_Y), type: "struct",
+    },
+    {
+      id: "base.joint", partId: "base",
+      position: vec3(0, 0, 0), normal: vec3(1, 0, 0),
+      orientation: lookRotation(vec3(1, 0, 0), VEC3_Y), type: "joint", polarity: "positive",
+    },
+    {
+      id: "rotor.joint", partId: "rotor",
+      position: vec3(0, 0, 0), normal: vec3(-1, 0, 0),
+      orientation: lookRotation(vec3(-1, 0, 0), VEC3_Y), type: "joint", polarity: "negative",
+    },
+    {
+      id: "rotor.mount", partId: "rotor",
+      position: vec3(0, 0, 0), normal: vec3(1, 0, 0),
+      orientation: lookRotation(vec3(1, 0, 0), VEC3_Y), type: "struct",
+    },
+  ],
+  joint: {
+    kind: "revolute",
+    partA: "base",
+    partB: "rotor",
+    anchorA: "base.joint",
+    anchorB: "rotor.joint",
+    axis: vec3(0, 0, 1),
+    collideConnected: false,
+  },
+};
+
+/** Motorized pivot – Z-axis revolute joint with velocity motor */
+export const walkerMotorBlock: BlockDefinition = {
+  id: "walker.motor",
+  name: "Walker Motor",
+  category: "joints",
+  parts: [
+    { id: "base", mass: 0.01 },
+    { id: "rotor", mass: 0.01 },
+  ],
+  geometry: [],
+  colliders: [
+    { kind: "box", partId: "base", halfExtents: vec3(0.05, 0.05, 0.05), sensor: true, mass: 0.01 },
+    { kind: "box", partId: "rotor", halfExtents: vec3(0.05, 0.05, 0.05), sensor: true, mass: 0.01 },
+  ],
+  anchors: [
+    {
+      id: "base.mount", partId: "base",
+      position: vec3(0, 0, 0), normal: vec3(-1, 0, 0),
+      orientation: lookRotation(vec3(-1, 0, 0), VEC3_Y), type: "struct",
+    },
+    {
+      id: "base.joint", partId: "base",
+      position: vec3(0, 0, 0), normal: vec3(1, 0, 0),
+      orientation: lookRotation(vec3(1, 0, 0), VEC3_Y), type: "joint", polarity: "positive",
+    },
+    {
+      id: "rotor.joint", partId: "rotor",
+      position: vec3(0, 0, 0), normal: vec3(-1, 0, 0),
+      orientation: lookRotation(vec3(-1, 0, 0), VEC3_Y), type: "joint", polarity: "negative",
+    },
+    {
+      id: "rotor.mount", partId: "rotor",
+      position: vec3(0, 0, 0), normal: vec3(1, 0, 0),
+      orientation: lookRotation(vec3(1, 0, 0), VEC3_Y), type: "struct",
+    },
+  ],
+  joint: {
+    kind: "revolute",
+    partA: "base",
+    partB: "rotor",
+    anchorA: "base.joint",
+    anchorB: "rotor.joint",
+    axis: vec3(0, 0, 1),
+    motor: {
+      mode: "velocity",
+      targetVelocity: 0,
+      damping: 100,
+      stiffness: 0,
+      maxForce: 1000,
+      input: { action: "hingeSpin", scale: -7 },
+      inputTarget: "velocity",
+    },
+    collideConnected: false,
+  },
+};
+
 /** All demo blocks: core + extended */
 export const demoCatalog: BlockDefinition[] = [
   ...exampleCatalog,
@@ -214,4 +427,11 @@ export const demoCatalog: BlockDefinition[] = [
   beamBlock,
   motorWheelBlock,
   thrusterUpBlock,
+  walkerChassisBlock,
+  walkerBarUpperBlock,
+  walkerBarCrankBlock,
+  walkerBarLegBlock,
+  walkerBarHorizBlock,
+  walkerPivotBlock,
+  walkerMotorBlock,
 ];

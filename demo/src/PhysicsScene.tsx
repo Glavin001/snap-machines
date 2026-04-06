@@ -33,6 +33,14 @@ const BLOCK_COLORS: Record<string, string> = {
   "joint.motor.wheel": "#d4962e",
   "utility.thruster.small": "#ef5b5b",
   "utility.thruster.up": "#ef5b5b",
+  // Walker – Theo Jansen linkage
+  "walker.chassis": "#d4a854",
+  "walker.bar.upper": "#4a9e4a",
+  "walker.bar.crank": "#9e4a9e",
+  "walker.bar.leg": "#5b8def",
+  "walker.bar.horiz": "#ef5b8d",
+  "walker.pivot": "#888888",
+  "walker.motor": "#aa6633",
 };
 
 export function PhysicsScene({ graph, catalog, inputState, onReady }: PhysicsSceneProps) {
