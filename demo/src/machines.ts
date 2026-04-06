@@ -13,6 +13,8 @@ import {
   RuntimeInputState,
   alignAnchorPair,
   getWorldAnchorTransform,
+  quatFromAxisAngle,
+  VEC3_Z,
 } from "snap-construction-system";
 
 export interface MachinePreset {
@@ -155,19 +157,27 @@ function createWalkerLegSet(
   // Chassis center Y (above ground at Y=0)
   const Y = 5.5;
 
-  // --- Structural bar positions (approximate, solver corrects) ---
-  g.addNode({ id: `${prefix}-upper`, typeId: "walker.bar.upper",
-    transform: { position: vec3(-2, Y + 0.5, legZ), rotation: QUAT_IDENTITY } });
-  g.addNode({ id: `${prefix}-crank`, typeId: "walker.bar.crank",
-    transform: { position: vec3(-5, Y - 0.75, legZ), rotation: QUAT_IDENTITY } });
-  g.addNode({ id: `${prefix}-fleg`, typeId: "walker.bar.leg",
-    transform: { position: vec3(-5, Y - 1, legZ), rotation: QUAT_IDENTITY } });
-  g.addNode({ id: `${prefix}-hbar`, typeId: "walker.bar.horiz",
-    transform: { position: vec3(0, Y, legZ), rotation: QUAT_IDENTITY } });
-  g.addNode({ id: `${prefix}-bleg`, typeId: "walker.bar.leg",
-    transform: { position: vec3(5, Y, legZ), rotation: QUAT_IDENTITY } });
+  // Bar rotations computed from closed-loop linkage constraint equations.
+  // These ensure all hinge pivot points are consistent at t=0.
+  const upperRot = quatFromAxisAngle(VEC3_Z, 1.05863513);   // ~60.7°
+  const crankRot = QUAT_IDENTITY;                            // straight down
+  const flegRot  = quatFromAxisAngle(VEC3_Z, -0.15459009);  // ~-8.9°
+  const hbarRot  = quatFromAxisAngle(VEC3_Z, -1.22114806);  // ~-70.0°
+  const blegRot  = quatFromAxisAngle(VEC3_Z, 0.24445437);   // ~14.0°
 
-  // --- Hinge blocks at pivot positions ---
+  // --- Structural bar positions (centers derived from constraint equations) ---
+  g.addNode({ id: `${prefix}-upper`, typeId: "walker.bar.upper",
+    transform: { position: vec3(-3.307531, Y + 0.735093, legZ), rotation: upperRot } });
+  g.addNode({ id: `${prefix}-crank`, typeId: "walker.bar.crank",
+    transform: { position: vec3(-5, Y - 0.5, legZ), rotation: crankRot } });
+  g.addNode({ id: `${prefix}-fleg`, typeId: "walker.bar.leg",
+    transform: { position: vec3(-5, Y - 1, legZ), rotation: flegRot } });
+  g.addNode({ id: `${prefix}-hbar`, typeId: "walker.bar.horiz",
+    transform: { position: vec3(-0.302534, Y + 0.712837, legZ), rotation: hbarRot } });
+  g.addNode({ id: `${prefix}-bleg`, typeId: "walker.bar.leg",
+    transform: { position: vec3(5, Y, legZ), rotation: blegRot } });
+
+  // --- Hinge blocks at exact pivot positions ---
   g.addNode({ id: `${prefix}-h1`, typeId: "walker.pivot",
     transform: { position: vec3(-2, Y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h2`, typeId: "walker.motor",
@@ -179,9 +189,9 @@ function createWalkerLegSet(
   g.addNode({ id: `${prefix}-h5`, typeId: "walker.pivot",
     transform: { position: vec3(5, Y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h6`, typeId: "walker.pivot",
-    transform: { position: vec3(-3.5, Y + 1.2, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(-4.615062, Y + 1.470187, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h7`, typeId: "walker.pivot",
-    transform: { position: vec3(4.0, Y + 1.65, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(4.394933, Y + 2.425674, legZ), rotation: QUAT_IDENTITY } });
 
   // --- Structural connections (determines rigid body merging) ---
   const side = legZ > 0 ? "r" : "l";
