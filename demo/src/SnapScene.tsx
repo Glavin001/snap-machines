@@ -4,21 +4,17 @@ import * as THREE from "three";
 import {
   BlockCatalog,
   BlockGraph,
-  NormalizedBlockDefinition,
   findBestSnap,
   addSnappedBlockToGraph,
   TRANSFORM_IDENTITY,
-  QUAT_IDENTITY,
-  vec3,
-  transform,
-  Vec3,
   Transform,
 } from "snap-construction-system";
-import { exampleCatalog } from "snap-construction-system/examples/catalog.js";
 import { BlockMesh } from "./BlockMesh.js";
 import { GhostPreview } from "./GhostPreview.js";
 
 interface SnapSceneProps {
+  graph: BlockGraph;
+  catalog: BlockCatalog;
   selectedType: string;
   onBlockPlaced: () => void;
 }
@@ -29,23 +25,13 @@ interface PlacedBlock {
   transform: Transform;
 }
 
-export function SnapScene({ selectedType, onBlockPlaced }: SnapSceneProps) {
-  const catalog = useMemo(() => {
-    const c = new BlockCatalog();
-    c.registerMany(exampleCatalog);
-    return c;
-  }, []);
-
-  const [graph] = useState(() => {
-    const g = new BlockGraph();
-    g.addNode({ id: "origin", typeId: "frame.cube.1", transform: TRANSFORM_IDENTITY });
-    return g;
-  });
+export function SnapScene({ graph, catalog, selectedType, onBlockPlaced }: SnapSceneProps) {
   const graphRef = useRef<BlockGraph>(graph);
+  graphRef.current = graph;
 
-  const [blocks, setBlocks] = useState<PlacedBlock[]>([
-    { nodeId: "origin", typeId: "frame.cube.1", transform: TRANSFORM_IDENTITY },
-  ]);
+  const [blocks, setBlocks] = useState<PlacedBlock[]>(() =>
+    graph.listNodes().map((n) => ({ nodeId: n.id, typeId: n.typeId, transform: n.transform })),
+  );
 
   const [ghostTransform, setGhostTransform] = useState<Transform | null>(null);
   const [ghostType, setGhostType] = useState<string>(selectedType);

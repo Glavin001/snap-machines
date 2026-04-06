@@ -17,7 +17,10 @@ interface BlockMeshProps {
 
 const BLOCK_COLORS: Record<string, string> = {
   "frame.cube.1": "#5b8def",
+  "frame.plank.3x1": "#4a7cd8",
+  "frame.beam.5x1": "#3d6bc4",
   "joint.hinge.small": "#e8a838",
+  "joint.motor.wheel": "#d4962e",
   "utility.thruster.small": "#ef5b5b",
 };
 
