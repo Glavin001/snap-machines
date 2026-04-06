@@ -91,7 +91,7 @@ export function App() {
   // Gallery: select a preset to preview
   const handlePresetSelect = useCallback((preset: MachinePreset) => {
     setActivePreset(preset);
-    setPlayGraph(preset.build());
+    setPlayGraph(preset.build(catalog));
     setPhysicsReady(false);
     setMode("play");
   }, []);
