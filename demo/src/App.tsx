@@ -63,6 +63,10 @@ export function App() {
     setBlockCount((c) => c + 1);
   }, []);
 
+  const onBlockRemoved = useCallback(() => {
+    setBlockCount((c) => Math.max(1, c - 1));
+  }, []);
+
   // Keyboard input for physics controls
   const [inputState, setInputState] = useState<RuntimeInputState>({});
   const keysDown = useRef(new Set<string>());
@@ -254,7 +258,7 @@ export function App() {
         {mode === "build" && (
           <>
             <p style={{ margin: "0 0 12px", fontSize: 13, opacity: 0.8 }}>
-              Click a face to snap a new block. Then hit Play to simulate.
+              Click a face to snap a new block. Right-click a block to remove it. Then hit Play to simulate.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {BLOCK_TYPES.map((type) => (
@@ -544,6 +548,7 @@ export function App() {
               catalog={catalog}
               selectedType={selectedType}
               onBlockPlaced={onBlockPlaced}
+              onBlockRemoved={onBlockRemoved}
             />
           </>
         )}
