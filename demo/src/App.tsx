@@ -6,6 +6,7 @@ import {
   BlockGraph,
   TRANSFORM_IDENTITY,
   RuntimeInputState,
+  SerializedBlockGraph,
 } from "snap-construction-system";
 import { demoCatalog } from "./catalog.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
@@ -39,6 +40,9 @@ export function App() {
   const [mode, setMode] = useState<Mode>("gallery");
   const [physicsReady, setPhysicsReady] = useState(false);
   const [activePreset, setActivePreset] = useState<MachinePreset | null>(null);
+  const [showJson, setShowJson] = useState(false);
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   const catalog = useMemo(() => {
     const c = new BlockCatalog();
@@ -65,6 +69,8 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture keys when typing in textarea
+      if ((e.target as HTMLElement)?.tagName === "TEXTAREA") return;
       keysDown.current.add(e.key.toLowerCase());
       updateInput();
     };
@@ -88,27 +94,39 @@ export function App() {
     };
   }, []);
 
+  // Serialize a graph to pretty JSON for the editor
+  const graphToJsonText = useCallback((g: BlockGraph) => {
+    return JSON.stringify(g.toJSON(), null, 2);
+  }, []);
+
   // Gallery: select a preset to preview
   const handlePresetSelect = useCallback((preset: MachinePreset) => {
     setActivePreset(preset);
-    setPlayGraph(preset.build(catalog));
+    const g = preset.build(catalog);
+    setPlayGraph(g);
+    setJsonText(graphToJsonText(g));
+    setJsonError(null);
     setPhysicsReady(false);
     setMode("play");
-  }, []);
+  }, [catalog, graphToJsonText]);
 
   // Build mode: play the user's custom build
   const handlePlayCustom = useCallback(() => {
     setActivePreset(null);
-    setPlayGraph(graph.clone());
+    const g = graph.clone();
+    setPlayGraph(g);
+    setJsonText(graphToJsonText(g));
+    setJsonError(null);
     setPhysicsReady(false);
     setMode("play");
-  }, [graph]);
+  }, [graph, graphToJsonText]);
 
   const handleBuild = useCallback(() => {
     setMode("build");
     setPlayGraph(null);
     setActivePreset(null);
     setPhysicsReady(false);
+    setShowJson(false);
   }, []);
 
   const handleGallery = useCallback(() => {
@@ -116,7 +134,27 @@ export function App() {
     setPlayGraph(null);
     setActivePreset(null);
     setPhysicsReady(false);
+    setShowJson(false);
   }, []);
+
+  // Apply edited JSON: parse, rebuild graph, restart physics
+  const handleApplyJson = useCallback(() => {
+    try {
+      const parsed = JSON.parse(jsonText) as SerializedBlockGraph;
+      const g = BlockGraph.fromJSON(parsed);
+      // Validate against catalog
+      const validation = g.validateAgainstCatalog(catalog);
+      if (!validation.ok) {
+        setJsonError(validation.errors.join("; "));
+        return;
+      }
+      setPlayGraph(g);
+      setJsonError(null);
+      setPhysicsReady(false);
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : String(err));
+    }
+  }, [jsonText, catalog]);
 
   // Input: use auto-input from preset, or keyboard input
   const effectiveInput = activePreset ? activePreset.autoInput : inputState;
@@ -328,33 +366,144 @@ export function App() {
                 Stop
               </button>
             </div>
+            {/* JSON editor toggle */}
+            <button
+              onClick={() => setShowJson(!showJson)}
+              style={{
+                marginTop: 10,
+                padding: "6px 10px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 6,
+                background: showJson ? "rgba(108,99,255,0.2)" : "transparent",
+                color: "#ccc",
+                cursor: "pointer",
+                fontSize: 12,
+                width: "100%",
+                transition: "all 0.15s",
+              }}
+            >
+              {showJson ? "Hide" : "Show"} Graph JSON
+            </button>
           </>
         )}
       </div>
 
+      {/* JSON Editor Panel (right side) */}
+      {mode === "play" && showJson && (
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            bottom: 16,
+            width: 420,
+            zIndex: 10,
+            color: "#e0e0e0",
+            background: "rgba(0,0,0,0.85)",
+            borderRadius: 12,
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ padding: "12px 16px 8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>
+              Machine Graph JSON
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>
+              Edit the graph and click Apply to rebuild with physics.
+            </div>
+          </div>
+          <textarea
+            value={jsonText}
+            onChange={(e) => {
+              setJsonText(e.target.value);
+              setJsonError(null);
+            }}
+            spellCheck={false}
+            style={{
+              flex: 1,
+              margin: 0,
+              padding: "12px 16px",
+              border: "none",
+              background: "transparent",
+              color: "#c8d6e5",
+              fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace",
+              fontSize: 11,
+              lineHeight: 1.5,
+              resize: "none",
+              outline: "none",
+              whiteSpace: "pre",
+              overflowX: "auto",
+              tabSize: 2,
+            }}
+          />
+          {jsonError && (
+            <div
+              style={{
+                padding: "8px 16px",
+                background: "rgba(244,67,54,0.15)",
+                borderTop: "1px solid rgba(244,67,54,0.3)",
+                color: "#ef9a9a",
+                fontSize: 11,
+                lineHeight: 1.4,
+                maxHeight: 60,
+                overflowY: "auto",
+              }}
+            >
+              {jsonError}
+            </div>
+          )}
+          <div style={{ padding: "8px 16px 12px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+            <button
+              onClick={handleApplyJson}
+              style={{
+                padding: "8px 16px",
+                border: "none",
+                borderRadius: 6,
+                background: "#4caf50",
+                color: "#fff",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                width: "100%",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#66bb6a")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#4caf50")}
+            >
+              Apply Changes
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Mode indicator */}
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          right: 16,
-          zIndex: 10,
-          padding: "8px 16px",
-          borderRadius: 8,
-          background:
-            mode === "gallery"
-              ? "rgba(255,255,255,0.15)"
-              : mode === "build"
-                ? "rgba(108,99,255,0.8)"
-                : "rgba(76,175,80,0.8)",
-          color: "#fff",
-          fontSize: 14,
-          fontWeight: 600,
-          backdropFilter: "blur(8px)",
-        }}
-      >
-        {mode === "gallery" ? "GALLERY" : mode === "build" ? "BUILD MODE" : "PLAY MODE"}
-      </div>
+      {!(mode === "play" && showJson) && (
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            zIndex: 10,
+            padding: "8px 16px",
+            borderRadius: 8,
+            background:
+              mode === "gallery"
+                ? "rgba(255,255,255,0.15)"
+                : mode === "build"
+                  ? "rgba(108,99,255,0.8)"
+                  : "rgba(76,175,80,0.8)",
+            color: "#fff",
+            fontSize: 14,
+            fontWeight: 600,
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          {mode === "gallery" ? "GALLERY" : mode === "build" ? "BUILD MODE" : "PLAY MODE"}
+        </div>
+      )}
 
       {/* 3D Scene */}
       <Canvas
