@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react";
+import { memo, useRef, useEffect, useMemo } from "react";
 import * as THREE from "three";
 import {
   BlockCatalog,
@@ -29,7 +29,7 @@ const BLOCK_COLORS: Record<string, string> = {
   "utility.thruster.up": "#ef5b5b",
 };
 
-export function BlockMesh({ nodeId, typeId, blockTransform, catalog }: BlockMeshProps) {
+export const BlockMesh = memo(function BlockMesh({ nodeId, typeId, blockTransform, catalog }: BlockMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const block = useMemo(() => catalog.get(typeId), [catalog, typeId]);
   const color = BLOCK_COLORS[typeId] ?? "#999";
@@ -89,7 +89,7 @@ export function BlockMesh({ nodeId, typeId, blockTransform, catalog }: BlockMesh
         })}
     </group>
   );
-}
+});
 
 function GeometryMesh({ geometry, color }: { geometry: NormalizedGeometryDefinition; color: string }) {
   const t = geometry.transform;
