@@ -3,6 +3,8 @@ import { compileMachinePlan } from "../compile/plan.js";
 import { BlockCatalog, BlockDefinition } from "../schema.js";
 import { BlockGraph } from "../graph.js";
 import { QUAT_IDENTITY, TRANSFORM_IDENTITY, vec3, transform, VEC3_Y, lookRotation } from "../math.js";
+import { alignAnchorPair, getWorldAnchorTransform } from "../snap.js";
+import { floorBlock, wallBlock, roofBlock, wallDoorBlock } from "../examples/catalog.js";
 
 function cubeBlock(): BlockDefinition {
   return {
@@ -191,5 +193,105 @@ describe("compileMachinePlan - fixed body kind", () => {
 
     const plan = compileMachinePlan(graph, catalog);
     expect(plan.bodies[0]!.kind).toBe("fixed");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// House structure – compound machine test
+// ---------------------------------------------------------------------------
+
+function snapBlockHelper(
+  g: BlockGraph,
+  catalog: BlockCatalog,
+  opts: {
+    id: string;
+    typeId: string;
+    targetBlockId: string;
+    targetAnchorId: string;
+    sourceAnchorId: string;
+  },
+): void {
+  const targetNode = g.getNode(opts.targetBlockId)!;
+  const targetBlock = catalog.get(targetNode.typeId);
+  const targetAnchor = targetBlock.anchors.find((a) => a.id === opts.targetAnchorId)!;
+  const targetWorld = getWorldAnchorTransform(targetNode.transform, targetAnchor);
+
+  const sourceBlock = catalog.get(opts.typeId);
+  const sourceAnchor = sourceBlock.anchors.find((a) => a.id === opts.sourceAnchorId)!;
+  const placement = alignAnchorPair(targetWorld, sourceAnchor);
+
+  g.addNode({ id: opts.id, typeId: opts.typeId, transform: placement });
+  g.addConnection({
+    a: { blockId: opts.targetBlockId, anchorId: opts.targetAnchorId },
+    b: { blockId: opts.id, anchorId: opts.sourceAnchorId },
+  });
+}
+
+describe("compileMachinePlan - house structure", () => {
+  it("compiles a house with a hinged door into correct topology", () => {
+    const catalog = new BlockCatalog();
+    catalog.registerMany([floorBlock, wallBlock, roofBlock, wallDoorBlock]);
+
+    const g = new BlockGraph();
+    g.addNode({
+      id: "floor",
+      typeId: "structure.floor.4x4",
+      transform: { position: vec3(0, 0.1, 0), rotation: QUAT_IDENTITY },
+    });
+
+    // 3 plain walls
+    snapBlockHelper(g, catalog, {
+      id: "wall-xp",
+      typeId: "structure.wall.4x3",
+      targetBlockId: "floor",
+      targetAnchorId: "edge.xp",
+      sourceAnchorId: "bottom",
+    });
+    snapBlockHelper(g, catalog, {
+      id: "wall-xn",
+      typeId: "structure.wall.4x3",
+      targetBlockId: "floor",
+      targetAnchorId: "edge.xn",
+      sourceAnchorId: "bottom",
+    });
+    snapBlockHelper(g, catalog, {
+      id: "wall-zn",
+      typeId: "structure.wall.4x3",
+      targetBlockId: "floor",
+      targetAnchorId: "edge.zn",
+      sourceAnchorId: "bottom",
+    });
+
+    // Wall with door
+    snapBlockHelper(g, catalog, {
+      id: "wall-door",
+      typeId: "structure.wall-door.4x3",
+      targetBlockId: "floor",
+      targetAnchorId: "edge.zp",
+      sourceAnchorId: "bottom",
+    });
+
+    // Roof
+    snapBlockHelper(g, catalog, {
+      id: "roof",
+      typeId: "structure.roof.4x4",
+      targetBlockId: "wall-xp",
+      targetAnchorId: "top",
+      sourceAnchorId: "edge.xp",
+    });
+
+    const plan = compileMachinePlan(g, catalog);
+    expect(plan.diagnostics.filter((d) => d.level === "error")).toHaveLength(0);
+
+    // All structural parts (floor, 3 walls, door frame, roof) merge into one body.
+    // The door panel is a separate dynamic body.
+    expect(plan.bodies).toHaveLength(2);
+
+    // One revolute joint for the door hinge
+    expect(plan.joints).toHaveLength(1);
+    expect(plan.joints[0]!.kind).toBe("revolute");
+
+    // The door joint should have no motor
+    expect(plan.joints[0]!.motor).toBeUndefined();
   });
 });

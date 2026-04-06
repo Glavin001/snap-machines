@@ -175,4 +175,202 @@ export const thrusterBlock: BlockDefinition = {
   ],
 };
 
-export const exampleCatalog: BlockDefinition[] = [frameCubeBlock, hingeBlock, thrusterBlock];
+// ---------------------------------------------------------------------------
+// House structure blocks
+// ---------------------------------------------------------------------------
+
+export const floorBlock: BlockDefinition = {
+  id: "structure.floor.4x4",
+  name: "Floor 4x4",
+  category: "structure",
+  mass: 5,
+  geometry: [{ kind: "box", size: vec3(4, 0.2, 4) }],
+  colliders: [{ kind: "box", halfExtents: vec3(2, 0.1, 2) }],
+  anchors: [
+    sideAnchor("edge.xp", vec3(2, 0.1, 0), vec3(1, 0, 0)),
+    sideAnchor("edge.xn", vec3(-2, 0.1, 0), vec3(-1, 0, 0)),
+    sideAnchor("edge.zp", vec3(0, 0.1, 2), vec3(0, 0, 1)),
+    sideAnchor("edge.zn", vec3(0, 0.1, -2), vec3(0, 0, -1)),
+  ],
+};
+
+export const wallBlock: BlockDefinition = {
+  id: "structure.wall.4x3",
+  name: "Wall 4x3",
+  category: "structure",
+  mass: 3,
+  geometry: [{ kind: "box", size: vec3(4, 3, 0.2) }],
+  colliders: [{ kind: "box", halfExtents: vec3(2, 1.5, 0.1) }],
+  anchors: [
+    sideAnchor("bottom", vec3(0, -1.5, -0.1), vec3(0, 0, -1)),
+    sideAnchor("top", vec3(0, 1.5, -0.1), vec3(0, 0, -1)),
+    sideAnchor("left", vec3(-2, 0, 0), vec3(-1, 0, 0)),
+    sideAnchor("right", vec3(2, 0, 0), vec3(1, 0, 0)),
+  ],
+};
+
+export const roofBlock: BlockDefinition = {
+  id: "structure.roof.4x4",
+  name: "Roof 4x4",
+  category: "structure",
+  mass: 5,
+  geometry: [{ kind: "box", size: vec3(4, 0.2, 4) }],
+  colliders: [{ kind: "box", halfExtents: vec3(2, 0.1, 2) }],
+  anchors: [
+    sideAnchor("edge.xp", vec3(2, -0.1, 0), vec3(1, 0, 0)),
+    sideAnchor("edge.xn", vec3(-2, -0.1, 0), vec3(-1, 0, 0)),
+    sideAnchor("edge.zp", vec3(0, -0.1, 2), vec3(0, 0, 1)),
+    sideAnchor("edge.zn", vec3(0, -0.1, -2), vec3(0, 0, -1)),
+  ],
+};
+
+/**
+ * Compound wall block with a hinged door.
+ *
+ * The "frame" part is made of three box colliders that form a doorway cutout
+ * (left pillar, right pillar, header). The "door" part is a thin panel that
+ * sits in the opening, connected via a free-spinning revolute joint so it
+ * can be pushed open.
+ */
+export const wallDoorBlock: BlockDefinition = {
+  id: "structure.wall-door.4x3",
+  name: "Wall 4x3 with Door",
+  category: "structure",
+  parts: [
+    { id: "frame", mass: 2.5 },
+    { id: "door", mass: 0.5 },
+  ],
+  geometry: [
+    // Frame – left section
+    {
+      kind: "box",
+      partId: "frame",
+      size: vec3(1.5, 3, 0.2),
+      transform: { position: vec3(-1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+    // Frame – right section
+    {
+      kind: "box",
+      partId: "frame",
+      size: vec3(1.5, 3, 0.2),
+      transform: { position: vec3(1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+    // Frame – header above door
+    {
+      kind: "box",
+      partId: "frame",
+      size: vec3(1, 0.6, 0.2),
+      transform: { position: vec3(0, 1.2, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+    // Door panel
+    {
+      kind: "box",
+      partId: "door",
+      size: vec3(1, 2.4, 0.1),
+      transform: { position: vec3(0, -0.3, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+  ],
+  colliders: [
+    // Frame – left section
+    {
+      kind: "box",
+      partId: "frame",
+      halfExtents: vec3(0.75, 1.5, 0.1),
+      transform: { position: vec3(-1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+    // Frame – right section
+    {
+      kind: "box",
+      partId: "frame",
+      halfExtents: vec3(0.75, 1.5, 0.1),
+      transform: { position: vec3(1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+    // Frame – header above door
+    {
+      kind: "box",
+      partId: "frame",
+      halfExtents: vec3(0.5, 0.3, 0.1),
+      transform: { position: vec3(0, 1.2, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+    // Door panel (slightly thinner than the frame)
+    {
+      kind: "box",
+      partId: "door",
+      halfExtents: vec3(0.5, 1.2, 0.05),
+      transform: { position: vec3(0, -0.3, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+    },
+  ],
+  anchors: [
+    // Structural anchors on the frame (same layout as plain wall)
+    {
+      id: "bottom",
+      partId: "frame",
+      position: vec3(0, -1.5, -0.1),
+      normal: vec3(0, 0, -1),
+      orientation: lookRotation(vec3(0, 0, -1), VEC3_Y),
+      type: "struct",
+    },
+    {
+      id: "top",
+      partId: "frame",
+      position: vec3(0, 1.5, -0.1),
+      normal: vec3(0, 0, -1),
+      orientation: lookRotation(vec3(0, 0, -1), VEC3_Y),
+      type: "struct",
+    },
+    {
+      id: "left",
+      partId: "frame",
+      position: vec3(-2, 0, 0),
+      normal: vec3(-1, 0, 0),
+      orientation: lookRotation(vec3(-1, 0, 0), VEC3_Y),
+      type: "struct",
+    },
+    {
+      id: "right",
+      partId: "frame",
+      position: vec3(2, 0, 0),
+      normal: vec3(1, 0, 0),
+      orientation: lookRotation(vec3(1, 0, 0), VEC3_Y),
+      type: "struct",
+    },
+    // Internal joint anchors for door hinge
+    {
+      id: "frame.joint",
+      partId: "frame",
+      position: vec3(-0.5, -0.3, 0),
+      normal: vec3(0, 0, 1),
+      orientation: lookRotation(vec3(0, 0, 1), VEC3_Y),
+      type: "joint",
+      polarity: "positive",
+    },
+    {
+      id: "door.joint",
+      partId: "door",
+      position: vec3(-0.5, -0.3, 0),
+      normal: vec3(0, 0, -1),
+      orientation: lookRotation(vec3(0, 0, -1), VEC3_Y),
+      type: "joint",
+      polarity: "negative",
+    },
+  ],
+  joint: {
+    kind: "revolute",
+    partA: "frame",
+    partB: "door",
+    anchorA: "frame.joint",
+    anchorB: "door.joint",
+    axis: vec3(0, 1, 0),
+    // No motor – the door swings freely
+  },
+};
+
+export const exampleCatalog: BlockDefinition[] = [
+  frameCubeBlock,
+  hingeBlock,
+  thrusterBlock,
+  floorBlock,
+  wallBlock,
+  roofBlock,
+  wallDoorBlock,
+];

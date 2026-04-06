@@ -8,6 +8,7 @@ import {
   cloneBlockDefinition,
 } from "../schema.js";
 import { vec3, VEC3_Y, VEC3_Z, lookRotation, QUAT_IDENTITY } from "../math.js";
+import { floorBlock, wallBlock, roofBlock, wallDoorBlock } from "../examples/catalog.js";
 
 function minimalBlock(overrides: Partial<BlockDefinition> = {}): BlockDefinition {
   return {
@@ -334,6 +335,46 @@ describe("structuralPolarityMatch", () => {
   it("same polarities don't match", () => {
     expect(structuralPolarityMatch("positive", "positive")).toBe(false);
     expect(structuralPolarityMatch("negative", "negative")).toBe(false);
+  });
+});
+
+describe("house structure blocks", () => {
+  it("validates floor block", () => {
+    expect(() => validateBlockDefinition(floorBlock)).not.toThrow();
+    const norm = normalizeBlockDefinition(floorBlock);
+    expect(norm.parts).toHaveLength(1);
+    expect(norm.anchors).toHaveLength(4);
+    expect(norm.colliders).toHaveLength(1);
+  });
+
+  it("validates wall block", () => {
+    expect(() => validateBlockDefinition(wallBlock)).not.toThrow();
+    const norm = normalizeBlockDefinition(wallBlock);
+    expect(norm.anchors).toHaveLength(4);
+  });
+
+  it("validates roof block", () => {
+    expect(() => validateBlockDefinition(roofBlock)).not.toThrow();
+    const norm = normalizeBlockDefinition(roofBlock);
+    expect(norm.anchors).toHaveLength(4);
+  });
+
+  it("validates wall-with-door compound block", () => {
+    expect(() => validateBlockDefinition(wallDoorBlock)).not.toThrow();
+    const norm = normalizeBlockDefinition(wallDoorBlock);
+    expect(norm.parts).toHaveLength(2);
+    expect(norm.parts.map((p) => p.id).sort()).toEqual(["door", "frame"]);
+    expect(norm.colliders).toHaveLength(4); // 3 frame + 1 door
+    expect(norm.anchors).toHaveLength(6); // 4 struct + 2 joint
+    expect(norm.joint).toBeDefined();
+    expect(norm.joint!.kind).toBe("revolute");
+    expect(norm.joint!.motor).toBeUndefined();
+  });
+
+  it("registers all house blocks in a catalog", () => {
+    const catalog = new BlockCatalog();
+    catalog.registerMany([floorBlock, wallBlock, roofBlock, wallDoorBlock]);
+    expect(catalog.list()).toHaveLength(4);
   });
 });
 
