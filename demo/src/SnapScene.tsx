@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback, useMemo, useEffect } from "react";
-import { ThreeEvent } from "@react-three/fiber";
+import { useRef, useState, useCallback, useEffect } from "react";
+import { ThreeEvent, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   BlockCatalog,
@@ -39,55 +39,69 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced }: SnapS
     graph.listNodes().map((n) => ({ nodeId: n.id, typeId: n.typeId, transform: n.transform })),
   );
 
-  const [ghostTransform, setGhostTransform] = useState<Transform | null>(null);
-
-  // Store the last valid hit so we can recompute the snap when selectedType changes
-  // or after placing a block, without requiring a new pointer event.
+  // ---------------------------------------------------------------------------
+  // Ghost preview – all fast-changing state lives in refs so pointer-move
+  // updates never trigger React re-renders.  useFrame syncs the visual.
+  // ---------------------------------------------------------------------------
+  const ghostGroupRef = useRef<THREE.Group>(null);
+  const snapTransformRef = useRef<Transform | null>(null);
   const lastHitRef = useRef<HitInfo | null>(null);
 
-  // Helper: run findBestSnap and update ghost transform.
-  const recomputeSnap = useCallback(
+  // Apply the latest snap transform to the ghost group every frame.
+  // This is the ONLY place position / visibility are touched — no setState.
+  useFrame(() => {
+    const group = ghostGroupRef.current;
+    if (!group) return;
+    const t = snapTransformRef.current;
+    if (t) {
+      group.position.set(t.position.x, t.position.y, t.position.z);
+      group.quaternion.set(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
+      group.visible = true;
+    } else {
+      group.visible = false;
+    }
+  });
+
+  // Compute snap and store result in the ref (no setState, no re-render).
+  const computeSnap = useCallback(
     (hit: HitInfo) => {
       const snap = findBestSnap({
         graph: graphRef.current,
         catalog,
         candidateTypeId: selectedType,
-        hit: {
-          blockId: hit.blockId,
-          point: hit.point,
-        },
+        hit: { blockId: hit.blockId, point: hit.point },
       });
-      setGhostTransform(snap ? snap.placement : null);
-      return snap;
+      snapTransformRef.current = snap ? snap.placement : null;
+      return snap ?? null;
     },
     [catalog, selectedType],
   );
 
-  // When selectedType changes, immediately recompute the snap at the last
-  // known pointer position so the ghost updates without requiring mouse movement.
+  // When selectedType changes, recompute snap at the last pointer position so
+  // the ghost updates immediately without requiring mouse movement.
   useEffect(() => {
     if (lastHitRef.current) {
-      recomputeSnap(lastHitRef.current);
+      computeSnap(lastHitRef.current);
     }
-  }, [recomputeSnap]);
+  }, [computeSnap]);
 
   const handlePointerMove = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation();
       const blockId = findBlockId(e.object);
       if (!blockId) {
-        // Pointer is between faces or over empty space inside the group.
-        // Keep the ghost at its last valid position to avoid flicker — it
-        // will be cleared properly when the pointer leaves the group entirely.
+        // Pointer is between faces or on empty space inside the group.
+        // Keep the ghost at its last valid position — it will be cleared
+        // when the pointer leaves the group entirely (handlePointerLeave).
         return;
       }
 
       const point = e.point;
       const hit: HitInfo = { blockId, point: { x: point.x, y: point.y, z: point.z } };
       lastHitRef.current = hit;
-      recomputeSnap(hit);
+      computeSnap(hit);
     },
-    [recomputeSnap],
+    [computeSnap],
   );
 
   const handleClick = useCallback(
@@ -101,10 +115,7 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced }: SnapS
         graph: graphRef.current,
         catalog,
         candidateTypeId: selectedType,
-        hit: {
-          blockId,
-          point: { x: point.x, y: point.y, z: point.z },
-        },
+        hit: { blockId, point: { x: point.x, y: point.y, z: point.z } },
       });
 
       if (!snap) return;
@@ -115,29 +126,25 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced }: SnapS
         snap,
       });
 
-      const newBlock = { nodeId, typeId: selectedType, transform: snap.placement };
-      setBlocks((prev) => [...prev, newBlock]);
+      setBlocks((prev) => [
+        ...prev,
+        { nodeId, typeId: selectedType, transform: snap.placement },
+      ]);
 
-      // After placement, recompute the ghost targeting the newly placed block
-      // so the preview stays visible if the user wants to stack more blocks.
+      // Recompute ghost targeting the newly placed block so the preview
+      // persists for rapid stacking without waiting for a pointer move.
       const updatedHit: HitInfo = { blockId: nodeId, point: { x: point.x, y: point.y, z: point.z } };
       lastHitRef.current = updatedHit;
-      const nextSnap = findBestSnap({
-        graph: graphRef.current,
-        catalog,
-        candidateTypeId: selectedType,
-        hit: { blockId: nodeId, point: updatedHit.point },
-      });
-      setGhostTransform(nextSnap ? nextSnap.placement : null);
+      computeSnap(updatedHit);
 
       onBlockPlaced();
     },
-    [catalog, selectedType, onBlockPlaced],
+    [catalog, selectedType, onBlockPlaced, computeSnap],
   );
 
   const handlePointerLeave = useCallback(() => {
     lastHitRef.current = null;
-    setGhostTransform(null);
+    snapTransformRef.current = null;
   }, []);
 
   return (
@@ -155,13 +162,12 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced }: SnapS
           catalog={catalog}
         />
       ))}
-      {ghostTransform && (
-        <GhostPreview
-          typeId={selectedType}
-          blockTransform={ghostTransform}
-          catalog={catalog}
-        />
-      )}
+      {/* Ghost is always mounted; visibility is driven by useFrame above. */}
+      <GhostPreview
+        ref={ghostGroupRef}
+        typeId={selectedType}
+        catalog={catalog}
+      />
     </group>
   );
 }
