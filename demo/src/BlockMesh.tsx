@@ -6,6 +6,10 @@ import {
   NormalizedGeometryDefinition,
   Transform,
   composeTransforms,
+  VEC3_Y,
+  quatFromUnitVectors,
+  axisNameToVector,
+  mulQuat,
 } from "snap-construction-system";
 
 interface BlockMeshProps {
@@ -17,8 +21,12 @@ interface BlockMeshProps {
 
 const BLOCK_COLORS: Record<string, string> = {
   "frame.cube.1": "#5b8def",
+  "frame.plank.3x1": "#4a7cd8",
+  "frame.beam.5x1": "#3d6bc4",
   "joint.hinge.small": "#e8a838",
+  "joint.motor.wheel": "#d4962e",
   "utility.thruster.small": "#ef5b5b",
+  "utility.thruster.up": "#ef5b5b",
 };
 
 export function BlockMesh({ nodeId, typeId, blockTransform, catalog }: BlockMeshProps) {
@@ -122,11 +130,15 @@ function GeometryMesh({ geometry, color }: { geometry: NormalizedGeometryDefinit
           <meshStandardMaterial color={color} />
         </mesh>
       );
-    case "cylinder":
+    case "cylinder": {
+      const axisRot = geometry.axis && geometry.axis !== "y"
+        ? quatFromUnitVectors(VEC3_Y, axisNameToVector(geometry.axis))
+        : null;
+      const rot = axisRot ? mulQuat(t.rotation, axisRot) : t.rotation;
       return (
         <mesh
           position={[t.position.x, t.position.y, t.position.z]}
-          quaternion={[t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w]}
+          quaternion={[rot.x, rot.y, rot.z, rot.w]}
           castShadow
           receiveShadow
         >
@@ -134,6 +146,7 @@ function GeometryMesh({ geometry, color }: { geometry: NormalizedGeometryDefinit
           <meshStandardMaterial color={color} />
         </mesh>
       );
+    }
     default:
       return null;
   }
