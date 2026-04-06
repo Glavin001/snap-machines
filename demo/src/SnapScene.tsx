@@ -17,6 +17,7 @@ interface SnapSceneProps {
   catalog: BlockCatalog;
   selectedType: string;
   onBlockPlaced: () => void;
+  onBlockRemoved: () => void;
 }
 
 interface PlacedBlock {
@@ -31,7 +32,7 @@ interface HitInfo {
   point: { x: number; y: number; z: number };
 }
 
-export function SnapScene({ graph, catalog, selectedType, onBlockPlaced }: SnapSceneProps) {
+export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlockRemoved }: SnapSceneProps) {
   const graphRef = useRef<BlockGraph>(graph);
   graphRef.current = graph;
 
@@ -147,10 +148,35 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced }: SnapS
     snapTransformRef.current = null;
   }, []);
 
+  const handleContextMenu = useCallback(
+    (e: ThreeEvent<MouseEvent>) => {
+      e.stopPropagation();
+      // Prevent browser context menu
+      e.nativeEvent.preventDefault();
+
+      const blockId = findBlockId(e.object);
+      if (!blockId) return;
+
+      // Don't allow deleting the origin block — it's the seed
+      if (blockId === "origin") return;
+
+      graphRef.current.removeNode(blockId);
+      setBlocks((prev) => prev.filter((b) => b.nodeId !== blockId));
+
+      // Clear ghost since the surface we were hovering may be gone
+      lastHitRef.current = null;
+      snapTransformRef.current = null;
+
+      onBlockRemoved();
+    },
+    [onBlockRemoved],
+  );
+
   return (
     <group
       onPointerMove={handlePointerMove}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       onPointerLeave={handlePointerLeave}
     >
       {blocks.map((block) => (
