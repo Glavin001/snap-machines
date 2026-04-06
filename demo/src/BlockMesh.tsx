@@ -22,6 +22,7 @@ const BLOCK_COLORS: Record<string, string> = {
   "joint.hinge.small": "#e8a838",
   "joint.motor.wheel": "#d4962e",
   "utility.thruster.small": "#ef5b5b",
+  "utility.thruster.up": "#ef5b5b",
 };
 
 export function BlockMesh({ nodeId, typeId, blockTransform, catalog }: BlockMeshProps) {

@@ -8,16 +8,11 @@
 import {
   BlockCatalog,
   BlockGraph,
-  TRANSFORM_IDENTITY,
   QUAT_IDENTITY,
   vec3,
-  transform,
-  quatFromAxisAngle,
   RuntimeInputState,
   alignAnchorPair,
   getWorldAnchorTransform,
-  NormalizedAnchorDefinition,
-  Transform,
 } from "snap-construction-system";
 
 export interface MachinePreset {
@@ -29,9 +24,9 @@ export interface MachinePreset {
 }
 
 /**
- * Helper: place a new block so that `sourceAnchorId` on the new block aligns
- * with `targetAnchorId` on the existing `targetBlockId`.
- * Returns the new block's node id.
+ * Place a new block so that `sourceAnchorId` on the new block aligns exactly
+ * with `targetAnchorId` on the existing `targetBlockId`. Uses the same anchor
+ * alignment math as the interactive snap solver.
  */
 function snapBlock(
   g: BlockGraph,
@@ -65,19 +60,22 @@ function snapBlock(
 
 // ---------------------------------------------------------------------------
 // 1. Simple 4-Wheel Car
+//
+// Beam chassis (5x1) with 4 motor-wheels on the Z-side faces.
+// Wheel radius (0.8) > chassis half-height (0.5), so the car rides
+// on wheels without the chassis dragging the ground.
 // ---------------------------------------------------------------------------
 
 function buildCar(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Chassis: beam at height 2 (above ground at y=-0.5)
   g.addNode({
     id: "chassis",
     typeId: "frame.beam.5x1",
     transform: { position: vec3(0, 2, 0), rotation: QUAT_IDENTITY },
   });
 
-  // 4 motor-wheels snapped to the Z-side anchors of the chassis
+  // Front-left (+Z side, X=-2)
   snapBlock(g, catalog, {
     id: "fl-wheel",
     typeId: "joint.motor.wheel",
@@ -86,6 +84,7 @@ function buildCar(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "axle.mount",
   });
 
+  // Front-right (-Z side, X=-2)
   snapBlock(g, catalog, {
     id: "fr-wheel",
     typeId: "joint.motor.wheel",
@@ -94,6 +93,7 @@ function buildCar(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "axle.mount",
   });
 
+  // Rear-left (+Z side, X=+2)
   snapBlock(g, catalog, {
     id: "rl-wheel",
     typeId: "joint.motor.wheel",
@@ -102,6 +102,7 @@ function buildCar(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "axle.mount",
   });
 
+  // Rear-right (-Z side, X=+2)
   snapBlock(g, catalog, {
     id: "rr-wheel",
     typeId: "joint.motor.wheel",
@@ -114,73 +115,84 @@ function buildCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Hinged Walker – a body with hinged legs
+// 2. Hinged Walker
+//
+// Two planks joined along Z form a wide body. Hinges on the bottom face
+// (yn anchors) have axis=Z in world space, so legs swing forward/backward.
+// Rotor extends downward (-Y), legs hang below the body.
 // ---------------------------------------------------------------------------
 
 function buildWalker(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Central body plank at height 3
+  // Two planks joined along Z for a 3x1x2 body with 4 bottom corners
   g.addNode({
-    id: "body",
+    id: "body-a",
     typeId: "frame.plank.3x1",
     transform: { position: vec3(0, 3, 0), rotation: QUAT_IDENTITY },
   });
-
-  // Left front: hinge base connects to body's -Z left face, leg on rotor end
   snapBlock(g, catalog, {
-    id: "hinge-lf",
-    typeId: "joint.hinge.small",
-    targetBlockId: "body",
-    targetAnchorId: "zn.l",
-    sourceAnchorId: "base.xn",
-  });
-  snapBlock(g, catalog, {
-    id: "leg-lf",
-    typeId: "frame.cube.1",
-    targetBlockId: "hinge-lf",
-    targetAnchorId: "rotor.xp",
-    sourceAnchorId: "zp",
-  });
-
-  // Right front
-  snapBlock(g, catalog, {
-    id: "hinge-rf",
-    typeId: "joint.hinge.small",
-    targetBlockId: "body",
-    targetAnchorId: "zp.l",
-    sourceAnchorId: "base.xn",
-  });
-  snapBlock(g, catalog, {
-    id: "leg-rf",
-    typeId: "frame.cube.1",
-    targetBlockId: "hinge-rf",
-    targetAnchorId: "rotor.xp",
+    id: "body-b",
+    typeId: "frame.plank.3x1",
+    targetBlockId: "body-a",
+    targetAnchorId: "zp",
     sourceAnchorId: "zn",
   });
 
-  // Left rear
+  // Front-left leg: hinge on body-a bottom-left, leg cube on rotor
   snapBlock(g, catalog, {
-    id: "hinge-lr",
+    id: "hinge-fl",
     typeId: "joint.hinge.small",
-    targetBlockId: "body",
-    targetAnchorId: "zn.r",
+    targetBlockId: "body-a",
+    targetAnchorId: "yn.l",
     sourceAnchorId: "base.xn",
   });
   snapBlock(g, catalog, {
-    id: "leg-lr",
+    id: "leg-fl",
     typeId: "frame.cube.1",
-    targetBlockId: "hinge-lr",
+    targetBlockId: "hinge-fl",
     targetAnchorId: "rotor.xp",
-    sourceAnchorId: "zp",
+    sourceAnchorId: "yp",
   });
 
-  // Right rear
+  // Front-right leg: hinge on body-b bottom-left
+  snapBlock(g, catalog, {
+    id: "hinge-fr",
+    typeId: "joint.hinge.small",
+    targetBlockId: "body-b",
+    targetAnchorId: "yn.l",
+    sourceAnchorId: "base.xn",
+  });
+  snapBlock(g, catalog, {
+    id: "leg-fr",
+    typeId: "frame.cube.1",
+    targetBlockId: "hinge-fr",
+    targetAnchorId: "rotor.xp",
+    sourceAnchorId: "yp",
+  });
+
+  // Rear-left leg: hinge on body-a bottom-right
+  snapBlock(g, catalog, {
+    id: "hinge-rl",
+    typeId: "joint.hinge.small",
+    targetBlockId: "body-a",
+    targetAnchorId: "yn.r",
+    sourceAnchorId: "base.xn",
+  });
+  snapBlock(g, catalog, {
+    id: "leg-rl",
+    typeId: "frame.cube.1",
+    targetBlockId: "hinge-rl",
+    targetAnchorId: "rotor.xp",
+    sourceAnchorId: "yp",
+  });
+
+  // Rear-right leg: hinge on body-b bottom-right
   snapBlock(g, catalog, {
     id: "hinge-rr",
     typeId: "joint.hinge.small",
-    targetBlockId: "body",
-    targetAnchorId: "zp.r",
+    targetBlockId: "body-b",
+    targetAnchorId: "yn.r",
     sourceAnchorId: "base.xn",
   });
   snapBlock(g, catalog, {
@@ -188,7 +200,7 @@ function buildWalker(catalog: BlockCatalog): BlockGraph {
     typeId: "frame.cube.1",
     targetBlockId: "hinge-rr",
     targetAnchorId: "rotor.xp",
-    sourceAnchorId: "zn",
+    sourceAnchorId: "yp",
   });
 
   return g;
@@ -201,14 +213,13 @@ function buildWalker(catalog: BlockCatalog): BlockGraph {
 function buildSpinner(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Hub
   g.addNode({
     id: "hub",
     typeId: "frame.cube.1",
     transform: { position: vec3(0, 2, 0), rotation: QUAT_IDENTITY },
   });
 
-  // Hinge on top
+  // Hinge on top of hub
   snapBlock(g, catalog, {
     id: "hinge",
     typeId: "joint.hinge.small",
@@ -217,7 +228,7 @@ function buildSpinner(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "base.xn",
   });
 
-  // Beam extending from rotor
+  // Long beam on rotor
   snapBlock(g, catalog, {
     id: "arm",
     typeId: "frame.beam.5x1",
@@ -230,23 +241,22 @@ function buildSpinner(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Thruster Rocket
+// 4. Thruster Rocket – cube with thruster on bottom
 // ---------------------------------------------------------------------------
 
 function buildRocket(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Body cube
   g.addNode({
     id: "body",
     typeId: "frame.cube.1",
     transform: { position: vec3(0, 2, 0), rotation: QUAT_IDENTITY },
   });
 
-  // Thruster snapped to the bottom face
+  // Corrected thruster on bottom (force pushes opposite to exhaust)
   snapBlock(g, catalog, {
     id: "thruster",
-    typeId: "utility.thruster.small",
+    typeId: "utility.thruster.up",
     targetBlockId: "body",
     targetAnchorId: "yn",
     sourceAnchorId: "mount",
@@ -262,14 +272,14 @@ function buildRocket(catalog: BlockCatalog): BlockGraph {
 export const MACHINE_PRESETS: MachinePreset[] = [
   {
     name: "4-Wheel Car",
-    description: "A beam chassis with 4 auto-spinning motor wheels.",
+    description: "A beam chassis with 4 motor wheels. Wheels extend below chassis.",
     build: buildCar,
     autoInput: { motorSpin: 1 },
     cameraPosition: [8, 5, 8],
   },
   {
     name: "Hinged Walker",
-    description: "A body with 4 hinged legs that flail to walk.",
+    description: "A wide body with 4 hinged legs that swing to walk.",
     build: buildWalker,
     autoInput: { hingeSpin: 1 },
     cameraPosition: [6, 4, 6],

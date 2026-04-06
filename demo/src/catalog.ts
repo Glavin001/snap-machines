@@ -34,7 +34,7 @@ export const plankBlock: BlockDefinition = {
     sideAnchor("yn", vec3(0, -0.5, 0), vec3(0, -1, 0)),
     sideAnchor("zp", vec3(0, 0, 0.5), vec3(0, 0, 1)),
     sideAnchor("zn", vec3(0, 0, -0.5), vec3(0, 0, -1)),
-    // Extra anchors along length for more snap points
+    // Along length
     sideAnchor("yn.l", vec3(-1, -0.5, 0), vec3(0, -1, 0)),
     sideAnchor("yn.r", vec3(1, -0.5, 0), vec3(0, -1, 0)),
     sideAnchor("yp.l", vec3(-1, 0.5, 0), vec3(0, 1, 0)),
@@ -61,21 +61,28 @@ export const beamBlock: BlockDefinition = {
     sideAnchor("yn", vec3(0, -0.5, 0), vec3(0, -1, 0)),
     sideAnchor("zp", vec3(0, 0, 0.5), vec3(0, 0, 1)),
     sideAnchor("zn", vec3(0, 0, -0.5), vec3(0, 0, -1)),
-    // More snap points along length
-    sideAnchor("yn.l", vec3(-2, -0.5, 0), vec3(0, -1, 0)),
-    sideAnchor("yn.r", vec3(2, -0.5, 0), vec3(0, -1, 0)),
+    // Along length (sides)
     sideAnchor("zp.l", vec3(-2, 0, 0.5), vec3(0, 0, 1)),
     sideAnchor("zp.r", vec3(2, 0, 0.5), vec3(0, 0, 1)),
     sideAnchor("zn.l", vec3(-2, 0, -0.5), vec3(0, 0, -1)),
     sideAnchor("zn.r", vec3(2, 0, -0.5), vec3(0, 0, -1)),
+    // Along length (top/bottom)
+    sideAnchor("yn.l", vec3(-2, -0.5, 0), vec3(0, -1, 0)),
+    sideAnchor("yn.r", vec3(2, -0.5, 0), vec3(0, -1, 0)),
+    sideAnchor("yp.l", vec3(-2, 0.5, 0), vec3(0, 1, 0)),
+    sideAnchor("yp.r", vec3(2, 0.5, 0), vec3(0, 1, 0)),
   ],
 };
 
 /**
- * Motor-wheel block – a revolute joint with a constant-velocity motor.
- * The "base" part connects to the chassis; the "wheel" part spins freely.
- * The motor runs at a constant velocity when the "motorSpin" input is provided,
- * or auto-spins at targetVelocity otherwise.
+ * Motor-wheel block – a revolute joint with a velocity motor.
+ *
+ * Mounts via "axle.mount" on the side of a chassis (Z-face). The wheel
+ * cylinder has radius 0.8 so it extends 0.3 below a 1-unit-tall chassis,
+ * letting the car ride on its wheels without the chassis dragging.
+ *
+ * Joint axis is local Z, which becomes world Z when side-mounted. The wheel
+ * spins around Z and rolls along X.
  */
 export const motorWheelBlock: BlockDefinition = {
   id: "joint.motor.wheel",
@@ -89,38 +96,38 @@ export const motorWheelBlock: BlockDefinition = {
     {
       kind: "box",
       partId: "axle",
-      size: vec3(0.4, 0.4, 0.4),
+      size: vec3(0.3, 0.3, 0.3),
     },
     {
       kind: "cylinder",
       partId: "wheel",
-      radius: 0.5,
+      radius: 0.8,
       halfHeight: 0.15,
       axis: "z",
-      transform: { position: vec3(0, 0, 0.35), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      transform: { position: vec3(0, 0, 0.3), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
   ],
   colliders: [
     {
       kind: "box",
       partId: "axle",
-      halfExtents: vec3(0.2, 0.2, 0.2),
+      halfExtents: vec3(0.15, 0.15, 0.15),
     },
     {
       kind: "cylinder",
       partId: "wheel",
-      radius: 0.5,
+      radius: 0.8,
       halfHeight: 0.15,
       axis: "z",
       friction: 2.0,
-      transform: { position: vec3(0, 0, 0.35), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      transform: { position: vec3(0, 0, 0.3), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
   ],
   anchors: [
     {
       id: "axle.mount",
       partId: "axle",
-      position: vec3(0, 0, -0.2),
+      position: vec3(0, 0, -0.15),
       normal: vec3(0, 0, -1),
       orientation: lookRotation(vec3(0, 0, -1), VEC3_Y),
       type: "struct",
@@ -128,7 +135,7 @@ export const motorWheelBlock: BlockDefinition = {
     {
       id: "axle.joint",
       partId: "axle",
-      position: vec3(0, 0, 0.2),
+      position: vec3(0, 0, 0.15),
       normal: vec3(0, 0, 1),
       orientation: lookRotation(vec3(0, 0, 1), VEC3_Y),
       type: "joint",
@@ -137,7 +144,7 @@ export const motorWheelBlock: BlockDefinition = {
     {
       id: "wheel.joint",
       partId: "wheel",
-      position: vec3(0, 0, 0.2),
+      position: vec3(0, 0, 0.15),
       normal: vec3(0, 0, -1),
       orientation: lookRotation(vec3(0, 0, -1), VEC3_Y),
       type: "joint",
@@ -154,14 +161,50 @@ export const motorWheelBlock: BlockDefinition = {
     motor: {
       mode: "velocity",
       targetVelocity: 5,
-      damping: 0.5,
+      damping: 10,
       stiffness: 0,
-      maxForce: 50,
+      maxForce: 100,
       input: { action: "motorSpin", scale: 5 },
       inputTarget: "velocity",
     },
     collideConnected: false,
   },
+};
+
+/**
+ * Upward thruster – designed for bottom-mounting.
+ *
+ * Note: The behavior system applies localDirection in body-local space (which
+ * starts at identity = world space), NOT in block-local space. So for a
+ * bottom-mounted thruster that should push upward, we use (0,1,0) directly.
+ */
+export const thrusterUpBlock: BlockDefinition = {
+  id: "utility.thruster.up",
+  name: "Thruster (Up)",
+  category: "utility",
+  mass: 0.5,
+  geometry: [{ kind: "box", size: vec3(1, 0.5, 0.5) }],
+  colliders: [{ kind: "box", halfExtents: vec3(0.5, 0.25, 0.25) }],
+  anchors: [
+    {
+      id: "mount",
+      position: vec3(-0.5, 0, 0),
+      normal: vec3(-1, 0, 0),
+      orientation: lookRotation(vec3(-1, 0, 0), VEC3_Y),
+      type: "struct",
+    },
+  ],
+  behaviors: [
+    {
+      kind: "thruster",
+      props: {
+        force: 30,
+        localDirection: { x: 0, y: 1, z: 0 },
+        localPoint: { x: 0, y: -0.33, z: 0 },
+      },
+      input: { action: "throttle", scale: 1 },
+    },
+  ],
 };
 
 /** All demo blocks: core + extended */
@@ -170,4 +213,5 @@ export const demoCatalog: BlockDefinition[] = [
   plankBlock,
   beamBlock,
   motorWheelBlock,
+  thrusterUpBlock,
 ];
