@@ -139,6 +139,104 @@ function connectBlocks(
   });
 }
 
+// -- Theo Jansen linkage dimensions (from crashcat HingeMotor demo) ----------
+//
+// These source values define the entire linkage geometry. Bar angles and
+// positions are solved analytically at build time from these inputs.
+
+const WALKER_CHASSIS_Y = 5.5;     // chassis center height
+const X_UFL   = -2;               // chassis anchor: upper-front-leg pivot
+const X_CRANK = -5;               // chassis anchor: crank motor pivot
+const X_BACK  =  5;               // chassis anchor: back-leg pivot
+const UPPER_HALF = 1.5;           // upper bar half-length (center to yn/yp)
+const CRANK_HALF = 0.5;           // crank bar half-length
+const LEG_UPPER  = 2.5;           // leg bar center-to-upper-anchor distance
+const HORIZ_HALF = 5.0;           // horizontal bar half-length
+
+/**
+ * Solve the system `a·sin(α) - b·sin(β) = d, a·cos(α) - b·cos(β) = e`
+ * for angles α and β. Returns the solution where legs point downward
+ * (the walking configuration). `signHint` selects between the two solutions:
+ * +1 for the front linkage, -1 for the rear linkage.
+ */
+function solveLinkageAngles(
+  a: number, b: number, d: number, e: number, signHint: 1 | -1,
+): [number, number] {
+  // From squaring and adding: a² + b² - 2ab·cos(δ) = d² + e²
+  const cosδ = (a * a + b * b - d * d - e * e) / (2 * a * b);
+  const δ = signHint * Math.acos(cosδ);
+
+  // Substituting β = α - δ and solving for α:
+  const P = a - b * Math.cos(δ);
+  const Q = b * Math.sin(δ);
+  const α = Math.atan2(d * P - Q * e, e * P + Q * d);
+  const β = α - δ;
+  return [α, β];
+}
+
+/**
+ * Compute all bar positions and rotations for one side of the walker.
+ * The crank starts pointing straight down (θ = 0). All other angles are
+ * derived from the closed-loop constraints at hinges H6 and H7.
+ */
+function solveWalkerLinkage(chassisY: number) {
+  const crankLen = CRANK_HALF * 2;
+
+  // System 1 — upper bar (θ_u) and front leg (θ_f):
+  // Constraint at H6 (upper.yp = frontLeg.upper):
+  //   2·upperHalf·sin(θ_u) - legUpper·sin(θ_f) = xUfl - xCrank
+  //   2·upperHalf·cos(θ_u) - legUpper·cos(θ_f) = -crankLen
+  const [θ_u, θ_f] = solveLinkageAngles(
+    2 * UPPER_HALF, LEG_UPPER,
+    X_UFL - X_CRANK, -crankLen,
+    1,
+  );
+
+  // System 2 — horiz bar (θ_h) and back leg (θ_b):
+  // Constraint at H7 (backLeg.upper = horiz.yp):
+  //   2·horizHalf·sin(θ_h) - legUpper·sin(θ_b) = xCrank - xBack
+  //   2·horizHalf·cos(θ_h) - legUpper·cos(θ_b) = crankLen
+  const [θ_h, θ_b] = solveLinkageAngles(
+    2 * HORIZ_HALF, LEG_UPPER,
+    X_CRANK - X_BACK, crankLen,
+    -1,
+  );
+
+  // Bar centers derived from hinge constraints.
+  // For a bar at angle θ, local anchor (0, ly) → world (cx - ly·sin(θ), cy + ly·cos(θ)).
+  // We pin one anchor to a known hinge and solve for the bar center.
+
+  const crank  = { x: X_CRANK, y: chassisY - CRANK_HALF, θ: 0 };
+  const fleg   = { x: X_CRANK, y: chassisY - crankLen,   θ: θ_f };
+  // Upper: yn pinned at (X_UFL, chassisY)
+  const upper  = {
+    x: X_UFL - UPPER_HALF * Math.sin(θ_u),
+    y: chassisY + UPPER_HALF * Math.cos(θ_u),
+    θ: θ_u,
+  };
+  const bleg   = { x: X_BACK, y: chassisY, θ: θ_b };
+  // Horiz: yn pinned at front leg center (X_CRANK, chassisY - crankLen)
+  const hbar   = {
+    x: X_CRANK - HORIZ_HALF * Math.sin(θ_h),
+    y: (chassisY - crankLen) + HORIZ_HALF * Math.cos(θ_h),
+    θ: θ_h,
+  };
+
+  // Triangulation hinge positions (where the two connected bars meet)
+  const h6 = {
+    x: upper.x - UPPER_HALF * Math.sin(θ_u),
+    y: upper.y + UPPER_HALF * Math.cos(θ_u),
+  };
+  const h7 = {
+    x: bleg.x - LEG_UPPER * Math.sin(θ_b),
+    y: bleg.y + LEG_UPPER * Math.cos(θ_b),
+  };
+
+  return { crank, upper, fleg, hbar, bleg, h6, h7 };
+}
+
+const LINKAGE = solveWalkerLinkage(WALKER_CHASSIS_Y);
+
 /**
  * Create one set of Theo Jansen legs on one side of the chassis.
  *
@@ -154,44 +252,39 @@ function createWalkerLegSet(
   prefix: string,
   legZ: number,
 ): void {
-  // Chassis center Y (above ground at Y=0)
-  const Y = 5.5;
+  const Y = WALKER_CHASSIS_Y;
+  const L = LINKAGE;
+  const crankLen = CRANK_HALF * 2;
 
-  // Bar rotations computed from closed-loop linkage constraint equations.
-  // These ensure all hinge pivot points are consistent at t=0.
-  const upperRot = quatFromAxisAngle(VEC3_Z, 1.05863513);   // ~60.7°
-  const crankRot = QUAT_IDENTITY;                            // straight down
-  const flegRot  = quatFromAxisAngle(VEC3_Z, -0.15459009);  // ~-8.9°
-  const hbarRot  = quatFromAxisAngle(VEC3_Z, -1.22114806);  // ~-70.0°
-  const blegRot  = quatFromAxisAngle(VEC3_Z, 0.24445437);   // ~14.0°
+  const rot = (θ: number) => θ === 0 ? QUAT_IDENTITY : quatFromAxisAngle(VEC3_Z, θ);
 
-  // --- Structural bar positions (centers derived from constraint equations) ---
+  // --- Structural bars (positions and rotations from linkage solver) ---
   g.addNode({ id: `${prefix}-upper`, typeId: "walker.bar.upper",
-    transform: { position: vec3(-3.307531, Y + 0.735093, legZ), rotation: upperRot } });
+    transform: { position: vec3(L.upper.x, L.upper.y, legZ), rotation: rot(L.upper.θ) } });
   g.addNode({ id: `${prefix}-crank`, typeId: "walker.bar.crank",
-    transform: { position: vec3(-5, Y - 0.5, legZ), rotation: crankRot } });
+    transform: { position: vec3(L.crank.x, L.crank.y, legZ), rotation: rot(L.crank.θ) } });
   g.addNode({ id: `${prefix}-fleg`, typeId: "walker.bar.leg",
-    transform: { position: vec3(-5, Y - 1, legZ), rotation: flegRot } });
+    transform: { position: vec3(L.fleg.x, L.fleg.y, legZ), rotation: rot(L.fleg.θ) } });
   g.addNode({ id: `${prefix}-hbar`, typeId: "walker.bar.horiz",
-    transform: { position: vec3(-0.302534, Y + 0.712837, legZ), rotation: hbarRot } });
+    transform: { position: vec3(L.hbar.x, L.hbar.y, legZ), rotation: rot(L.hbar.θ) } });
   g.addNode({ id: `${prefix}-bleg`, typeId: "walker.bar.leg",
-    transform: { position: vec3(5, Y, legZ), rotation: blegRot } });
+    transform: { position: vec3(L.bleg.x, L.bleg.y, legZ), rotation: rot(L.bleg.θ) } });
 
-  // --- Hinge blocks at exact pivot positions ---
+  // --- Hinge blocks at pivot positions ---
   g.addNode({ id: `${prefix}-h1`, typeId: "walker.pivot",
-    transform: { position: vec3(-2, Y, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(X_UFL, Y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h2`, typeId: "walker.motor",
-    transform: { position: vec3(-5, Y, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(X_CRANK, Y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h3`, typeId: "walker.pivot",
-    transform: { position: vec3(-5, Y - 1, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(X_CRANK, Y - crankLen, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h4`, typeId: "walker.pivot",
-    transform: { position: vec3(-5, Y - 1, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(X_CRANK, Y - crankLen, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h5`, typeId: "walker.pivot",
-    transform: { position: vec3(5, Y, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(X_BACK, Y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h6`, typeId: "walker.pivot",
-    transform: { position: vec3(-4.615062, Y + 1.470187, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(L.h6.x, L.h6.y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h7`, typeId: "walker.pivot",
-    transform: { position: vec3(4.394933, Y + 2.425674, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(L.h7.x, L.h7.y, legZ), rotation: QUAT_IDENTITY } });
 
   // --- Structural connections (determines rigid body merging) ---
   const side = legZ > 0 ? "r" : "l";
@@ -232,7 +325,7 @@ function buildWalker(catalog: BlockCatalog): BlockGraph {
   g.addNode({
     id: "chassis",
     typeId: "walker.chassis",
-    transform: { position: vec3(0, 5.5, 0), rotation: QUAT_IDENTITY },
+    transform: { position: vec3(0, WALKER_CHASSIS_Y, 0), rotation: QUAT_IDENTITY },
   });
 
   // Leg sets on both sides (chassisDepthHalf=3, partDepthHalf=0.15)
