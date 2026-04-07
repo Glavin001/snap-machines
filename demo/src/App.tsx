@@ -43,6 +43,11 @@ export function App() {
   const [showJson, setShowJson] = useState(false);
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
+  // Increment to force SnapScene remount when graph is replaced wholesale
+  const [graphKey, setGraphKey] = useState(0);
+
+  const showJsonRef = useRef(false);
+  showJsonRef.current = showJson;
 
   const catalog = useMemo(() => {
     const c = new BlockCatalog();
@@ -59,9 +64,25 @@ export function App() {
   // Graph snapshot for physics
   const [playGraph, setPlayGraph] = useState<BlockGraph | null>(null);
 
+  // Serialize a graph to pretty JSON for the editor
+  const graphToJsonText = useCallback((g: BlockGraph) => {
+    return JSON.stringify(g.toJSON(), null, 2);
+  }, []);
+
   const onBlockPlaced = useCallback(() => {
     setBlockCount((c) => c + 1);
-  }, []);
+    // Keep JSON panel in sync while building
+    if (showJsonRef.current) {
+      setJsonText(graphToJsonText(graph));
+    }
+  }, [graph, graphToJsonText]);
+
+  const onBlockRemoved = useCallback(() => {
+    setBlockCount((c) => Math.max(1, c - 1));
+    if (showJsonRef.current) {
+      setJsonText(graphToJsonText(graph));
+    }
+  }, [graph, graphToJsonText]);
 
   // Keyboard input for physics controls
   const [inputState, setInputState] = useState<RuntimeInputState>({});
@@ -94,25 +115,52 @@ export function App() {
     };
   }, []);
 
-  // Serialize a graph to pretty JSON for the editor
-  const graphToJsonText = useCallback((g: BlockGraph) => {
-    return JSON.stringify(g.toJSON(), null, 2);
-  }, []);
+  // Toggle JSON panel – sync text on open
+  const toggleShowJson = useCallback(
+    (currentMode: Mode, currentGraph: BlockGraph, currentPlayGraph: BlockGraph | null) => {
+      setShowJson((prev) => {
+        const next = !prev;
+        if (next) {
+          const source = currentMode === "build" ? currentGraph : (currentPlayGraph ?? currentGraph);
+          setJsonText(graphToJsonText(source));
+          setJsonError(null);
+        }
+        return next;
+      });
+    },
+    [graphToJsonText],
+  );
 
-  // Gallery: select a preset to preview
-  const handlePresetSelect = useCallback((preset: MachinePreset) => {
-    setActivePreset(preset);
-    const g = preset.build(catalog);
-    setPlayGraph(g);
+  // Gallery: select a preset → load into build mode for editing / preview
+  const handlePresetSelect = useCallback(
+    (preset: MachinePreset) => {
+      const g = preset.build(catalog);
+      setGraph(g);
+      setBlockCount(g.listNodes().length);
+      setActivePreset(preset);
+      setJsonText(graphToJsonText(g));
+      setJsonError(null);
+      setGraphKey((k) => k + 1);
+      setMode("build");
+    },
+    [catalog, graphToJsonText],
+  );
+
+  // Build Your Own: start a fresh empty machine
+  const handleNewBuild = useCallback(() => {
+    const g = new BlockGraph();
+    g.addNode({ id: "origin", typeId: "frame.cube.1", transform: TRANSFORM_IDENTITY });
+    setGraph(g);
+    setBlockCount(1);
+    setActivePreset(null);
     setJsonText(graphToJsonText(g));
     setJsonError(null);
-    setPhysicsReady(false);
-    setMode("play");
-  }, [catalog, graphToJsonText]);
+    setGraphKey((k) => k + 1);
+    setMode("build");
+  }, [graphToJsonText]);
 
-  // Build mode: play the user's custom build
-  const handlePlayCustom = useCallback(() => {
-    setActivePreset(null);
+  // Build → Play: snapshot current graph and run physics
+  const handlePlay = useCallback(() => {
     const g = graph.clone();
     setPlayGraph(g);
     setJsonText(graphToJsonText(g));
@@ -121,14 +169,16 @@ export function App() {
     setMode("play");
   }, [graph, graphToJsonText]);
 
-  const handleBuild = useCallback(() => {
-    setMode("build");
+  // Play → Stop: return to build mode
+  const handleStop = useCallback(() => {
     setPlayGraph(null);
-    setActivePreset(null);
     setPhysicsReady(false);
-    setShowJson(false);
-  }, []);
+    setJsonText(graphToJsonText(graph));
+    setJsonError(null);
+    setMode("build");
+  }, [graph, graphToJsonText]);
 
+  // Go back to the gallery preset picker
   const handleGallery = useCallback(() => {
     setMode("gallery");
     setPlayGraph(null);
@@ -137,28 +187,36 @@ export function App() {
     setShowJson(false);
   }, []);
 
-  // Apply edited JSON: parse, rebuild graph, restart physics
+  // Apply edited JSON – updates build graph or restarts physics depending on mode
   const handleApplyJson = useCallback(() => {
     try {
       const parsed = JSON.parse(jsonText) as SerializedBlockGraph;
       const g = BlockGraph.fromJSON(parsed);
-      // Validate against catalog
       const validation = g.validateAgainstCatalog(catalog);
       if (!validation.ok) {
         setJsonError(validation.errors.join("; "));
         return;
       }
-      setPlayGraph(g);
+      if (mode === "build") {
+        setGraph(g);
+        setBlockCount(g.listNodes().length);
+        setGraphKey((k) => k + 1);
+      } else {
+        // Play mode: restart physics with the edited graph
+        setPlayGraph(g);
+        setPhysicsReady(false);
+      }
       setJsonError(null);
-      setPhysicsReady(false);
     } catch (err) {
       setJsonError(err instanceof Error ? err.message : String(err));
     }
-  }, [jsonText, catalog]);
+  }, [jsonText, catalog, mode]);
 
   // Input: use auto-input from preset, or keyboard input
-  const effectiveInput = activePreset ? activePreset.autoInput : inputState;
+  const effectiveInput = activePreset && mode === "play" ? activePreset.autoInput : inputState;
   const cameraPos: [number, number, number] = activePreset?.cameraPosition ?? [4, 3, 5];
+
+  const jsonPanelVisible = showJson && (mode === "build" || mode === "play");
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -184,10 +242,11 @@ export function App() {
           Snap Machines
         </h2>
 
+        {/* ── GALLERY ── */}
         {mode === "gallery" && (
           <>
             <p style={{ margin: "0 0 12px", fontSize: 13, opacity: 0.8 }}>
-              Select a pre-built machine to see it run with Rapier3D physics, or build your own.
+              Pick a preset to load it into build mode, or start fresh.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {MACHINE_PRESETS.map((preset) => (
@@ -229,7 +288,7 @@ export function App() {
               }}
             >
               <button
-                onClick={handleBuild}
+                onClick={handleNewBuild}
                 style={{
                   padding: "10px 16px",
                   border: "none",
@@ -251,10 +310,26 @@ export function App() {
           </>
         )}
 
+        {/* ── BUILD ── */}
         {mode === "build" && (
           <>
+            {activePreset && (
+              <div
+                style={{
+                  marginBottom: 10,
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  background: "rgba(108,99,255,0.2)",
+                  borderLeft: "3px solid #6c63ff",
+                  fontSize: 13,
+                  color: "#c0b8ff",
+                }}
+              >
+                Preset: {activePreset.name}
+              </div>
+            )}
             <p style={{ margin: "0 0 12px", fontSize: 13, opacity: 0.8 }}>
-              Click a face to snap a new block. Then hit Play to simulate.
+              Click a face to snap a block. Right-click to remove. Hit Play to simulate.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {BLOCK_TYPES.map((type) => (
@@ -280,9 +355,27 @@ export function App() {
             <p style={{ margin: "10px 0 0", fontSize: 12, opacity: 0.6 }}>
               Blocks: {blockCount}
             </p>
+            {/* JSON toggle */}
+            <button
+              onClick={() => toggleShowJson(mode, graph, playGraph)}
+              style={{
+                marginTop: 10,
+                padding: "6px 10px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 6,
+                background: showJson ? "rgba(108,99,255,0.2)" : "transparent",
+                color: "#ccc",
+                cursor: "pointer",
+                fontSize: 12,
+                width: "100%",
+                transition: "all 0.15s",
+              }}
+            >
+              {showJson ? "Hide" : "Show"} Graph JSON
+            </button>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button
-                onClick={handlePlayCustom}
+                onClick={handlePlay}
                 style={{
                   flex: 1,
                   padding: "10px 0",
@@ -321,6 +414,7 @@ export function App() {
           </>
         )}
 
+        {/* ── PLAY ── */}
         {mode === "play" && (
           <>
             {activePreset && (
@@ -345,9 +439,27 @@ export function App() {
                 Space &mdash; Fire thrusters
               </div>
             )}
+            {/* JSON toggle */}
+            <button
+              onClick={() => toggleShowJson(mode, graph, playGraph)}
+              style={{
+                marginTop: 2,
+                padding: "6px 10px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 6,
+                background: showJson ? "rgba(108,99,255,0.2)" : "transparent",
+                color: "#ccc",
+                cursor: "pointer",
+                fontSize: 12,
+                width: "100%",
+                transition: "all 0.15s",
+              }}
+            >
+              {showJson ? "Hide" : "Show"} Graph JSON
+            </button>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button
-                onClick={activePreset ? handleGallery : handleBuild}
+                onClick={handleStop}
                 style={{
                   flex: 1,
                   padding: "10px 0",
@@ -366,30 +478,12 @@ export function App() {
                 Stop
               </button>
             </div>
-            {/* JSON editor toggle */}
-            <button
-              onClick={() => setShowJson(!showJson)}
-              style={{
-                marginTop: 10,
-                padding: "6px 10px",
-                border: "1px solid rgba(255,255,255,0.2)",
-                borderRadius: 6,
-                background: showJson ? "rgba(108,99,255,0.2)" : "transparent",
-                color: "#ccc",
-                cursor: "pointer",
-                fontSize: 12,
-                width: "100%",
-                transition: "all 0.15s",
-              }}
-            >
-              {showJson ? "Hide" : "Show"} Graph JSON
-            </button>
           </>
         )}
       </div>
 
-      {/* JSON Editor Panel (right side) */}
-      {mode === "play" && showJson && (
+      {/* JSON Editor Panel (right side) – available in build and play modes */}
+      {jsonPanelVisible && (
         <div
           style={{
             position: "absolute",
@@ -412,7 +506,9 @@ export function App() {
               Machine Graph JSON
             </div>
             <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>
-              Edit the graph and click Apply to rebuild with physics.
+              {mode === "build"
+                ? "Edit the graph and click Apply to update the build."
+                : "Edit the graph and click Apply to rebuild with physics."}
             </div>
           </div>
           <textarea
@@ -480,7 +576,7 @@ export function App() {
       )}
 
       {/* Mode indicator */}
-      {!(mode === "play" && showJson) && (
+      {!jsonPanelVisible && (
         <div
           style={{
             position: "absolute",
@@ -516,7 +612,7 @@ export function App() {
         <Environment preset="city" />
         <OrbitControls makeDefault />
 
-        {mode === "gallery" && (
+        {(mode === "gallery" || mode === "build") && (
           <Grid
             args={[20, 20]}
             cellSize={1}
@@ -529,23 +625,14 @@ export function App() {
         )}
 
         {mode === "build" && (
-          <>
-            <Grid
-              args={[20, 20]}
-              cellSize={1}
-              sectionSize={5}
-              fadeDistance={30}
-              cellColor="#333355"
-              sectionColor="#444477"
-              position={[0, -0.5, 0]}
-            />
-            <SnapScene
-              graph={graph}
-              catalog={catalog}
-              selectedType={selectedType}
-              onBlockPlaced={onBlockPlaced}
-            />
-          </>
+          <SnapScene
+            key={graphKey}
+            graph={graph}
+            catalog={catalog}
+            selectedType={selectedType}
+            onBlockPlaced={onBlockPlaced}
+            onBlockRemoved={onBlockRemoved}
+          />
         )}
 
         {mode === "play" && playGraph && (
