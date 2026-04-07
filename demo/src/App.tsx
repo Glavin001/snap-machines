@@ -691,6 +691,7 @@ export function App() {
             catalog={catalog}
             inputState={effectiveInput}
             firstPerson={firstPerson}
+            gravity={activePreset?.gravity}
             onReady={() => setPhysicsReady(true)}
           />
         )}

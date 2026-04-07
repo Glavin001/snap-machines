@@ -24,6 +24,7 @@ interface PhysicsSceneProps {
   catalog: BlockCatalog;
   inputState: RuntimeInputState;
   firstPerson?: boolean;
+  gravity?: number;
   onReady?: () => void;
 }
 
@@ -35,9 +36,17 @@ const BLOCK_COLORS: Record<string, string> = {
   "joint.motor.wheel": "#d4962e",
   "utility.thruster.small": "#ef5b5b",
   "utility.thruster.up": "#ef5b5b",
+  // Walker – Theo Jansen linkage
+  "walker.chassis": "#d4a854",
+  "walker.bar.upper": "#4a9e4a",
+  "walker.bar.crank": "#9e4a9e",
+  "walker.bar.leg": "#5b8def",
+  "walker.bar.horiz": "#ef5b8d",
+  "walker.pivot": "#888888",
+  "walker.motor": "#aa6633",
 };
 
-export function PhysicsScene({ graph, catalog, inputState, firstPerson, onReady }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, firstPerson, gravity = 9.81, onReady }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
@@ -56,8 +65,8 @@ export function PhysicsScene({ graph, catalog, inputState, firstPerson, onReady 
     RAPIER.init().then(() => {
       if (cancelled) return;
 
-      const gravity = new RAPIER.Vector3(0, -9.81, 0);
-      const world = new RAPIER.World(gravity);
+      const gravityVec = new RAPIER.Vector3(0, -gravity, 0);
+      const world = new RAPIER.World(gravityVec);
       worldRef.current = world;
 
       // Ground plane
@@ -101,7 +110,7 @@ export function PhysicsScene({ graph, catalog, inputState, firstPerson, onReady 
       setRapierReady(false);
       setPlan(null);
     };
-  }, [graph, catalog]);
+  }, [graph, catalog, gravity]);
 
   useFrame((_state, delta) => {
     if (!readyRef.current || !worldRef.current || !runtimeRef.current || !plan) return;
