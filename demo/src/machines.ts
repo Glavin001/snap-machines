@@ -421,6 +421,71 @@ function buildRocket(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
+// 5. Simple House – floor, 4 walls (one with a door), roof
+//
+// Demonstrates structures (static buildings) and compound machines (the
+// wall-with-door block has a frame + hinged door that swings freely).
+// ---------------------------------------------------------------------------
+
+function buildHouse(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Floor sits just above the ground
+  g.addNode({
+    id: "floor",
+    typeId: "structure.floor.4x4",
+    transform: { position: vec3(0, 0.1, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Wall on +X edge
+  snapBlock(g, catalog, {
+    id: "wall-xp",
+    typeId: "structure.wall.4x3",
+    targetBlockId: "floor",
+    targetAnchorId: "edge.xp",
+    sourceAnchorId: "bottom",
+  });
+
+  // Wall on -X edge
+  snapBlock(g, catalog, {
+    id: "wall-xn",
+    typeId: "structure.wall.4x3",
+    targetBlockId: "floor",
+    targetAnchorId: "edge.xn",
+    sourceAnchorId: "bottom",
+  });
+
+  // Wall on -Z edge
+  snapBlock(g, catalog, {
+    id: "wall-zn",
+    typeId: "structure.wall.4x3",
+    targetBlockId: "floor",
+    targetAnchorId: "edge.zn",
+    sourceAnchorId: "bottom",
+  });
+
+  // Wall with door on +Z edge
+  snapBlock(g, catalog, {
+    id: "wall-door",
+    typeId: "structure.wall-door.4x3",
+    targetBlockId: "floor",
+    targetAnchorId: "edge.zp",
+    sourceAnchorId: "bottom",
+  });
+
+  // Roof snaps to the top of one wall
+  snapBlock(g, catalog, {
+    id: "roof",
+    typeId: "structure.roof.4x4",
+    targetBlockId: "wall-xp",
+    targetAnchorId: "top",
+    sourceAnchorId: "edge.xp",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Export gallery
 // ---------------------------------------------------------------------------
 
@@ -453,5 +518,12 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     build: buildRocket,
     autoInput: { throttle: 1 },
     cameraPosition: [4, 3, 5],
+  },
+  {
+    name: "Simple House",
+    description: "A floor, 4 walls (one with a hinged door), and a roof. Demonstrates structures and compound machines.",
+    build: buildHouse,
+    autoInput: {},
+    cameraPosition: [10, 6, 10],
   },
 ];

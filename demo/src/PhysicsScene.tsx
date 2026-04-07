@@ -17,11 +17,13 @@ import {
   axisNameToVector,
   mulQuat,
 } from "snap-construction-system";
+import { PlayerController } from "./PlayerController.js";
 
 interface PhysicsSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
   inputState: RuntimeInputState;
+  firstPerson?: boolean;
   gravity?: number;
   onReady?: () => void;
 }
@@ -44,10 +46,11 @@ const BLOCK_COLORS: Record<string, string> = {
   "walker.motor": "#aa6633",
 };
 
-export function PhysicsScene({ graph, catalog, inputState, gravity = 9.81, onReady }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, firstPerson, gravity = 9.81, onReady }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
+  const [rapierReady, setRapierReady] = useState(false);
   const meshGroupsRef = useRef<Map<string, THREE.Group>>(new Map());
   const readyRef = useRef(false);
   const inputRef = useRef<RuntimeInputState>(inputState);
@@ -89,6 +92,7 @@ export function PhysicsScene({ graph, catalog, inputState, gravity = 9.81, onRea
       setPlan(result.plan);
       runtimeRef.current = result.runtime;
       readyRef.current = true;
+      setRapierReady(true);
       onReady?.();
     });
 
@@ -103,6 +107,7 @@ export function PhysicsScene({ graph, catalog, inputState, gravity = 9.81, onRea
       worldRef.current?.free();
       worldRef.current = null;
       readyRef.current = false;
+      setRapierReady(false);
       setPlan(null);
     };
   }, [graph, catalog, gravity]);
@@ -144,6 +149,9 @@ export function PhysicsScene({ graph, catalog, inputState, gravity = 9.81, onRea
           }}
         />
       ))}
+      {firstPerson && rapierReady && worldRef.current && (
+        <PlayerController world={worldRef.current} RAPIER={RAPIER} />
+      )}
     </group>
   );
 }
