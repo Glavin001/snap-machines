@@ -640,6 +640,7 @@ export function App() {
             graph={playGraph}
             catalog={catalog}
             inputState={effectiveInput}
+            gravity={activePreset?.gravity}
             onReady={() => setPhysicsReady(true)}
           />
         )}

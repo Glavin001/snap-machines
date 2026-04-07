@@ -13,6 +13,8 @@ import {
   RuntimeInputState,
   alignAnchorPair,
   getWorldAnchorTransform,
+  quatFromAxisAngle,
+  VEC3_Z,
 } from "snap-construction-system";
 
 export interface MachinePreset {
@@ -21,6 +23,8 @@ export interface MachinePreset {
   build(catalog: BlockCatalog): BlockGraph;
   autoInput: RuntimeInputState;
   cameraPosition: [number, number, number];
+  /** Override gravity magnitude (default: 9.81). Crashcat walker uses 40. */
+  gravity?: number;
 }
 
 /**
@@ -115,93 +119,244 @@ function buildCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Hinged Walker
+// 2. Hinged Walker – Theo Jansen Linkage
 //
-// Two planks joined along Z form a wide body. Hinges on the bottom face
-// (yn anchors) have axis=Z in world space, so legs swing forward/backward.
-// Rotor extends downward (-Y), legs hang below the body.
+// A Theo Jansen walking machine: central chassis with a crank-driven planar
+// linkage on each side (+Z and -Z). Each leg set has 5 bar bodies connected
+// by 7 revolute joints (all Z-axis). A motor on the crank drives the single
+// DOF of the closed-loop linkage, producing a smooth walking gait.
+//
+// Ported from the crashcat HingeMotor demo dimensions.
 // ---------------------------------------------------------------------------
+
+/** Shorthand for adding a structural connection */
+function connectBlocks(
+  g: BlockGraph,
+  blockA: string, anchorA: string,
+  blockB: string, anchorB: string,
+): void {
+  g.addConnection({
+    a: { blockId: blockA, anchorId: anchorA },
+    b: { blockId: blockB, anchorId: anchorB },
+  });
+}
+
+// -- Theo Jansen linkage dimensions (from crashcat HingeMotor demo) ----------
+//
+// These source values define the entire linkage geometry. Bar angles and
+// positions are solved analytically at build time from these inputs.
+
+const WALKER_CHASSIS_Y = 5.5;     // chassis center height
+const X_UFL   = -2;               // chassis anchor: upper-front-leg pivot
+const X_CRANK = -5;               // chassis anchor: crank motor pivot
+const X_BACK  =  5;               // chassis anchor: back-leg pivot
+const UPPER_HALF = 1.5;           // upper bar half-length (center to yn/yp)
+const CRANK_HALF = 0.5;           // crank bar half-length
+const LEG_UPPER  = 2.5;           // leg bar center-to-upper-anchor distance
+const HORIZ_HALF = 5.0;           // horizontal bar half-length
+
+/**
+ * Solve the system `a·sin(α) - b·sin(β) = d, a·cos(α) - b·cos(β) = e`
+ * for angles α and β. Returns [α, β].
+ */
+function solveLinkagePair(
+  a: number, b: number, d: number, e: number, sign: 1 | -1,
+): [number, number] {
+  // From squaring and adding: a² + b² - 2ab·cos(δ) = d² + e²
+  const cosδ = Math.max(-1, Math.min(1, (a * a + b * b - d * d - e * e) / (2 * a * b)));
+  const δ = sign * Math.acos(cosδ);
+
+  // Substituting β = α - δ and solving for α:
+  const P = a - b * Math.cos(δ);
+  const Q = b * Math.sin(δ);
+  const α = Math.atan2(d * P - Q * e, e * P + Q * d);
+  const β = α - δ;
+  return [α, β];
+}
+
+/**
+ * Solve a linkage pair and pick the solution where the leg foot points
+ * downward (lower Y = walking configuration). Tries both sign variants
+ * and picks the one with the lower leg foot.
+ */
+function solveLinkageAngles(
+  a: number, b: number, d: number, e: number,
+  legCenterY: number, legHalf: number,
+): [number, number] {
+  const [α1, β1] = solveLinkagePair(a, b, d, e, 1);
+  const [α2, β2] = solveLinkagePair(a, b, d, e, -1);
+  // β is the leg angle; foot at local y = -legHalf maps to world y = centerY - legHalf·cos(β)
+  const footY1 = legCenterY - legHalf * Math.cos(β1);
+  const footY2 = legCenterY - legHalf * Math.cos(β2);
+  return footY1 < footY2 ? [α1, β1] : [α2, β2];
+}
+
+/**
+ * Compute all bar positions and rotations for one side of the walker.
+ * `phi` is the crank starting angle (0 = pointing down, π = pointing up).
+ * Using different phi values for each side creates a phase-offset gait.
+ */
+function solveWalkerLinkage(chassisY: number, phi: number) {
+  const crankLen = CRANK_HALF * 2;
+  const sinPhi = Math.sin(phi);
+  const cosPhi = Math.cos(phi);
+
+  // Crank bottom position (where front leg center is pinned)
+  const crankBottomX = X_CRANK + crankLen * sinPhi;
+  const crankBottomY = chassisY - crankLen * cosPhi;
+
+  // System 1 — upper bar (θ_u) and front leg (θ_f):
+  // Constraint at H6 (upper.yp = frontLeg.upper)
+  const [θ_u, θ_f] = solveLinkageAngles(
+    2 * UPPER_HALF, LEG_UPPER,
+    (X_UFL - X_CRANK) - crankLen * sinPhi,
+    -crankLen * cosPhi,
+    crankBottomY, 3, // leg half-length = 3 (6-unit bar)
+  );
+
+  // System 2 — horiz bar (θ_h) and back leg (θ_b):
+  // Constraint at H7 (backLeg.upper = horiz.yp)
+  const [θ_h, θ_b] = solveLinkageAngles(
+    2 * HORIZ_HALF, LEG_UPPER,
+    (X_CRANK - X_BACK) + crankLen * sinPhi,
+    crankLen * cosPhi,
+    chassisY, 3, // back leg center at chassisY
+  );
+
+  // Bar centers derived from hinge constraints.
+  // For a bar at angle θ, local anchor (0, ly) → world (cx - ly·sin(θ), cy + ly·cos(θ)).
+
+  const crank = {
+    x: X_CRANK + CRANK_HALF * sinPhi,
+    y: chassisY - CRANK_HALF * cosPhi,
+    θ: phi,
+  };
+  const fleg = { x: crankBottomX, y: crankBottomY, θ: θ_f };
+  // Upper: yn pinned at (X_UFL, chassisY)
+  const upper = {
+    x: X_UFL - UPPER_HALF * Math.sin(θ_u),
+    y: chassisY + UPPER_HALF * Math.cos(θ_u),
+    θ: θ_u,
+  };
+  const bleg = { x: X_BACK, y: chassisY, θ: θ_b };
+  // Horiz: yn pinned at front leg center (crank bottom)
+  const hbar = {
+    x: crankBottomX - HORIZ_HALF * Math.sin(θ_h),
+    y: crankBottomY + HORIZ_HALF * Math.cos(θ_h),
+    θ: θ_h,
+  };
+
+  // Triangulation hinge positions (where the two connected bars meet)
+  const h6 = {
+    x: upper.x - UPPER_HALF * Math.sin(θ_u),
+    y: upper.y + UPPER_HALF * Math.cos(θ_u),
+  };
+  const h7 = {
+    x: bleg.x - LEG_UPPER * Math.sin(θ_b),
+    y: bleg.y + LEG_UPPER * Math.cos(θ_b),
+  };
+
+  return { crank, upper, fleg, hbar, bleg, h6, h7 };
+}
+
+/**
+ * Create one set of Theo Jansen legs on one side of the chassis.
+ *
+ * Topology (5 bodies, 7 hinge joints):
+ *   chassis ─H1─ upperFrontLeg ─H6─ frontLeg ─H4─ horizontalBar
+ *   chassis ─H2─ crank ─────────H3─ frontLeg       │
+ *   chassis ─H5─ backLeg ───────H7──────────────────┘
+ *
+ * H2 is the motor-driven crank hinge; all others are passive.
+ */
+function createWalkerLegSet(
+  g: BlockGraph,
+  prefix: string,
+  legZ: number,
+  L: ReturnType<typeof solveWalkerLinkage>,
+): void {
+  const Y = WALKER_CHASSIS_Y;
+
+  const rot = (θ: number) => θ === 0 ? QUAT_IDENTITY : quatFromAxisAngle(VEC3_Z, θ);
+
+  // --- Structural bars (positions and rotations from linkage solver) ---
+  g.addNode({ id: `${prefix}-upper`, typeId: "walker.bar.upper",
+    transform: { position: vec3(L.upper.x, L.upper.y, legZ), rotation: rot(L.upper.θ) } });
+  g.addNode({ id: `${prefix}-crank`, typeId: "walker.bar.crank",
+    transform: { position: vec3(L.crank.x, L.crank.y, legZ), rotation: rot(L.crank.θ) } });
+  g.addNode({ id: `${prefix}-fleg`, typeId: "walker.bar.leg",
+    transform: { position: vec3(L.fleg.x, L.fleg.y, legZ), rotation: rot(L.fleg.θ) } });
+  g.addNode({ id: `${prefix}-hbar`, typeId: "walker.bar.horiz",
+    transform: { position: vec3(L.hbar.x, L.hbar.y, legZ), rotation: rot(L.hbar.θ) } });
+  g.addNode({ id: `${prefix}-bleg`, typeId: "walker.bar.leg",
+    transform: { position: vec3(L.bleg.x, L.bleg.y, legZ), rotation: rot(L.bleg.θ) } });
+
+  // --- Hinge blocks at pivot positions ---
+  g.addNode({ id: `${prefix}-h1`, typeId: "walker.pivot",
+    transform: { position: vec3(X_UFL, Y, legZ), rotation: QUAT_IDENTITY } });
+  g.addNode({ id: `${prefix}-h2`, typeId: "walker.motor",
+    transform: { position: vec3(X_CRANK, Y, legZ), rotation: QUAT_IDENTITY } });
+  g.addNode({ id: `${prefix}-h3`, typeId: "walker.pivot",
+    transform: { position: vec3(L.fleg.x, L.fleg.y, legZ), rotation: QUAT_IDENTITY } });
+  g.addNode({ id: `${prefix}-h4`, typeId: "walker.pivot",
+    transform: { position: vec3(L.fleg.x, L.fleg.y, legZ), rotation: QUAT_IDENTITY } });
+  g.addNode({ id: `${prefix}-h5`, typeId: "walker.pivot",
+    transform: { position: vec3(X_BACK, Y, legZ), rotation: QUAT_IDENTITY } });
+  g.addNode({ id: `${prefix}-h6`, typeId: "walker.pivot",
+    transform: { position: vec3(L.h6.x, L.h6.y, legZ), rotation: QUAT_IDENTITY } });
+  g.addNode({ id: `${prefix}-h7`, typeId: "walker.pivot",
+    transform: { position: vec3(L.h7.x, L.h7.y, legZ), rotation: QUAT_IDENTITY } });
+
+  // --- Structural connections (determines rigid body merging) ---
+  const side = legZ > 0 ? "r" : "l";
+
+  // H1: chassis ↔ upperFrontLeg
+  connectBlocks(g, "chassis", `${side}.ufl`, `${prefix}-h1`, "base.mount");
+  connectBlocks(g, `${prefix}-h1`, "rotor.mount", `${prefix}-upper`, "yn");
+
+  // H2: chassis ↔ crank (MOTOR)
+  connectBlocks(g, "chassis", `${side}.crank`, `${prefix}-h2`, "base.mount");
+  connectBlocks(g, `${prefix}-h2`, "rotor.mount", `${prefix}-crank`, "yp");
+
+  // H3: crank ↔ frontLeg
+  connectBlocks(g, `${prefix}-crank`, "yn", `${prefix}-h3`, "base.mount");
+  connectBlocks(g, `${prefix}-h3`, "rotor.mount", `${prefix}-fleg`, "center.a");
+
+  // H4: frontLeg ↔ horizontalBar
+  connectBlocks(g, `${prefix}-fleg`, "center.b", `${prefix}-h4`, "base.mount");
+  connectBlocks(g, `${prefix}-h4`, "rotor.mount", `${prefix}-hbar`, "yn");
+
+  // H5: chassis ↔ backLeg
+  connectBlocks(g, "chassis", `${side}.back`, `${prefix}-h5`, "base.mount");
+  connectBlocks(g, `${prefix}-h5`, "rotor.mount", `${prefix}-bleg`, "center.a");
+
+  // H6: upperFrontLeg ↔ frontLeg (triangulation)
+  connectBlocks(g, `${prefix}-upper`, "yp", `${prefix}-h6`, "base.mount");
+  connectBlocks(g, `${prefix}-h6`, "rotor.mount", `${prefix}-fleg`, "upper");
+
+  // H7: backLeg ↔ horizontalBar (triangulation)
+  connectBlocks(g, `${prefix}-bleg`, "upper", `${prefix}-h7`, "base.mount");
+  connectBlocks(g, `${prefix}-h7`, "rotor.mount", `${prefix}-hbar`, "yp");
+}
 
 function buildWalker(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Two planks joined along Z for a 3x1x2 body with 4 bottom corners
+  // Central chassis body
   g.addNode({
-    id: "body-a",
-    typeId: "frame.plank.3x1",
-    transform: { position: vec3(0, 3, 0), rotation: QUAT_IDENTITY },
-  });
-  snapBlock(g, catalog, {
-    id: "body-b",
-    typeId: "frame.plank.3x1",
-    targetBlockId: "body-a",
-    targetAnchorId: "zp",
-    sourceAnchorId: "zn",
+    id: "chassis",
+    typeId: "walker.chassis",
+    transform: { position: vec3(0, WALKER_CHASSIS_Y, 0), rotation: QUAT_IDENTITY },
   });
 
-  // Front-left leg: hinge on body-a bottom-left, leg cube on rotor
-  snapBlock(g, catalog, {
-    id: "hinge-fl",
-    typeId: "joint.hinge.small",
-    targetBlockId: "body-a",
-    targetAnchorId: "yn.l",
-    sourceAnchorId: "base.xn",
-  });
-  snapBlock(g, catalog, {
-    id: "leg-fl",
-    typeId: "frame.cube.1",
-    targetBlockId: "hinge-fl",
-    targetAnchorId: "rotor.xp",
-    sourceAnchorId: "yp",
-  });
-
-  // Front-right leg: hinge on body-b bottom-left
-  snapBlock(g, catalog, {
-    id: "hinge-fr",
-    typeId: "joint.hinge.small",
-    targetBlockId: "body-b",
-    targetAnchorId: "yn.l",
-    sourceAnchorId: "base.xn",
-  });
-  snapBlock(g, catalog, {
-    id: "leg-fr",
-    typeId: "frame.cube.1",
-    targetBlockId: "hinge-fr",
-    targetAnchorId: "rotor.xp",
-    sourceAnchorId: "yp",
-  });
-
-  // Rear-left leg: hinge on body-a bottom-right
-  snapBlock(g, catalog, {
-    id: "hinge-rl",
-    typeId: "joint.hinge.small",
-    targetBlockId: "body-a",
-    targetAnchorId: "yn.r",
-    sourceAnchorId: "base.xn",
-  });
-  snapBlock(g, catalog, {
-    id: "leg-rl",
-    typeId: "frame.cube.1",
-    targetBlockId: "hinge-rl",
-    targetAnchorId: "rotor.xp",
-    sourceAnchorId: "yp",
-  });
-
-  // Rear-right leg: hinge on body-b bottom-right
-  snapBlock(g, catalog, {
-    id: "hinge-rr",
-    typeId: "joint.hinge.small",
-    targetBlockId: "body-b",
-    targetAnchorId: "yn.r",
-    sourceAnchorId: "base.xn",
-  });
-  snapBlock(g, catalog, {
-    id: "leg-rr",
-    typeId: "frame.cube.1",
-    targetBlockId: "hinge-rr",
-    targetAnchorId: "rotor.xp",
-    sourceAnchorId: "yp",
-  });
+  // Leg sets on both sides with 180° phase offset for alternating gait.
+  // Right side: crank starts pointing down (φ=0, pushing phase)
+  // Left side:  crank starts pointing up (φ=π, lifting phase)
+  const legZ = 3 + 0.15;
+  const linkageR = solveWalkerLinkage(WALKER_CHASSIS_Y, 0);
+  const linkageL = solveWalkerLinkage(WALKER_CHASSIS_Y, Math.PI);
+  createWalkerLegSet(g, "r", legZ, linkageR);
+  createWalkerLegSet(g, "l", -legZ, linkageL);
 
   return g;
 }
@@ -279,10 +434,11 @@ export const MACHINE_PRESETS: MachinePreset[] = [
   },
   {
     name: "Hinged Walker",
-    description: "A wide body with 4 hinged legs driven by motors.",
+    description: "A Theo Jansen linkage walking machine with motor-driven cranks.",
     build: buildWalker,
-    autoInput: { hingeSpin: 3 },
-    cameraPosition: [6, 4, 6],
+    autoInput: { hingeSpin: 1 },
+    cameraPosition: [20, 12, 20],
+    gravity: 40,  // crashcat reference uses gravity=40 for stable walking
   },
   {
     name: "Spinner",
