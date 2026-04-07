@@ -39,6 +39,7 @@ export function App() {
   const [blockCount, setBlockCount] = useState(1);
   const [mode, setMode] = useState<Mode>("gallery");
   const [physicsReady, setPhysicsReady] = useState(false);
+  const [firstPerson, setFirstPerson] = useState(false);
   const [activePreset, setActivePreset] = useState<MachinePreset | null>(null);
   const [showJson, setShowJson] = useState(false);
   const [jsonText, setJsonText] = useState("");
@@ -173,6 +174,7 @@ export function App() {
   const handleStop = useCallback(() => {
     setPlayGraph(null);
     setPhysicsReady(false);
+    setFirstPerson(false);
     setJsonText(graphToJsonText(graph));
     setJsonError(null);
     setMode("build");
@@ -184,6 +186,7 @@ export function App() {
     setPlayGraph(null);
     setActivePreset(null);
     setPhysicsReady(false);
+    setFirstPerson(false);
     setShowJson(false);
   }, []);
 
@@ -432,13 +435,41 @@ export function App() {
                 Initializing Rapier...
               </p>
             )}
-            {!activePreset && (
+            {!activePreset && !firstPerson && (
               <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
                 <strong>Controls:</strong><br />
                 Q / E &mdash; Spin hinges &amp; motors<br />
                 Space &mdash; Fire thrusters
               </div>
             )}
+            {firstPerson && (
+              <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
+                <strong>First Person:</strong><br />
+                Click canvas to lock mouse<br />
+                WASD / Arrows &mdash; Move<br />
+                Mouse &mdash; Look<br />
+                Space &mdash; Jump<br />
+                Esc &mdash; Release mouse
+              </div>
+            )}
+            {/* First person toggle */}
+            <button
+              onClick={() => setFirstPerson((fp) => !fp)}
+              style={{
+                marginTop: 4,
+                padding: "6px 10px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 6,
+                background: firstPerson ? "rgba(76,175,80,0.3)" : "transparent",
+                color: firstPerson ? "#a5d6a7" : "#ccc",
+                cursor: "pointer",
+                fontSize: 12,
+                width: "100%",
+                transition: "all 0.15s",
+              }}
+            >
+              {firstPerson ? "Exit" : "Enter"} First Person
+            </button>
             {/* JSON toggle */}
             <button
               onClick={() => toggleShowJson(mode, graph, playGraph)}
@@ -601,6 +632,25 @@ export function App() {
         </div>
       )}
 
+      {/* Crosshair for first-person mode */}
+      {mode === "play" && firstPerson && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 10,
+            pointerEvents: "none",
+            width: 20,
+            height: 20,
+          }}
+        >
+          <div style={{ position: "absolute", top: 9, left: 2, width: 16, height: 2, background: "rgba(255,255,255,0.6)", borderRadius: 1 }} />
+          <div style={{ position: "absolute", top: 2, left: 9, width: 2, height: 16, background: "rgba(255,255,255,0.6)", borderRadius: 1 }} />
+        </div>
+      )}
+
       {/* 3D Scene */}
       <Canvas
         camera={{ position: cameraPos, fov: 50 }}
@@ -610,7 +660,7 @@ export function App() {
         <ambientLight intensity={0.4} />
         <directionalLight position={[5, 8, 5]} intensity={1} castShadow />
         <Environment preset="city" />
-        <OrbitControls makeDefault />
+        {!(mode === "play" && firstPerson) && <OrbitControls makeDefault />}
 
         {(mode === "gallery" || mode === "build") && (
           <Grid
@@ -640,6 +690,7 @@ export function App() {
             graph={playGraph}
             catalog={catalog}
             inputState={effectiveInput}
+            firstPerson={firstPerson}
             onReady={() => setPhysicsReady(true)}
           />
         )}
