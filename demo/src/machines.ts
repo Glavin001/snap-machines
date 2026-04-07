@@ -157,16 +157,14 @@ const HORIZ_HALF = 5.0;           // horizontal bar half-length
 
 /**
  * Solve the system `a·sin(α) - b·sin(β) = d, a·cos(α) - b·cos(β) = e`
- * for angles α and β. Returns the solution where legs point downward
- * (the walking configuration). `signHint` selects between the two solutions:
- * +1 for the front linkage, -1 for the rear linkage.
+ * for angles α and β. Returns [α, β].
  */
-function solveLinkageAngles(
-  a: number, b: number, d: number, e: number, signHint: 1 | -1,
+function solveLinkagePair(
+  a: number, b: number, d: number, e: number, sign: 1 | -1,
 ): [number, number] {
   // From squaring and adding: a² + b² - 2ab·cos(δ) = d² + e²
-  const cosδ = (a * a + b * b - d * d - e * e) / (2 * a * b);
-  const δ = signHint * Math.acos(cosδ);
+  const cosδ = Math.max(-1, Math.min(1, (a * a + b * b - d * d - e * e) / (2 * a * b)));
+  const δ = sign * Math.acos(cosδ);
 
   // Substituting β = α - δ and solving for α:
   const P = a - b * Math.cos(δ);
@@ -177,50 +175,74 @@ function solveLinkageAngles(
 }
 
 /**
- * Compute all bar positions and rotations for one side of the walker.
- * The crank starts pointing straight down (θ = 0). All other angles are
- * derived from the closed-loop constraints at hinges H6 and H7.
+ * Solve a linkage pair and pick the solution where the leg foot points
+ * downward (lower Y = walking configuration). Tries both sign variants
+ * and picks the one with the lower leg foot.
  */
-function solveWalkerLinkage(chassisY: number) {
+function solveLinkageAngles(
+  a: number, b: number, d: number, e: number,
+  legCenterY: number, legHalf: number,
+): [number, number] {
+  const [α1, β1] = solveLinkagePair(a, b, d, e, 1);
+  const [α2, β2] = solveLinkagePair(a, b, d, e, -1);
+  // β is the leg angle; foot at local y = -legHalf maps to world y = centerY - legHalf·cos(β)
+  const footY1 = legCenterY - legHalf * Math.cos(β1);
+  const footY2 = legCenterY - legHalf * Math.cos(β2);
+  return footY1 < footY2 ? [α1, β1] : [α2, β2];
+}
+
+/**
+ * Compute all bar positions and rotations for one side of the walker.
+ * `phi` is the crank starting angle (0 = pointing down, π = pointing up).
+ * Using different phi values for each side creates a phase-offset gait.
+ */
+function solveWalkerLinkage(chassisY: number, phi: number) {
   const crankLen = CRANK_HALF * 2;
+  const sinPhi = Math.sin(phi);
+  const cosPhi = Math.cos(phi);
+
+  // Crank bottom position (where front leg center is pinned)
+  const crankBottomX = X_CRANK + crankLen * sinPhi;
+  const crankBottomY = chassisY - crankLen * cosPhi;
 
   // System 1 — upper bar (θ_u) and front leg (θ_f):
-  // Constraint at H6 (upper.yp = frontLeg.upper):
-  //   2·upperHalf·sin(θ_u) - legUpper·sin(θ_f) = xUfl - xCrank
-  //   2·upperHalf·cos(θ_u) - legUpper·cos(θ_f) = -crankLen
+  // Constraint at H6 (upper.yp = frontLeg.upper)
   const [θ_u, θ_f] = solveLinkageAngles(
     2 * UPPER_HALF, LEG_UPPER,
-    X_UFL - X_CRANK, -crankLen,
-    1,
+    (X_UFL - X_CRANK) - crankLen * sinPhi,
+    -crankLen * cosPhi,
+    crankBottomY, 3, // leg half-length = 3 (6-unit bar)
   );
 
   // System 2 — horiz bar (θ_h) and back leg (θ_b):
-  // Constraint at H7 (backLeg.upper = horiz.yp):
-  //   2·horizHalf·sin(θ_h) - legUpper·sin(θ_b) = xCrank - xBack
-  //   2·horizHalf·cos(θ_h) - legUpper·cos(θ_b) = crankLen
+  // Constraint at H7 (backLeg.upper = horiz.yp)
   const [θ_h, θ_b] = solveLinkageAngles(
     2 * HORIZ_HALF, LEG_UPPER,
-    X_CRANK - X_BACK, crankLen,
-    -1,
+    (X_CRANK - X_BACK) + crankLen * sinPhi,
+    crankLen * cosPhi,
+    chassisY, 3, // back leg center at chassisY
   );
 
   // Bar centers derived from hinge constraints.
   // For a bar at angle θ, local anchor (0, ly) → world (cx - ly·sin(θ), cy + ly·cos(θ)).
-  // We pin one anchor to a known hinge and solve for the bar center.
 
-  const crank  = { x: X_CRANK, y: chassisY - CRANK_HALF, θ: 0 };
-  const fleg   = { x: X_CRANK, y: chassisY - crankLen,   θ: θ_f };
+  const crank = {
+    x: X_CRANK + CRANK_HALF * sinPhi,
+    y: chassisY - CRANK_HALF * cosPhi,
+    θ: phi,
+  };
+  const fleg = { x: crankBottomX, y: crankBottomY, θ: θ_f };
   // Upper: yn pinned at (X_UFL, chassisY)
-  const upper  = {
+  const upper = {
     x: X_UFL - UPPER_HALF * Math.sin(θ_u),
     y: chassisY + UPPER_HALF * Math.cos(θ_u),
     θ: θ_u,
   };
-  const bleg   = { x: X_BACK, y: chassisY, θ: θ_b };
-  // Horiz: yn pinned at front leg center (X_CRANK, chassisY - crankLen)
-  const hbar   = {
-    x: X_CRANK - HORIZ_HALF * Math.sin(θ_h),
-    y: (chassisY - crankLen) + HORIZ_HALF * Math.cos(θ_h),
+  const bleg = { x: X_BACK, y: chassisY, θ: θ_b };
+  // Horiz: yn pinned at front leg center (crank bottom)
+  const hbar = {
+    x: crankBottomX - HORIZ_HALF * Math.sin(θ_h),
+    y: crankBottomY + HORIZ_HALF * Math.cos(θ_h),
     θ: θ_h,
   };
 
@@ -237,8 +259,6 @@ function solveWalkerLinkage(chassisY: number) {
   return { crank, upper, fleg, hbar, bleg, h6, h7 };
 }
 
-const LINKAGE = solveWalkerLinkage(WALKER_CHASSIS_Y);
-
 /**
  * Create one set of Theo Jansen legs on one side of the chassis.
  *
@@ -253,10 +273,9 @@ function createWalkerLegSet(
   g: BlockGraph,
   prefix: string,
   legZ: number,
+  L: ReturnType<typeof solveWalkerLinkage>,
 ): void {
   const Y = WALKER_CHASSIS_Y;
-  const L = LINKAGE;
-  const crankLen = CRANK_HALF * 2;
 
   const rot = (θ: number) => θ === 0 ? QUAT_IDENTITY : quatFromAxisAngle(VEC3_Z, θ);
 
@@ -278,9 +297,9 @@ function createWalkerLegSet(
   g.addNode({ id: `${prefix}-h2`, typeId: "walker.motor",
     transform: { position: vec3(X_CRANK, Y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h3`, typeId: "walker.pivot",
-    transform: { position: vec3(X_CRANK, Y - crankLen, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(L.fleg.x, L.fleg.y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h4`, typeId: "walker.pivot",
-    transform: { position: vec3(X_CRANK, Y - crankLen, legZ), rotation: QUAT_IDENTITY } });
+    transform: { position: vec3(L.fleg.x, L.fleg.y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h5`, typeId: "walker.pivot",
     transform: { position: vec3(X_BACK, Y, legZ), rotation: QUAT_IDENTITY } });
   g.addNode({ id: `${prefix}-h6`, typeId: "walker.pivot",
@@ -330,10 +349,14 @@ function buildWalker(catalog: BlockCatalog): BlockGraph {
     transform: { position: vec3(0, WALKER_CHASSIS_Y, 0), rotation: QUAT_IDENTITY },
   });
 
-  // Leg sets on both sides (chassisDepthHalf=3, partDepthHalf=0.15)
+  // Leg sets on both sides with 180° phase offset for alternating gait.
+  // Right side: crank starts pointing down (φ=0, pushing phase)
+  // Left side:  crank starts pointing up (φ=π, lifting phase)
   const legZ = 3 + 0.15;
-  createWalkerLegSet(g, "r", legZ);
-  createWalkerLegSet(g, "l", -legZ);
+  const linkageR = solveWalkerLinkage(WALKER_CHASSIS_Y, 0);
+  const linkageL = solveWalkerLinkage(WALKER_CHASSIS_Y, Math.PI);
+  createWalkerLegSet(g, "r", legZ, linkageR);
+  createWalkerLegSet(g, "l", -legZ, linkageL);
 
   return g;
 }
