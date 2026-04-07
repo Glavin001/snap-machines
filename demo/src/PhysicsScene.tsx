@@ -22,6 +22,7 @@ interface PhysicsSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
   inputState: RuntimeInputState;
+  gravity?: number;
   onReady?: () => void;
 }
 
@@ -43,7 +44,7 @@ const BLOCK_COLORS: Record<string, string> = {
   "walker.motor": "#aa6633",
 };
 
-export function PhysicsScene({ graph, catalog, inputState, onReady }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, gravity = 9.81, onReady }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
@@ -61,8 +62,8 @@ export function PhysicsScene({ graph, catalog, inputState, onReady }: PhysicsSce
     RAPIER.init().then(() => {
       if (cancelled) return;
 
-      const gravity = new RAPIER.Vector3(0, -9.81, 0);
-      const world = new RAPIER.World(gravity);
+      const gravityVec = new RAPIER.Vector3(0, -gravity, 0);
+      const world = new RAPIER.World(gravityVec);
       worldRef.current = world;
 
       // Ground plane
@@ -104,7 +105,7 @@ export function PhysicsScene({ graph, catalog, inputState, onReady }: PhysicsSce
       readyRef.current = false;
       setPlan(null);
     };
-  }, [graph, catalog]);
+  }, [graph, catalog, gravity]);
 
   useFrame((_state, delta) => {
     if (!readyRef.current || !worldRef.current || !runtimeRef.current || !plan) return;

@@ -288,7 +288,7 @@ export const walkerBarLegBlock: BlockDefinition = {
   colliders: [{
     kind: "box",
     halfExtents: vec3(0.5, 3, 0.15),
-    friction: 0.5,
+    friction: 2.0,
     collisionGroups: WALKER_COLLISION_GROUP,
   }],
   anchors: [

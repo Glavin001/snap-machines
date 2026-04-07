@@ -23,6 +23,8 @@ export interface MachinePreset {
   build(catalog: BlockCatalog): BlockGraph;
   autoInput: RuntimeInputState;
   cameraPosition: [number, number, number];
+  /** Override gravity magnitude (default: 9.81). Crashcat walker uses 40. */
+  gravity?: number;
 }
 
 /**
@@ -413,6 +415,7 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     build: buildWalker,
     autoInput: { hingeSpin: 1 },
     cameraPosition: [20, 12, 20],
+    gravity: 40,  // crashcat reference uses gravity=40 for stable walking
   },
   {
     name: "Spinner",
