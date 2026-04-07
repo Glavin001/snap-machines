@@ -287,6 +287,14 @@ describe("compileMachinePlan - house structure", () => {
     // The door panel is a separate dynamic body.
     expect(plan.bodies).toHaveLength(2);
 
+    // The structure body is fixed (because the floor is fixed)
+    const structureBody = plan.bodies.find((b) => b.sourceBlocks.includes("floor"))!;
+    expect(structureBody.kind).toBe("fixed");
+
+    // The door body is dynamic (free to swing)
+    const doorBody = plan.bodies.find((b) => b !== structureBody)!;
+    expect(doorBody.kind).toBe("dynamic");
+
     // One revolute joint for the door hinge
     expect(plan.joints).toHaveLength(1);
     expect(plan.joints[0]!.kind).toBe("revolute");

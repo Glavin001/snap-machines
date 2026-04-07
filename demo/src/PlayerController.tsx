@@ -28,6 +28,7 @@ const GRAVITY = -9.81;
 const MOUSE_SENSITIVITY = 0.002;
 const GROUND_OFFSET = 0.08; // character controller skin width
 const MAX_PITCH = Math.PI / 2 - 0.05;
+const PUSH_FORCE = 8; // impulse strength when pushing dynamic bodies (e.g. doors)
 
 export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }: PlayerControllerProps) {
   const { camera, gl } = useThree();
@@ -177,6 +178,25 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
     );
 
     controller.computeColliderMovement(collider, desiredMovement);
+
+    // Push dynamic bodies the player collides with (e.g. the door)
+    for (let i = 0; i < controller.numComputedCollisions(); i++) {
+      const collision = controller.computedCollision(i);
+      if (!collision) continue;
+      const hitCollider = collision.collider;
+      if (!hitCollider) continue;
+      const hitBody = hitCollider.parent();
+      if (!hitBody || !hitBody.isDynamic()) continue;
+
+      // Apply impulse in the player's movement direction
+      const impulse = new R.Vector3(
+        nx * dt * PUSH_FORCE,
+        0,
+        nz * dt * PUSH_FORCE,
+      );
+      hitBody.applyImpulse(impulse, true);
+    }
+
     const corrected = controller.computedMovement();
 
     const pos = body.translation();

@@ -184,6 +184,7 @@ export const floorBlock: BlockDefinition = {
   name: "Floor 4x4",
   category: "structure",
   mass: 5,
+  parts: [{ id: "main", rigidBodyKind: "fixed" }],
   geometry: [{ kind: "box", size: vec3(4, 0.2, 4) }],
   colliders: [{ kind: "box", halfExtents: vec3(2, 0.1, 2) }],
   anchors: [
@@ -245,28 +246,28 @@ export const wallDoorBlock: BlockDefinition = {
     {
       kind: "box",
       partId: "frame",
-      size: vec3(1.5, 3, 0.2),
-      transform: { position: vec3(-1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      size: vec3(1.2, 3, 0.2),
+      transform: { position: vec3(-1.4, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
     // Frame – right section
     {
       kind: "box",
       partId: "frame",
-      size: vec3(1.5, 3, 0.2),
-      transform: { position: vec3(1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      size: vec3(1.2, 3, 0.2),
+      transform: { position: vec3(1.4, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
     // Frame – header above door
     {
       kind: "box",
       partId: "frame",
-      size: vec3(1, 0.6, 0.2),
+      size: vec3(1.6, 0.6, 0.2),
       transform: { position: vec3(0, 1.2, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
     // Door panel
     {
       kind: "box",
       partId: "door",
-      size: vec3(1, 2.4, 0.1),
+      size: vec3(1.6, 2.4, 0.1),
       transform: { position: vec3(0, -0.3, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
   ],
@@ -275,28 +276,28 @@ export const wallDoorBlock: BlockDefinition = {
     {
       kind: "box",
       partId: "frame",
-      halfExtents: vec3(0.75, 1.5, 0.1),
-      transform: { position: vec3(-1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      halfExtents: vec3(0.6, 1.5, 0.1),
+      transform: { position: vec3(-1.4, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
     // Frame – right section
     {
       kind: "box",
       partId: "frame",
-      halfExtents: vec3(0.75, 1.5, 0.1),
-      transform: { position: vec3(1.25, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
+      halfExtents: vec3(0.6, 1.5, 0.1),
+      transform: { position: vec3(1.4, 0, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
     // Frame – header above door
     {
       kind: "box",
       partId: "frame",
-      halfExtents: vec3(0.5, 0.3, 0.1),
+      halfExtents: vec3(0.8, 0.3, 0.1),
       transform: { position: vec3(0, 1.2, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
     // Door panel (slightly thinner than the frame)
     {
       kind: "box",
       partId: "door",
-      halfExtents: vec3(0.5, 1.2, 0.05),
+      halfExtents: vec3(0.8, 1.2, 0.05),
       transform: { position: vec3(0, -0.3, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) },
     },
   ],
@@ -334,11 +335,11 @@ export const wallDoorBlock: BlockDefinition = {
       orientation: lookRotation(vec3(1, 0, 0), VEC3_Y),
       type: "struct",
     },
-    // Internal joint anchors for door hinge
+    // Internal joint anchors for door hinge (at left edge of doorway)
     {
       id: "frame.joint",
       partId: "frame",
-      position: vec3(-0.5, -0.3, 0),
+      position: vec3(-0.8, -0.3, 0),
       normal: vec3(0, 0, 1),
       orientation: lookRotation(vec3(0, 0, 1), VEC3_Y),
       type: "joint",
@@ -347,7 +348,7 @@ export const wallDoorBlock: BlockDefinition = {
     {
       id: "door.joint",
       partId: "door",
-      position: vec3(-0.5, -0.3, 0),
+      position: vec3(-0.8, -0.3, 0),
       normal: vec3(0, 0, -1),
       orientation: lookRotation(vec3(0, 0, -1), VEC3_Y),
       type: "joint",
