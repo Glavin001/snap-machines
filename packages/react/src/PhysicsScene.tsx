@@ -187,32 +187,56 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
         : undefined;
       if (jointPlan) {
         indicator.visible = true;
-        const bodyWorld = runtime.getBodyWorldTransform(jointPlan.bodyAId);
-        // Transform localAnchorA to world space
-        const anchor = new THREE.Vector3(
-          jointPlan.localAnchorA.x,
-          jointPlan.localAnchorA.y,
-          jointPlan.localAnchorA.z,
-        );
-        const bodyQuat = new THREE.Quaternion(
-          bodyWorld.rotation.x,
-          bodyWorld.rotation.y,
-          bodyWorld.rotation.z,
-          bodyWorld.rotation.w,
-        );
-        anchor.applyQuaternion(bodyQuat);
-        indicator.position.set(
-          bodyWorld.position.x + anchor.x,
-          bodyWorld.position.y + anchor.y,
-          bodyWorld.position.z + anchor.z,
-        );
-        // Orient the torus so its normal aligns with the joint axis
-        const axis = jointPlan.localAxisA
-          ? new THREE.Vector3(jointPlan.localAxisA.x, jointPlan.localAxisA.y, jointPlan.localAxisA.z)
-          : new THREE.Vector3(0, 1, 0);
-        axis.applyQuaternion(bodyQuat).normalize();
+
+        // Get the Rapier joint to derive correct world-space axis from frame transforms
+        let worldPos: THREE.Vector3;
+        let worldAxis: THREE.Vector3;
+        try {
+          const rapierJoint = runtime.getJoint(jointPlan.id) as unknown as RAPIER.ImpulseJoint;
+          const body1 = rapierJoint.body1();
+          const r1 = body1.rotation();
+          const t1 = body1.translation();
+          const a1 = rapierJoint.anchor1();
+          const f1 = rapierJoint.frameX1();
+
+          const bodyQuat = new THREE.Quaternion(r1.x, r1.y, r1.z, r1.w);
+
+          // World position: body translation + rotated local anchor
+          const localAnchor = new THREE.Vector3(a1.x, a1.y, a1.z);
+          localAnchor.applyQuaternion(bodyQuat);
+          worldPos = new THREE.Vector3(t1.x + localAnchor.x, t1.y + localAnchor.y, t1.z + localAnchor.z);
+
+          // World axis: frameX1 maps body-local to joint-frame where X is the free axis.
+          // Free axis in body-local = conjugate(frameX1) * [1,0,0]
+          // Free axis in world = bodyRotation * conjugate(frameX1) * [1,0,0]
+          const frameQuat = new THREE.Quaternion(f1.x, f1.y, f1.z, f1.w);
+          worldAxis = new THREE.Vector3(1, 0, 0)
+            .applyQuaternion(frameQuat.conjugate())
+            .applyQuaternion(bodyQuat)
+            .normalize();
+        } catch {
+          // Fallback: use plan data with body transform
+          const bodyWorld = runtime.getBodyWorldTransform(jointPlan.bodyAId);
+          const bodyQuat = new THREE.Quaternion(
+            bodyWorld.rotation.x, bodyWorld.rotation.y,
+            bodyWorld.rotation.z, bodyWorld.rotation.w,
+          );
+          const anchor = new THREE.Vector3(
+            jointPlan.localAnchorA.x, jointPlan.localAnchorA.y, jointPlan.localAnchorA.z,
+          ).applyQuaternion(bodyQuat);
+          worldPos = new THREE.Vector3(
+            bodyWorld.position.x + anchor.x,
+            bodyWorld.position.y + anchor.y,
+            bodyWorld.position.z + anchor.z,
+          );
+          // localAxisA in this plan is already world-space at compile time — use directly
+          const ax = jointPlan.localAxisA ?? { x: 0, y: 1, z: 0 };
+          worldAxis = new THREE.Vector3(ax.x, ax.y, ax.z).normalize();
+        }
+
+        indicator.position.copy(worldPos);
         const up = new THREE.Vector3(0, 1, 0);
-        const orientQuat = new THREE.Quaternion().setFromUnitVectors(up, axis);
+        const orientQuat = new THREE.Quaternion().setFromUnitVectors(up, worldAxis);
         indicator.quaternion.copy(orientQuat);
       } else {
         indicator.visible = false;
