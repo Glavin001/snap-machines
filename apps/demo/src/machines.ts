@@ -566,11 +566,29 @@ function buildPlane(catalog: BlockCatalog): BlockGraph {
 function buildCrane(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Heavy base block (anchored to ground via weight)
+  // Cross-shaped base for stability: main beam + two perpendicular beams
   g.addNode({
     id: "base",
     typeId: "frame.beam.5x1",
     transform: { position: vec3(0, 1, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Perpendicular beam on +Z side (forms the cross)
+  snapBlock(g, catalog, {
+    id: "base-zp",
+    typeId: "frame.beam.5x1",
+    targetBlockId: "base",
+    targetAnchorId: "zp",
+    sourceAnchorId: "zn",
+  });
+
+  // Perpendicular beam on -Z side
+  snapBlock(g, catalog, {
+    id: "base-zn",
+    typeId: "frame.beam.5x1",
+    targetBlockId: "base",
+    targetAnchorId: "zn",
+    sourceAnchorId: "zp",
   });
 
   // Yaw arm on top of base — rotates around Y axis

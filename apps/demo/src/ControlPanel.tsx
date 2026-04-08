@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { ControlMap, ActuatorEntry } from "@snap-machines/core";
 
 export interface ControlPanelProps {
   controlMap: ControlMap;
   onControlMapChange: (updated: ControlMap) => void;
+  /** Ref to the set of currently pressed keys — used for live highlighting */
+  keysDownRef?: React.RefObject<Set<string>>;
 }
 
 /** Display name for a key (e.g. " " → "Space") */
@@ -25,10 +27,36 @@ const TYPE_COLORS: Record<ActuatorEntry["actuatorType"], string> = {
   trigger: "#ffb74d",
 };
 
-export function ControlPanel({ controlMap, onControlMapChange }: ControlPanelProps) {
+/** Poll keysDown ref at ~20fps for live key highlighting */
+function usePressedKeys(keysDownRef?: React.RefObject<Set<string>>): Set<string> {
+  const [pressed, setPressed] = useState<Set<string>>(new Set());
+  const prevRef = useRef("");
+
+  useEffect(() => {
+    if (!keysDownRef) return;
+    const id = setInterval(() => {
+      const current = keysDownRef.current;
+      if (!current) return;
+      // Cheap equality check: serialized sorted key list
+      const serialized = [...current].sort().join(",");
+      if (serialized !== prevRef.current) {
+        prevRef.current = serialized;
+        setPressed(new Set(current));
+      }
+    }, 50);
+    return () => clearInterval(id);
+  }, [keysDownRef]);
+
+  return pressed;
+}
+
+export function ControlPanel({ controlMap, onControlMapChange, keysDownRef }: ControlPanelProps) {
   // Which entry + slot is listening for a key rebind?
   // null = not listening; { index, slot } = waiting for key press
   const [listening, setListening] = useState<{ index: number; slot: "pos" | "neg" } | null>(null);
+
+  // Live key highlighting
+  const pressedKeys = usePressedKeys(keysDownRef);
 
   // Capture keypress when in listening mode
   useEffect(() => {
@@ -134,7 +162,8 @@ export function ControlPanel({ controlMap, onControlMapChange }: ControlPanelPro
                   {entry.actuatorType !== "trigger" && (
                     <KeyButton
                       label={keyLabel(entry.negativeKey)}
-                      active={listening?.index === index && listening.slot === "neg"}
+                      listening={listening?.index === index && listening.slot === "neg"}
+                      pressed={entry.negativeKey !== "" && pressedKeys.has(entry.negativeKey)}
                       onClick={() => setListening({ index, slot: "neg" })}
                     />
                   )}
@@ -148,7 +177,8 @@ export function ControlPanel({ controlMap, onControlMapChange }: ControlPanelPro
                   {/* Positive key */}
                   <KeyButton
                     label={keyLabel(entry.positiveKey)}
-                    active={listening?.index === index && listening.slot === "pos"}
+                    listening={listening?.index === index && listening.slot === "pos"}
+                    pressed={entry.positiveKey !== "" && pressedKeys.has(entry.positiveKey)}
                     onClick={() => setListening({ index, slot: "pos" })}
                   />
 
@@ -184,25 +214,47 @@ export function ControlPanel({ controlMap, onControlMapChange }: ControlPanelPro
   );
 }
 
-function KeyButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function KeyButton({ label, listening, pressed, onClick }: {
+  label: string;
+  listening: boolean;
+  pressed: boolean;
+  onClick: () => void;
+}) {
+  // Priority: listening > pressed > default
+  const isListening = listening;
+  const isPressed = !listening && pressed;
+
   return (
     <button
       onClick={onClick}
       style={{
         minWidth: 32,
         padding: "3px 8px",
-        border: active ? "1px solid #6c63ff" : "1px solid rgba(255,255,255,0.2)",
+        border: isListening
+          ? "1px solid #6c63ff"
+          : isPressed
+            ? "1px solid #4caf50"
+            : "1px solid rgba(255,255,255,0.2)",
         borderRadius: 4,
-        background: active ? "rgba(108,99,255,0.3)" : "rgba(255,255,255,0.08)",
-        color: active ? "#c0b8ff" : "#ccc",
+        background: isListening
+          ? "rgba(108,99,255,0.3)"
+          : isPressed
+            ? "rgba(76,175,80,0.35)"
+            : "rgba(255,255,255,0.08)",
+        color: isListening
+          ? "#c0b8ff"
+          : isPressed
+            ? "#a5d6a7"
+            : "#ccc",
         cursor: "pointer",
         fontSize: 11,
         fontWeight: 600,
         fontFamily: "monospace",
         textAlign: "center",
+        transition: "all 0.1s",
       }}
     >
-      {active ? "..." : label}
+      {isListening ? "..." : label}
     </button>
   );
 }

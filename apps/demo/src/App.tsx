@@ -526,6 +526,7 @@ export function App() {
                     <ControlPanel
                       controlMap={controlMap}
                       onControlMapChange={setControlMap}
+                      keysDownRef={keysDown}
                     />
                   </div>
                 )}

@@ -262,9 +262,9 @@ export const sliderJointPrimitive: BlockDefinition = {
     motor: {
       mode: "position",
       targetPosition: 0,
-      stiffness: 50,
-      damping: 10,
-      maxForce: 100,
+      stiffness: 200,
+      damping: 20,
+      maxForce: 400,
       input: { action: "sliderPos", scale: 0.5 },
       inputTarget: "position",
     },
