@@ -264,6 +264,14 @@ export function updateControlMapInput(
           );
         }
         input[entry.actionName] = entry.currentTarget;
+
+        // Velocity feedforward: Kv * positionError, clamped to max speed.
+        // This makes the damping term actively drive toward the target
+        // instead of only braking, eliminating dead zones and oscillation.
+        const posError = entry.currentTarget - entry.actualPosition;
+        const KV = 3.0;      // velocity gain: rad/s per radian of error
+        const MAX_VEL = 5.0;  // clamp to prevent violent motion
+        input[entry.actionName + ":vff"] = Math.max(-MAX_VEL, Math.min(MAX_VEL, KV * posError));
         break;
       }
       case "trigger": {
