@@ -10,7 +10,7 @@ import {
   quatFromUnitVectors,
   axisNameToVector,
   mulQuat,
-} from "snap-construction-system";
+} from "snap-machines";
 
 interface BlockMeshProps {
   nodeId: string;

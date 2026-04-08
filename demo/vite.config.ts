@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "snap-construction-system": path.resolve(__dirname, "../src"),
+      "snap-machines": path.resolve(__dirname, "../src"),
     },
   },
 });

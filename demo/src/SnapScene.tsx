@@ -8,7 +8,7 @@ import {
   addSnappedBlockToGraph,
   TRANSFORM_IDENTITY,
   Transform,
-} from "snap-construction-system";
+} from "snap-machines";
 import { BlockMesh } from "./BlockMesh.js";
 import { GhostPreview } from "./GhostPreview.js";
 

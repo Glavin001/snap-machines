@@ -2,8 +2,8 @@
  * Extended block catalog for the demo, adding structural beams and motor-wheel
  * blocks on top of the core example catalog.
  */
-import { BlockDefinition, vec3, lookRotation, VEC3_Y, VEC3_Z, QUAT_IDENTITY } from "snap-construction-system";
-import { exampleCatalog } from "snap-construction-system/examples/catalog.js";
+import { BlockDefinition, vec3, lookRotation, VEC3_Y, VEC3_Z, QUAT_IDENTITY } from "snap-machines";
+import { exampleCatalog } from "snap-machines/examples/catalog.js";
 
 function sideAnchor(
   id: string,

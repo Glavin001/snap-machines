@@ -3,7 +3,7 @@ import * as THREE from "three";
 import {
   BlockCatalog,
   NormalizedGeometryDefinition,
-} from "snap-construction-system";
+} from "snap-machines";
 
 interface GhostPreviewProps {
   typeId: string;

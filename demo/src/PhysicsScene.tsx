@@ -16,7 +16,7 @@ import {
   quatFromUnitVectors,
   axisNameToVector,
   mulQuat,
-} from "snap-construction-system";
+} from "snap-machines";
 import { PlayerController } from "./PlayerController.js";
 
 interface PhysicsSceneProps {

@@ -1,4 +1,4 @@
-# snap-construction-system
+# snap-machines
 
 Renderer-agnostic snap-based construction system for block machines, with:
 
@@ -28,7 +28,7 @@ import {
   buildGraphIntoRapier,
   transform,
   vec3,
-} from "snap-construction-system";
+} from "snap-machines";
 
 const catalog = new BlockCatalog().registerMany(exampleCatalog);
 const graph = new BlockGraph();

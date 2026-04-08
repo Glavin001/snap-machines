@@ -7,7 +7,7 @@ import {
   TRANSFORM_IDENTITY,
   RuntimeInputState,
   SerializedBlockGraph,
-} from "snap-construction-system";
+} from "snap-machines";
 import { demoCatalog } from "./catalog.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
 import { SnapScene } from "./SnapScene.js";

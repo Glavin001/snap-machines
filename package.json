@@ -1,5 +1,5 @@
 {
-  "name": "snap-construction-system",
+  "name": "snap-machines",
   "version": "0.1.0",
   "description": "Renderer-agnostic snap-based construction system with a Rapier3D adapter and Three.js reference integration.",
   "type": "module",

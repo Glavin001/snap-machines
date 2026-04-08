@@ -15,7 +15,7 @@ import {
   getWorldAnchorTransform,
   quatFromAxisAngle,
   VEC3_Z,
-} from "snap-construction-system";
+} from "snap-machines";
 
 export interface MachinePreset {
   name: string;

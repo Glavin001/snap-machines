@@ -12,8 +12,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "paths": {
-      "snap-construction-system": ["../src/index.ts"],
-      "snap-construction-system/*": ["../src/*"]
+      "snap-machines": ["../src/index.ts"],
+      "snap-machines/*": ["../src/*"]
     }
   },
   "include": ["src"]
