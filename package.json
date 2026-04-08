@@ -2,6 +2,28 @@
   "name": "snap-machines",
   "version": "0.1.0",
   "description": "Renderer-agnostic snap-based construction system with a Rapier3D adapter and Three.js reference integration.",
+  "author": {
+    "name": "Glavin Wiechert",
+    "email": "glavin.wiechert@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Glavin001/snap-machines.git"
+  },
+  "homepage": "https://github.com/Glavin001/snap-machines#readme",
+  "bugs": {
+    "url": "https://github.com/Glavin001/snap-machines/issues"
+  },
+  "keywords": [
+    "snap",
+    "construction",
+    "physics",
+    "rapier",
+    "three.js",
+    "3d",
+    "blocks",
+    "machines"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
