@@ -68,9 +68,13 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
     pitchRef.current = 0;
 
     return () => {
-      world.removeCharacterController(controller);
-      world.removeCollider(collider, false);
-      world.removeRigidBody(body);
+      try {
+        world.removeCharacterController(controller);
+        world.removeCollider(collider, false);
+        world.removeRigidBody(body);
+      } catch {
+        // World may already be freed by PhysicsScene cleanup
+      }
       bodyRef.current = null;
       colliderRef.current = null;
       controllerRef.current = null;

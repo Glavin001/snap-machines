@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/snap-machines" },
+    { "path": "packages/react" },
     { "path": "apps/demo" }
   ]
 }

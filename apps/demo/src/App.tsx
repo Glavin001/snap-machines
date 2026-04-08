@@ -8,7 +8,7 @@ import {
   RuntimeInputState,
   SerializedBlockGraph,
 } from "@snap-machines/core";
-import { SnapScene, PhysicsScene } from "@snap-machines/core/react";
+import { SnapScene, PhysicsScene } from "@snap-machines/react";
 import { demoCatalog } from "./catalog.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
 

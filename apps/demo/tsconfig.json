@@ -13,7 +13,8 @@
     "noEmit": true,
     "paths": {
       "@snap-machines/core": ["../../packages/snap-machines/src/index.ts"],
-      "@snap-machines/core/*": ["../../packages/snap-machines/src/*"]
+      "@snap-machines/core/*": ["../../packages/snap-machines/src/*"],
+      "@snap-machines/react": ["../../packages/react/src/index.ts"]
     }
   },
   "include": ["src"]

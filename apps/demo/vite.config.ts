@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@snap-machines/core/react": path.resolve(__dirname, "../../packages/snap-machines/src/react"),
       "@snap-machines/core": path.resolve(__dirname, "../../packages/snap-machines/src"),
+      "@snap-machines/react": path.resolve(__dirname, "../../packages/react/src"),
     },
   },
 });

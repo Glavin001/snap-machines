@@ -13,6 +13,7 @@
     "@react-three/drei": "^10.0.6",
     "@react-three/fiber": "^9.1.2",
     "@snap-machines/core": "*",
+    "@snap-machines/react": "*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "three": "^0.175.0"

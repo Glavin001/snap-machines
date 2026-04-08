@@ -2,13 +2,26 @@
 
 A modular, renderer-agnostic snap-based construction system for building block machines with physics. Click-to-connect blocks, compile to rigid bodies and joints, and simulate with Rapier3D.
 
-## Install
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| [`@snap-machines/core`](./packages/snap-machines) | Renderer-agnostic engine: block catalog, graph, snap solver, machine compiler, Rapier3D adapter |
+| [`@snap-machines/react`](./packages/react) | Composable React Three Fiber components for building snap-machine editors |
+
+## Apps
+
+| App | Description |
+|-----|-------------|
+| [`snap-machines-demo`](./apps/demo) | Interactive demo showcasing build mode, play mode, and preset machines |
+
+## Quick start
 
 ```bash
-npm install @snap-machines/core
+npm install
+npm run build
+npm run dev -w snap-machines-demo
 ```
-
-The package includes both the core engine and optional React Three Fiber editor components.
 
 ## How it works
 
@@ -17,7 +30,7 @@ The package includes both the core engine and optional React Three Fiber editor 
 3. **Play mode**: use `compileMachinePlan` to merge structural components into compound rigid bodies, split at joints
 4. **Simulate**: use `buildGraphIntoRapier` to instantiate the compiled plan into a Rapier3D physics world
 
-## Core engine
+## Example
 
 ```ts
 import {
@@ -53,13 +66,11 @@ const plan = compileMachinePlan(graph, catalog);
 console.log(plan.bodies.length, "bodies", plan.joints.length, "joints");
 ```
 
-## React Three Fiber components
-
-Composable, unstyled R3F primitives for building snap-machine editors. You bring your own catalog, UI, and styling.
+## With React Three Fiber
 
 ```tsx
 import { BlockCatalog, BlockGraph } from "@snap-machines/core";
-import { SnapScene, PhysicsScene } from "@snap-machines/core/react";
+import { SnapScene, PhysicsScene } from "@snap-machines/react";
 import { Canvas } from "@react-three/fiber";
 
 function MyEditor() {
@@ -78,36 +89,15 @@ function MyEditor() {
 }
 ```
 
-### Components
-
-| Import from `@snap-machines/core/react` | Description |
-|----------------------------------------|-------------|
-| `<SnapScene>` | Interactive build mode — snap placement and block removal |
-| `<PhysicsScene>` | Play mode — Rapier3D physics simulation |
-| `<BlockMesh>` | Renders a single block's geometry |
-| `<GhostPreview>` | Transparent snap preview overlay |
-| `<GeometryMesh>` | Single geometry primitive renderer |
-| `<PlayerController>` | First-person character controller |
-| `DEFAULT_BLOCK_COLORS` | Default color map for common block types |
-
 ## Repository structure
 
 ```
 packages/
-  snap-machines/    @snap-machines/core
-    src/            Core engine (schema, graph, snap, compiler, adapters)
-    src/react/      React Three Fiber components
+  snap-machines/    @snap-machines/core - engine & compiler
+  react/            @snap-machines/react - R3F editor components
 apps/
   demo/             Interactive demo application
 examples/           Standalone TypeScript example scripts
-```
-
-## Development
-
-```bash
-npm install
-npm run build
-npm run dev -w snap-machines-demo
 ```
 
 ## License

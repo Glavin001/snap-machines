@@ -7,7 +7,7 @@ import {
   findBestSnap,
   addSnappedBlockToGraph,
   Transform,
-} from "../index.js";
+} from "@snap-machines/core";
 import { BlockMesh } from "./BlockMesh.js";
 import { GhostPreview } from "./GhostPreview.js";
 

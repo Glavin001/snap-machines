@@ -3,7 +3,7 @@ import * as THREE from "three";
 import {
   BlockCatalog,
   NormalizedGeometryDefinition,
-} from "../index.js";
+} from "@snap-machines/core";
 
 export interface GhostPreviewProps {
   typeId: string;

@@ -15,6 +15,5 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/react/**"]
+  "include": ["src/**/*.ts"]
 }

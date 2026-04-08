@@ -8,9 +8,10 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build -w @snap-machines/core && npm run build -w snap-machines-demo",
+    "build": "npm run build -w @snap-machines/core && npm run build -w @snap-machines/react && npm run build -w snap-machines-demo",
     "check": "npm run check -ws --if-present",
-    "test": "npm test -ws --if-present"
+    "test": "npm test -ws --if-present",
+    "clean": "npm run clean -ws --if-present"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

@@ -5,13 +5,14 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "declaration": true,
-    "sourceMap": true,
+    "declarationDir": "dist",
+    "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": "src"
+    "forceConsistentCasingInFileNames": true,
+    "composite": true
   },
-  "include": ["src/react/**/*.ts", "src/react/**/*.tsx"]
+  "include": ["src"],
+  "references": [{ "path": "../snap-machines" }]
 }

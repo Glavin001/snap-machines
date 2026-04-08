@@ -1,13 +1,13 @@
 # @snap-machines/core
 
-Snap-based construction system for block machines, with:
+Renderer-agnostic snap-based construction system for block machines, with:
 
-- a data-driven block catalog and serializable block graph
+- a data-driven block catalog
+- a serializable block graph (`nodes + connections`)
 - a build-mode snap solver
 - a physics-agnostic machine plan compiler
 - a first-class Rapier3D runtime adapter
 - a lightweight Three.js reference integration
-- composable React Three Fiber editor components (via `@snap-machines/core/react`)
 
 ## Install
 
@@ -18,13 +18,11 @@ npm install @snap-machines/core
 Peer dependencies (install the ones you need):
 
 ```bash
-npm install three                     # Three.js helpers
-npm install @dimforge/rapier3d        # Rapier3D physics (Node.js)
-npm install @dimforge/rapier3d-compat # Rapier3D physics (browser)
-npm install react @react-three/fiber  # React Three Fiber components
+npm install @dimforge/rapier3d  # for physics simulation
+npm install three               # for Three.js helpers
 ```
 
-## Core usage
+## Quick example
 
 ```ts
 import {
@@ -50,7 +48,10 @@ const snap = findBestSnap({
   graph,
   catalog,
   candidateTypeId: "frame.cube.1",
-  hit: { blockId: root.id, point: vec3(0.5, 0, 0) },
+  hit: {
+    blockId: root.id,
+    point: vec3(0.5, 0, 0),
+  },
 });
 
 if (snap) {
@@ -67,81 +68,57 @@ if (snap) {
 
 const plan = compileMachinePlan(graph, catalog);
 console.log(plan.bodies.length, plan.joints.length);
+
+// With a Rapier world:
+// const { plan, runtime } = buildGraphIntoRapier(graph, catalog, RAPIER, world, {
+//   behaviorFactories: {
+//     thruster: createThrusterBehaviorFactory(),
+//   },
+// });
+// runtime.update({ throttle: 1, hingeSpin: 0.5 }, 1 / 60);
+// world.step();
 ```
-
-## React Three Fiber components
-
-Composable, unstyled R3F primitives for building snap-machine editors. Import from `@snap-machines/core/react`.
-
-```tsx
-import { BlockCatalog, BlockGraph, TRANSFORM_IDENTITY } from "@snap-machines/core";
-import { SnapScene, PhysicsScene } from "@snap-machines/core/react";
-import { Canvas } from "@react-three/fiber";
-
-function Editor() {
-  const [graph] = useState(() => {
-    const g = new BlockGraph();
-    g.addNode({ id: "origin", typeId: "frame.cube.1", transform: TRANSFORM_IDENTITY });
-    return g;
-  });
-
-  return (
-    <Canvas>
-      <SnapScene graph={graph} catalog={catalog} selectedType="frame.cube.1" />
-    </Canvas>
-  );
-}
-```
-
-### Components
-
-| Component | Description |
-|-----------|-------------|
-| `<SnapScene>` | Interactive build mode. Snap placement (click) and block removal (right-click). |
-| `<PhysicsScene>` | Play/simulate mode. Rapier3D physics with motor and behavior input. |
-| `<BlockMesh>` | Renders a single block's geometry at its transform. |
-| `<GhostPreview>` | Transparent snap preview overlay. |
-| `<GeometryMesh>` | Single geometry primitive (box, sphere, capsule, cylinder). |
-| `<PlayerController>` | First-person character controller (WASD, mouse look, jumping). |
-| `DEFAULT_BLOCK_COLORS` | Default color map for common block type IDs. |
-
-### SnapScene props
-
-| Prop | Type | Description |
-|------|------|-------------|
-| `graph` | `BlockGraph` | The block graph to build on |
-| `catalog` | `BlockCatalog` | Block definitions catalog |
-| `selectedType` | `string` | Block type ID to place on click |
-| `colorMap` | `Record<string, string>` | Optional color overrides per block type |
-| `onBlockPlaced` | `() => void` | Called after a block is placed |
-| `onBlockRemoved` | `() => void` | Called after a block is removed |
-
-### PhysicsScene props
-
-| Prop | Type | Description |
-|------|------|-------------|
-| `graph` | `BlockGraph` | The block graph to simulate |
-| `catalog` | `BlockCatalog` | Block definitions catalog |
-| `inputState` | `RuntimeInputState` | Input state for motors and behaviors |
-| `colorMap` | `Record<string, string>` | Optional color overrides per block type |
-| `firstPerson` | `boolean` | Enable first-person camera mode |
-| `gravity` | `number` | Gravity magnitude (default: 9.81) |
-| `onReady` | `() => void` | Called when physics is initialized |
 
 ## Main concepts
 
-- **Schema layer**: define blocks with geometry, colliders, mass, anchors, behaviors, and optional two-part joints
-- **Build mode**: `findBestSnap` evaluates anchor matches from a raycast hit and returns placement transforms
-- **Play mode**: `compileMachinePlan` merges structural components into compound rigid bodies, split at joint blocks
-- **Rapier runtime**: `buildGraphIntoRapier` instantiates the compiled plan into a physics world
+### Schema layer
+
+Define blocks with geometry, colliders, mass, anchors, behaviors, and optional two-part joints. Register them in a `BlockCatalog`.
+
+### Build mode
+
+Use `findBestSnap` to evaluate anchor matches from a raycast hit point. The snap solver finds the closest compatible anchor pair and returns the placement transform.
+
+### Play mode
+
+Use `compileMachinePlan` to merge structural components into compound rigid bodies, split at joint blocks, and emit a runtime plan with bodies, colliders, joints, motors, and behaviors.
+
+### Rapier runtime
+
+Use `buildGraphIntoRapier` or `new RapierMachineRuntime(...)` to instantiate the compiled plan into a Rapier3D physics world. Call `runtime.update(inputState, dt)` each frame to drive motors and behaviors.
 
 ## Joint blocks
 
 Joint blocks are modeled as **exactly two physical parts**:
 
-- each part merges into a structural component (rigid body)
-- the joint block inserts a physics joint between the two bodies
-- if an alternate rigid path exists around the joint, the compiler skips it (articulation is braced shut)
+- each part becomes part of a structural component
+- the compiler merges each structural component into one rigid body
+- the joint block inserts a joint between the two compiled bodies
+- if an alternate rigid path exists around the joint, the compiler reports a diagnostic and skips the joint
+
+## Three.js integration
+
+`integrations/three.ts` includes helpers for:
+
+- mapping raycast intersections to block ids
+- copying transforms into `Object3D` instances
+- syncing mount transforms into a set of bound objects each frame
+
+## Built-in example behavior
+
+The Rapier adapter ships with one example behavior factory:
+
+- `createThrusterBehaviorFactory()` — reads a scalar input and applies a force at a local point on the owning rigid body
 
 ## License
 

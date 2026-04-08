@@ -4,7 +4,7 @@ import {
   quatFromUnitVectors,
   axisNameToVector,
   mulQuat,
-} from "../index.js";
+} from "@snap-machines/core";
 
 export interface GeometryMeshProps {
   geometry: NormalizedGeometryDefinition;

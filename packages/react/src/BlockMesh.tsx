@@ -3,7 +3,7 @@ import * as THREE from "three";
 import {
   BlockCatalog,
   Transform,
-} from "../index.js";
+} from "@snap-machines/core";
 import { GeometryMesh } from "./GeometryMesh.js";
 import { DEFAULT_BLOCK_COLORS } from "./colors.js";
 

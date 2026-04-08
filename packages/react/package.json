@@ -1,7 +1,7 @@
 {
-  "name": "@snap-machines/core",
+  "name": "@snap-machines/react",
   "version": "0.1.0",
-  "description": "Renderer-agnostic snap-based construction system with a Rapier3D adapter and Three.js reference integration.",
+  "description": "Composable React Three Fiber components for building snap-machine editors.",
   "author": {
     "name": "Glavin Wiechert",
     "email": "glavin.wiechert@gmail.com"
@@ -9,34 +9,29 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Glavin001/snap-machines.git",
-    "directory": "packages/snap-machines"
+    "directory": "packages/react"
   },
   "homepage": "https://github.com/Glavin001/snap-machines#readme",
   "bugs": {
     "url": "https://github.com/Glavin001/snap-machines/issues"
   },
   "keywords": [
-    "snap",
-    "construction",
-    "physics",
-    "rapier",
-    "three.js",
+    "snap-machines",
+    "react",
+    "react-three-fiber",
+    "r3f",
+    "editor",
     "3d",
     "blocks",
-    "machines"
+    "physics"
   ],
   "type": "module",
   "main": "dist/index.js",
-  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./examples/catalog.js": {
-      "types": "./dist/examples/catalog.d.ts",
-      "import": "./dist/examples/catalog.js"
     }
   },
   "files": [
@@ -44,19 +39,26 @@
     "README.md"
   ],
   "scripts": {
-    "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "clean": "rm -rf dist",
+    "build": "vite build",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@snap-machines/core": "*"
   },
   "peerDependencies": {
-    "@dimforge/rapier3d": ">=0.17.0",
+    "@dimforge/rapier3d-compat": ">=0.19.0",
+    "@react-three/fiber": ">=9.0.0",
+    "react": ">=18.0.0",
     "three": ">=0.160.0"
   },
-  "license": "MIT",
   "devDependencies": {
+    "@types/react": "^19.1.2",
+    "@types/three": "^0.175.0",
+    "@vitejs/plugin-react": "^4.4.1",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.2"
-  }
+    "vite": "^6.3.2",
+    "vite-plugin-dts": "^4.5.3"
+  },
+  "license": "MIT"
 }
