@@ -41,7 +41,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "vite build",
-    "check": "tsc -b --noEmit"
+    "check": "tsc -p tsconfig.check.json --noEmit"
   },
   "dependencies": {
     "@snap-machines/core": "*"
