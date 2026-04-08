@@ -1,18 +1,12 @@
 import { describe, it, expect } from "vitest";
-import {
-  BlockCatalog,
-  BlockGraph,
-  QUAT_IDENTITY,
-  TRANSFORM_IDENTITY,
-  compileMachinePlan,
-  vec3,
-  besiegePrimitives,
-  besiegeCompounds,
-  placeCompound,
-  suspensionStrutTemplate,
-  gripperTemplate,
-  steeringWheelTemplate,
-} from "../index.js";
+import { BlockCatalog } from "../schema.js";
+import { BlockGraph } from "../graph.js";
+import { QUAT_IDENTITY, TRANSFORM_IDENTITY, vec3 } from "../math.js";
+import { compileMachinePlan } from "../compile/plan.js";
+import { placeCompound } from "../compound.js";
+import { besiegePrimitives } from "../besiege/primitives.js";
+import { besiegeCompounds } from "../besiege/compounds.js";
+import { gripperTemplate, steeringWheelTemplate, suspensionStrutTemplate } from "../besiege/templates.js";
 import { exampleCatalog } from "../examples/catalog.js";
 
 /**
@@ -41,13 +35,13 @@ describe("Layer 0 — Primitive blocks", () => {
 
   it("validates the cylinder primitive", () => {
     const def = catalog.get("primitive.cylinder");
-    expect(def.colliders[0].kind).toBe("cylinder");
+    expect(def.colliders[0]!.kind).toBe("cylinder");
     expect(def.anchors.length).toBeGreaterThanOrEqual(4);
   });
 
   it("validates the sphere primitive", () => {
     const def = catalog.get("primitive.sphere");
-    expect(def.colliders[0].kind).toBe("sphere");
+    expect(def.colliders[0]!.kind).toBe("sphere");
     expect(def.anchors.length).toBe(6);
   });
 
@@ -84,8 +78,8 @@ describe("Layer 0 — Primitive blocks", () => {
     g.addNode({ id: "cyl", typeId: "primitive.cylinder", transform: TRANSFORM_IDENTITY });
     const plan = compileMachinePlan(g, catalog);
     expect(plan.bodies.length).toBe(1);
-    expect(plan.bodies[0].colliders.length).toBe(1);
-    expect(plan.bodies[0].colliders[0].kind).toBe("cylinder");
+    expect(plan.bodies[0]!.colliders.length).toBe(1);
+    expect(plan.bodies[0]!.colliders[0]!.kind).toBe("cylinder");
   });
 
   it("compiles a slider joint into two bodies with one joint", () => {
@@ -94,7 +88,7 @@ describe("Layer 0 — Primitive blocks", () => {
     const plan = compileMachinePlan(g, catalog);
     expect(plan.bodies.length).toBe(2);
     expect(plan.joints.length).toBe(1);
-    expect(plan.joints[0].kind).toBe("prismatic");
+    expect(plan.joints[0]!.kind).toBe("prismatic");
   });
 });
 
@@ -124,14 +118,14 @@ describe("Layer 1 — Compound blocks", () => {
     expect(def.parts.length).toBe(2);
     expect(def.joint!.kind).toBe("revolute");
     expect(def.behaviors.length).toBe(1);
-    expect(def.behaviors[0].kind).toBe("thruster");
+    expect(def.behaviors[0]!.kind).toBe("thruster");
   });
 
   it("validates the jet engine compound", () => {
     const def = catalog.get("compound.jet");
     expect(def.parts.length).toBe(1);  // single part
     expect(def.behaviors.length).toBe(1);
-    expect(def.behaviors[0].kind).toBe("thruster");
+    expect(def.behaviors[0]!.kind).toBe("thruster");
   });
 
   it("validates the shock absorber compound", () => {
@@ -161,7 +155,7 @@ describe("Layer 1 — Compound blocks", () => {
     const plan = compileMachinePlan(g, catalog);
     expect(plan.bodies.length).toBe(2);
     expect(plan.joints.length).toBe(1);
-    expect(plan.joints[0].kind).toBe("revolute");
+    expect(plan.joints[0]!.kind).toBe("revolute");
   });
 
   it("compiles block + wheel into correct topology", () => {

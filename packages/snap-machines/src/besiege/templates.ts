@@ -10,7 +10,8 @@
 import { CompoundTemplate } from "../compound.js";
 import { BlockCatalog } from "../schema.js";
 import { BlockGraph } from "../graph.js";
-import { QUAT_IDENTITY, vec3, alignAnchorPair, getWorldAnchorTransform } from "../index.js";
+import { QUAT_IDENTITY, vec3 } from "../math.js";
+import { alignAnchorPair, getWorldAnchorTransform } from "../snap.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
