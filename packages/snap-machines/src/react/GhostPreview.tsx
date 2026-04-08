@@ -3,9 +3,9 @@ import * as THREE from "three";
 import {
   BlockCatalog,
   NormalizedGeometryDefinition,
-} from "snap-machines";
+} from "../index.js";
 
-interface GhostPreviewProps {
+export interface GhostPreviewProps {
   typeId: string;
   catalog: BlockCatalog;
 }
@@ -28,9 +28,7 @@ export const GhostPreview = memo(forwardRef<THREE.Group, GhostPreviewProps>(
     const block = useMemo(() => catalog.get(typeId), [catalog, typeId]);
 
     // Disable raycasting on every mesh inside the ghost so pointer events
-    // pass straight through to the actual blocks underneath.  Without this
-    // the ghost intercepts hover/click events on the very face it's previewing,
-    // creating a flicker loop (appear → block pointer → disappear → repeat).
+    // pass straight through to the actual blocks underneath.
     useEffect(() => {
       const group = localRef.current;
       if (group) {

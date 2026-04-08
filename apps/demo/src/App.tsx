@@ -7,11 +7,10 @@ import {
   TRANSFORM_IDENTITY,
   RuntimeInputState,
   SerializedBlockGraph,
-} from "snap-machines";
+} from "@snap-machines/core";
+import { SnapScene, PhysicsScene } from "@snap-machines/core/react";
 import { demoCatalog } from "./catalog.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
-import { SnapScene } from "./SnapScene.js";
-import { PhysicsScene } from "./PhysicsScene.js";
 
 const BLOCK_TYPES = [
   "frame.cube.1",

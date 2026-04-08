@@ -21,14 +21,14 @@ export interface PlayerControllerProps {
 
 const CAPSULE_RADIUS = 0.3;
 const CAPSULE_HALF_HEIGHT = 0.5;
-const EYE_HEIGHT = CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS + 0.1; // ~0.9 above body center
+const EYE_HEIGHT = CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS + 0.1;
 const MOVE_SPEED = 5;
 const JUMP_VELOCITY = 5;
 const GRAVITY = -9.81;
 const MOUSE_SENSITIVITY = 0.002;
-const GROUND_OFFSET = 0.08; // character controller skin width
+const GROUND_OFFSET = 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.05;
-const PUSH_FORCE = 8; // impulse strength when pushing dynamic bodies (e.g. doors)
+const PUSH_FORCE = 8;
 
 export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }: PlayerControllerProps) {
   const { camera, gl } = useThree();
@@ -64,8 +64,7 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
     colliderRef.current = collider;
     controllerRef.current = controller;
 
-    // Initialize camera direction to look toward house center
-    yawRef.current = Math.PI; // face -Z
+    yawRef.current = Math.PI;
     pitchRef.current = 0;
 
     return () => {
@@ -139,7 +138,6 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
     const dt = Math.min(delta, 1 / 30);
     const keys = keysRef.current;
 
-    // Compute movement direction relative to yaw
     let moveX = 0;
     let moveZ = 0;
     if (keys.has("w") || keys.has("arrowup")) moveZ -= 1;
@@ -151,16 +149,13 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
 
-    // Transform movement from player-local to world space (Y-up, yaw rotation)
     const worldMoveX = moveX * cosYaw - moveZ * sinYaw;
     const worldMoveZ = moveX * sinYaw + moveZ * cosYaw;
 
-    // Normalize diagonal movement
     const len = Math.sqrt(worldMoveX * worldMoveX + worldMoveZ * worldMoveZ);
     const nx = len > 0 ? (worldMoveX / len) * MOVE_SPEED : 0;
     const nz = len > 0 ? (worldMoveZ / len) * MOVE_SPEED : 0;
 
-    // Gravity + jump
     const grounded = controller.computedGrounded();
     if (grounded) {
       verticalVelocity.current = 0;
@@ -179,7 +174,7 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
 
     controller.computeColliderMovement(collider, desiredMovement);
 
-    // Push dynamic bodies the player collides with (e.g. the door)
+    // Push dynamic bodies the player collides with
     for (let i = 0; i < controller.numComputedCollisions(); i++) {
       const collision = controller.computedCollision(i);
       if (!collision) continue;
@@ -188,7 +183,6 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
       const hitBody = hitCollider.parent();
       if (!hitBody || !hitBody.isDynamic()) continue;
 
-      // Apply impulse in the player's movement direction
       const impulse = new R.Vector3(
         nx * dt * PUSH_FORCE,
         0,
@@ -208,16 +202,12 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
       ),
     );
 
-    // Update camera to eye position
     const bodyPos = body.translation();
     camera.position.set(bodyPos.x, bodyPos.y + EYE_HEIGHT, bodyPos.z);
 
-    // Apply yaw + pitch to camera
     const euler = new THREE.Euler(pitchRef.current, yawRef.current, 0, "YXZ");
     camera.quaternion.setFromEuler(euler);
   });
 
-  // Render a visible capsule mesh for the player body (only visible in 3rd person / debug)
-  // In first person we don't render it since the camera is inside
   return null;
 }

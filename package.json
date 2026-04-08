@@ -1,56 +1,18 @@
 {
-  "name": "snap-machines",
+  "name": "snap-machines-monorepo",
   "version": "0.1.0",
-  "description": "Renderer-agnostic snap-based construction system with a Rapier3D adapter and Three.js reference integration.",
-  "author": {
-    "name": "Glavin Wiechert",
-    "email": "glavin.wiechert@gmail.com"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Glavin001/snap-machines.git"
-  },
-  "homepage": "https://github.com/Glavin001/snap-machines#readme",
-  "bugs": {
-    "url": "https://github.com/Glavin001/snap-machines/issues"
-  },
-  "keywords": [
-    "snap",
-    "construction",
-    "physics",
-    "rapier",
-    "three.js",
-    "3d",
-    "blocks",
-    "machines"
-  ],
+  "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md"
+  "workspaces": [
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "build": "npm run build -w @snap-machines/core && npm run build -w snap-machines-demo",
+    "check": "npm run check -ws --if-present",
+    "test": "npm test -ws --if-present"
   },
-  "peerDependencies": {
-    "@dimforge/rapier3d": ">=0.17.0",
-    "three": ">=0.160.0"
-  },
-  "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.7.0",
-    "vitest": "^4.1.2"
+    "typescript": "^5.7.0"
   }
 }

@@ -6,18 +6,18 @@ import {
   BlockGraph,
   findBestSnap,
   addSnappedBlockToGraph,
-  TRANSFORM_IDENTITY,
   Transform,
-} from "snap-machines";
+} from "../index.js";
 import { BlockMesh } from "./BlockMesh.js";
 import { GhostPreview } from "./GhostPreview.js";
 
-interface SnapSceneProps {
+export interface SnapSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
   selectedType: string;
-  onBlockPlaced: () => void;
-  onBlockRemoved: () => void;
+  colorMap?: Record<string, string>;
+  onBlockPlaced?: () => void;
+  onBlockRemoved?: () => void;
 }
 
 interface PlacedBlock {
@@ -32,7 +32,7 @@ interface HitInfo {
   point: { x: number; y: number; z: number };
 }
 
-export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlockRemoved }: SnapSceneProps) {
+export function SnapScene({ graph, catalog, selectedType, colorMap, onBlockPlaced, onBlockRemoved }: SnapSceneProps) {
   const graphRef = useRef<BlockGraph>(graph);
   graphRef.current = graph;
 
@@ -49,7 +49,6 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlock
   const lastHitRef = useRef<HitInfo | null>(null);
 
   // Apply the latest snap transform to the ghost group every frame.
-  // This is the ONLY place position / visibility are touched — no setState.
   useFrame(() => {
     const group = ghostGroupRef.current;
     if (!group) return;
@@ -78,8 +77,7 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlock
     [catalog, selectedType],
   );
 
-  // When selectedType changes, recompute snap at the last pointer position so
-  // the ghost updates immediately without requiring mouse movement.
+  // When selectedType changes, recompute snap at the last pointer position.
   useEffect(() => {
     if (lastHitRef.current) {
       computeSnap(lastHitRef.current);
@@ -90,12 +88,7 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlock
     (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation();
       const blockId = findBlockId(e.object);
-      if (!blockId) {
-        // Pointer is between faces or on empty space inside the group.
-        // Keep the ghost at its last valid position — it will be cleared
-        // when the pointer leaves the group entirely (handlePointerLeave).
-        return;
-      }
+      if (!blockId) return;
 
       const point = e.point;
       const hit: HitInfo = { blockId, point: { x: point.x, y: point.y, z: point.z } };
@@ -132,13 +125,12 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlock
         { nodeId, typeId: selectedType, transform: snap.placement },
       ]);
 
-      // Recompute ghost targeting the newly placed block so the preview
-      // persists for rapid stacking without waiting for a pointer move.
+      // Recompute ghost targeting the newly placed block.
       const updatedHit: HitInfo = { blockId: nodeId, point: { x: point.x, y: point.y, z: point.z } };
       lastHitRef.current = updatedHit;
       computeSnap(updatedHit);
 
-      onBlockPlaced();
+      onBlockPlaced?.();
     },
     [catalog, selectedType, onBlockPlaced, computeSnap],
   );
@@ -151,23 +143,21 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlock
   const handleContextMenu = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation();
-      // Prevent browser context menu
       e.nativeEvent.preventDefault();
 
       const blockId = findBlockId(e.object);
       if (!blockId) return;
 
-      // Don't allow deleting the origin block — it's the seed
+      // Don't allow deleting the origin block
       if (blockId === "origin") return;
 
       graphRef.current.removeNode(blockId);
       setBlocks((prev) => prev.filter((b) => b.nodeId !== blockId));
 
-      // Clear ghost since the surface we were hovering may be gone
       lastHitRef.current = null;
       snapTransformRef.current = null;
 
-      onBlockRemoved();
+      onBlockRemoved?.();
     },
     [onBlockRemoved],
   );
@@ -186,9 +176,9 @@ export function SnapScene({ graph, catalog, selectedType, onBlockPlaced, onBlock
           typeId={block.typeId}
           blockTransform={block.transform}
           catalog={catalog}
+          colorMap={colorMap}
         />
       ))}
-      {/* Ghost is always mounted; visibility is driven by useFrame above. */}
       <GhostPreview
         ref={ghostGroupRef}
         typeId={selectedType}

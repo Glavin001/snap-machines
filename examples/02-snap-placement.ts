@@ -15,7 +15,7 @@ import {
   vec3,
   QUAT_IDENTITY,
   TRANSFORM_IDENTITY,
-} from "../src/index.js";
+} from "../packages/snap-machines/src/index.js";
 
 // ── Block definitions ───────────────────────────────────────────────────
 const cubeBlock: BlockDefinition = {

@@ -1,0 +1,79 @@
+{
+  "name": "@snap-machines/core",
+  "version": "0.1.0",
+  "description": "Snap-based construction system with physics compilation, Rapier3D adapter, and React Three Fiber editor components.",
+  "author": {
+    "name": "Glavin Wiechert",
+    "email": "glavin.wiechert@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Glavin001/snap-machines.git",
+    "directory": "packages/snap-machines"
+  },
+  "homepage": "https://github.com/Glavin001/snap-machines#readme",
+  "bugs": {
+    "url": "https://github.com/Glavin001/snap-machines/issues"
+  },
+  "keywords": [
+    "snap",
+    "construction",
+    "physics",
+    "rapier",
+    "three.js",
+    "react",
+    "react-three-fiber",
+    "r3f",
+    "editor",
+    "3d",
+    "blocks",
+    "machines"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./examples/catalog.js": {
+      "types": "./dist/examples/catalog.d.ts",
+      "import": "./dist/examples/catalog.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.react.json",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.react.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@dimforge/rapier3d": ">=0.17.0",
+    "@dimforge/rapier3d-compat": ">=0.19.0",
+    "@react-three/fiber": ">=9.0.0",
+    "react": ">=18.0.0",
+    "three": ">=0.160.0"
+  },
+  "peerDependenciesMeta": {
+    "@dimforge/rapier3d-compat": { "optional": true },
+    "@react-three/fiber": { "optional": true },
+    "react": { "optional": true }
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "@types/three": "^0.175.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.2"
+  }
+}

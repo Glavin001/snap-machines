@@ -12,7 +12,7 @@ import {
   transform,
   QUAT_IDENTITY,
   TRANSFORM_IDENTITY,
-} from "../src/index.js";
+} from "../packages/snap-machines/src/index.js";
 
 // ── 1. Define a block type ──────────────────────────────────────────────
 const cubeBlock: BlockDefinition = {

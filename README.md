@@ -1,22 +1,23 @@
 # snap-machines
 
-Renderer-agnostic snap-based construction system for block machines, with:
+A modular, renderer-agnostic snap-based construction system for building block machines with physics. Click-to-connect blocks, compile to rigid bodies and joints, and simulate with Rapier3D.
 
-- a data-driven block catalog
-- a serializable block graph (`nodes + connections`)
-- a build-mode snap solver
-- a physics-agnostic machine plan compiler
-- a first-class Rapier3D runtime adapter
-- a lightweight Three.js reference integration
+## Install
 
-## Main ideas
+```bash
+npm install @snap-machines/core
+```
 
-- **Schema layer**: define blocks with geometry, colliders, mass, anchors, behaviors, and optional two-part joints.
-- **Build mode**: use `findBestSnap` to evaluate anchor matches from a raycast hit and preview transform.
-- **Play mode**: use `compileMachinePlan` to merge structural components into compound rigid bodies, split at joint blocks, and emit a runtime plan.
-- **Rapier runtime**: use `buildGraphIntoRapier` or `new RapierMachineRuntime(...)` to instantiate bodies, colliders, joints, motors, and behaviors.
+The package includes both the core engine and optional React Three Fiber editor components.
 
-## Quick example
+## How it works
+
+1. **Define blocks** with geometry, colliders, mass, anchors, and optional joints using the schema layer
+2. **Build mode**: use `findBestSnap` to snap blocks together via anchor matching
+3. **Play mode**: use `compileMachinePlan` to merge structural components into compound rigid bodies, split at joints
+4. **Simulate**: use `buildGraphIntoRapier` to instantiate the compiled plan into a Rapier3D physics world
+
+## Core engine
 
 ```ts
 import {
@@ -25,10 +26,9 @@ import {
   exampleCatalog,
   findBestSnap,
   compileMachinePlan,
-  buildGraphIntoRapier,
   transform,
   vec3,
-} from "snap-machines";
+} from "@snap-machines/core";
 
 const catalog = new BlockCatalog().registerMany(exampleCatalog);
 const graph = new BlockGraph();
@@ -42,59 +42,74 @@ const snap = findBestSnap({
   graph,
   catalog,
   candidateTypeId: "frame.cube.1",
-  hit: {
-    blockId: root.id,
-    point: vec3(0.5, 0, 0),
-  },
-  previewTransform: transform(vec3(1.2, 0.1, 0.2)),
+  hit: { blockId: root.id, point: vec3(0.5, 0, 0) },
 });
 
 if (snap) {
-  const child = graph.addNode({
-    typeId: "frame.cube.1",
-    transform: snap.placement,
-  });
-
-  graph.addConnection({
-    a: { blockId: root.id, anchorId: snap.target.anchor.id },
-    b: { blockId: child.id, anchorId: snap.sourceAnchor.id },
-  });
+  graph.addNode({ typeId: "frame.cube.1", transform: snap.placement });
 }
 
 const plan = compileMachinePlan(graph, catalog);
-console.log(plan.bodies.length, plan.joints.length);
-
-// Later, with a Rapier world:
-// const { plan, runtime } = buildGraphIntoRapier(graph, catalog, RAPIER, world, {
-//   behaviorFactories: {
-//     thruster: createThrusterBehaviorFactory(),
-//   },
-// });
-// runtime.update({ throttle: 1, hingeSpin: 0.5 }, 1 / 60);
-// world.step();
+console.log(plan.bodies.length, "bodies", plan.joints.length, "joints");
 ```
 
-## Joint blocks
+## React Three Fiber components
 
-Joint blocks are modeled as **exactly two physical parts**. That keeps partitioning simple and predictable:
+Composable, unstyled R3F primitives for building snap-machine editors. You bring your own catalog, UI, and styling.
 
-- each part becomes part of a structural component
-- the compiler merges each structural component into one body
-- the joint block inserts a joint between the two compiled bodies
-- if an alternate rigid path exists around the joint, the compiler reports a diagnostic and skips the joint because the articulation is effectively braced shut
+```tsx
+import { BlockCatalog, BlockGraph } from "@snap-machines/core";
+import { SnapScene, PhysicsScene } from "@snap-machines/core/react";
+import { Canvas } from "@react-three/fiber";
 
-## Three.js integration
+function MyEditor() {
+  const [graph] = useState(() => new BlockGraph());
+  const [catalog] = useState(() => new BlockCatalog().registerMany(myBlocks));
 
-`integrations/three.ts` includes small helpers for:
+  return (
+    <Canvas>
+      <SnapScene
+        graph={graph}
+        catalog={catalog}
+        selectedType="frame.cube.1"
+      />
+    </Canvas>
+  );
+}
+```
 
-- mapping raycast intersections to block ids
-- copying transforms into `Object3D` instances
-- syncing mount transforms into a set of bound objects each frame
+### Components
 
-## Built-in example behavior
+| Import from `@snap-machines/core/react` | Description |
+|----------------------------------------|-------------|
+| `<SnapScene>` | Interactive build mode — snap placement and block removal |
+| `<PhysicsScene>` | Play mode — Rapier3D physics simulation |
+| `<BlockMesh>` | Renders a single block's geometry |
+| `<GhostPreview>` | Transparent snap preview overlay |
+| `<GeometryMesh>` | Single geometry primitive renderer |
+| `<PlayerController>` | First-person character controller |
+| `DEFAULT_BLOCK_COLORS` | Default color map for common block types |
 
-The Rapier adapter ships with one example behavior factory:
+## Repository structure
 
-- `createThrusterBehaviorFactory()` — reads a scalar input and applies a force at a local point on the owning rigid body
+```
+packages/
+  snap-machines/    @snap-machines/core
+    src/            Core engine (schema, graph, snap, compiler, adapters)
+    src/react/      React Three Fiber components
+apps/
+  demo/             Interactive demo application
+examples/           Standalone TypeScript example scripts
+```
 
-Wheel drive is usually better represented as a joint motor on a revolute joint block, so that path is handled by the compile plan and runtime motor update instead of a bespoke behavior.
+## Development
+
+```bash
+npm install
+npm run build
+npm run dev -w snap-machines-demo
+```
+
+## License
+
+MIT

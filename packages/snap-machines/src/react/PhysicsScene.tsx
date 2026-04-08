@@ -10,43 +10,23 @@ import {
   createThrusterBehaviorFactory,
   MachinePlan,
   MachinePartMountPlan,
-  NormalizedGeometryDefinition,
   RuntimeInputState,
-  VEC3_Y,
-  quatFromUnitVectors,
-  axisNameToVector,
-  mulQuat,
-} from "snap-machines";
+} from "../index.js";
+import { GeometryMesh } from "./GeometryMesh.js";
+import { DEFAULT_BLOCK_COLORS } from "./colors.js";
 import { PlayerController } from "./PlayerController.js";
 
-interface PhysicsSceneProps {
+export interface PhysicsSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
   inputState: RuntimeInputState;
+  colorMap?: Record<string, string>;
   firstPerson?: boolean;
   gravity?: number;
   onReady?: () => void;
 }
 
-const BLOCK_COLORS: Record<string, string> = {
-  "frame.cube.1": "#5b8def",
-  "frame.plank.3x1": "#4a7cd8",
-  "frame.beam.5x1": "#3d6bc4",
-  "joint.hinge.small": "#e8a838",
-  "joint.motor.wheel": "#d4962e",
-  "utility.thruster.small": "#ef5b5b",
-  "utility.thruster.up": "#ef5b5b",
-  // Walker – Theo Jansen linkage
-  "walker.chassis": "#d4a854",
-  "walker.bar.upper": "#4a9e4a",
-  "walker.bar.crank": "#9e4a9e",
-  "walker.bar.leg": "#5b8def",
-  "walker.bar.horiz": "#ef5b8d",
-  "walker.pivot": "#888888",
-  "walker.motor": "#aa6633",
-};
-
-export function PhysicsScene({ graph, catalog, inputState, firstPerson, gravity = 9.81, onReady }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson, gravity = 9.81, onReady }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
@@ -54,6 +34,7 @@ export function PhysicsScene({ graph, catalog, inputState, firstPerson, gravity 
   const meshGroupsRef = useRef<Map<string, THREE.Group>>(new Map());
   const readyRef = useRef(false);
   const inputRef = useRef<RuntimeInputState>(inputState);
+  const colors = colorMap ?? DEFAULT_BLOCK_COLORS;
 
   inputRef.current = inputState;
 
@@ -140,6 +121,7 @@ export function PhysicsScene({ graph, catalog, inputState, firstPerson, gravity 
         <MountMesh
           key={mount.id}
           mount={mount}
+          color={colors[mount.blockTypeId] ?? "#999"}
           onRef={(group) => {
             if (group) {
               meshGroupsRef.current.set(mount.id, group);
@@ -158,12 +140,12 @@ export function PhysicsScene({ graph, catalog, inputState, firstPerson, gravity 
 
 interface MountMeshProps {
   mount: MachinePartMountPlan;
+  color: string;
   onRef: (group: THREE.Group | null) => void;
 }
 
-function MountMesh({ mount, onRef }: MountMeshProps) {
+function MountMesh({ mount, color, onRef }: MountMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const color = BLOCK_COLORS[mount.blockTypeId] ?? "#999";
 
   useEffect(() => {
     onRef(groupRef.current);
@@ -183,66 +165,4 @@ function MountMesh({ mount, onRef }: MountMeshProps) {
       )}
     </group>
   );
-}
-
-function GeometryMesh({ geometry, color }: { geometry: NormalizedGeometryDefinition; color: string }) {
-  const t = geometry.transform;
-
-  switch (geometry.kind) {
-    case "box":
-      return (
-        <mesh
-          position={[t.position.x, t.position.y, t.position.z]}
-          quaternion={[t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w]}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={[geometry.size.x, geometry.size.y, geometry.size.z]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-      );
-    case "sphere":
-      return (
-        <mesh
-          position={[t.position.x, t.position.y, t.position.z]}
-          castShadow
-          receiveShadow
-        >
-          <sphereGeometry args={[geometry.radius, 24, 24]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-      );
-    case "capsule":
-      return (
-        <mesh
-          position={[t.position.x, t.position.y, t.position.z]}
-          quaternion={[t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w]}
-          castShadow
-          receiveShadow
-        >
-          <capsuleGeometry args={[geometry.radius, geometry.halfHeight * 2, 8, 16]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-      );
-    case "cylinder": {
-      // Three.js CylinderGeometry defaults to Y-axis. Apply axis correction.
-      const axisRot = geometry.axis && geometry.axis !== "y"
-        ? quatFromUnitVectors(VEC3_Y, axisNameToVector(geometry.axis))
-        : null;
-      const rot = axisRot ? mulQuat(t.rotation, axisRot) : t.rotation;
-      return (
-        <mesh
-          position={[t.position.x, t.position.y, t.position.z]}
-          quaternion={[rot.x, rot.y, rot.z, rot.w]}
-          castShadow
-          receiveShadow
-        >
-          <cylinderGeometry args={[geometry.radius, geometry.radius, geometry.halfHeight * 2, 24]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-      );
-    }
-    default:
-      return null;
-  }
 }

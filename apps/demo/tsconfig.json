@@ -12,8 +12,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "paths": {
-      "snap-machines": ["../src/index.ts"],
-      "snap-machines/*": ["../src/*"]
+      "@snap-machines/core": ["../../packages/snap-machines/src/index.ts"],
+      "@snap-machines/core/*": ["../../packages/snap-machines/src/*"]
     }
   },
   "include": ["src"]

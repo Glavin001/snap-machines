@@ -1,0 +1,16 @@
+export const DEFAULT_BLOCK_COLORS: Record<string, string> = {
+  "frame.cube.1": "#5b8def",
+  "frame.plank.3x1": "#4a7cd8",
+  "frame.beam.5x1": "#3d6bc4",
+  "joint.hinge.small": "#e8a838",
+  "joint.motor.wheel": "#d4962e",
+  "utility.thruster.small": "#ef5b5b",
+  "utility.thruster.up": "#ef5b5b",
+  "walker.chassis": "#d4a854",
+  "walker.bar.upper": "#4a9e4a",
+  "walker.bar.crank": "#9e4a9e",
+  "walker.bar.leg": "#5b8def",
+  "walker.bar.horiz": "#ef5b8d",
+  "walker.pivot": "#888888",
+  "walker.motor": "#aa6633",
+};

@@ -14,8 +14,8 @@ import {
   TRANSFORM_IDENTITY,
   VEC3_Y,
   lookRotation,
-} from "../src/index.js";
-import { exampleCatalog } from "../src/examples/catalog.js";
+} from "../packages/snap-machines/src/index.js";
+import { exampleCatalog } from "../packages/snap-machines/src/examples/catalog.js";
 
 // ── Register the example catalog blocks ─────────────────────────────────
 const catalog = new BlockCatalog();
