@@ -15,6 +15,10 @@ import {
   getWorldAnchorTransform,
   quatFromAxisAngle,
   VEC3_Z,
+  VEC3_X,
+  VEC3_Y,
+  placeCompound,
+  suspensionStrutTemplate,
 } from "@snap-machines/core";
 
 export interface MachinePreset {
@@ -486,6 +490,211 @@ function buildHouse(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
+// 6. Plane — Fuselage + Wings + Propeller + Control Surfaces
+// ---------------------------------------------------------------------------
+
+function buildPlane(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Fuselage — long beam
+  g.addNode({
+    id: "fuselage",
+    typeId: "frame.beam.5x1",
+    transform: { position: vec3(0, 3, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Wings — plates on left and right
+  snapBlock(g, catalog, {
+    id: "wing-l",
+    typeId: "primitive.plate.2x1",
+    targetBlockId: "fuselage",
+    targetAnchorId: "zp",
+    sourceAnchorId: "zn",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wing-r",
+    typeId: "primitive.plate.2x1",
+    targetBlockId: "fuselage",
+    targetAnchorId: "zn",
+    sourceAnchorId: "zp",
+  });
+
+  // Propeller on the front (+X)
+  snapBlock(g, catalog, {
+    id: "propeller",
+    typeId: "compound.propeller",
+    targetBlockId: "fuselage",
+    targetAnchorId: "xp",
+    sourceAnchorId: "hub.attach",
+  });
+
+  // Elevator (control surface on rear top)
+  snapBlock(g, catalog, {
+    id: "elevator",
+    typeId: "compound.flap",
+    targetBlockId: "fuselage",
+    targetAnchorId: "yp.l",
+    sourceAnchorId: "mount.attach",
+  });
+
+  // Rudder (control surface on rear, vertical — on top of fuselage at back)
+  snapBlock(g, catalog, {
+    id: "rudder",
+    typeId: "compound.flap",
+    targetBlockId: "fuselage",
+    targetAnchorId: "yp.r",
+    sourceAnchorId: "mount.attach",
+  });
+
+  // Thruster on the back for jet-assist
+  snapBlock(g, catalog, {
+    id: "jet",
+    typeId: "compound.jet",
+    targetBlockId: "fuselage",
+    targetAnchorId: "xn",
+    sourceAnchorId: "intake",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// 7. Crane — Base + Yaw Arm + Pitch Arm + Gripper
+// ---------------------------------------------------------------------------
+
+function buildCrane(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Heavy base block (anchored to ground via weight)
+  g.addNode({
+    id: "base",
+    typeId: "frame.beam.5x1",
+    transform: { position: vec3(0, 1, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Yaw arm on top of base — rotates around Y axis
+  snapBlock(g, catalog, {
+    id: "yaw",
+    typeId: "compound.arm.yaw",
+    targetBlockId: "base",
+    targetAnchorId: "yp",
+    sourceAnchorId: "base.attach",
+  });
+
+  // Pitch arm on top of yaw turret — tilts up/down
+  snapBlock(g, catalog, {
+    id: "pitch",
+    typeId: "compound.arm",
+    targetBlockId: "yaw",
+    targetAnchorId: "turret.top",
+    sourceAnchorId: "mount.attach",
+  });
+
+  // Second pitch arm at the tip of the first
+  snapBlock(g, catalog, {
+    id: "pitch2",
+    typeId: "compound.arm",
+    targetBlockId: "pitch",
+    targetAnchorId: "link.tip",
+    sourceAnchorId: "mount.attach",
+  });
+
+  // Small block as the gripper "palm" at the end
+  snapBlock(g, catalog, {
+    id: "grip-block",
+    typeId: "primitive.block.1x1",
+    targetBlockId: "pitch2",
+    targetAnchorId: "link.tip",
+    sourceAnchorId: "yn",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// 8. Helicopter (Quad-Thruster) — Fuselage + 4 thrusters
+// ---------------------------------------------------------------------------
+
+function buildHelicopter(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Central fuselage
+  g.addNode({
+    id: "fuselage",
+    typeId: "frame.plank.3x1",
+    transform: { position: vec3(0, 3, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Cross beam for thruster mounts
+  snapBlock(g, catalog, {
+    id: "crossbeam",
+    typeId: "frame.plank.3x1",
+    targetBlockId: "fuselage",
+    targetAnchorId: "zp",
+    sourceAnchorId: "xn",
+  });
+
+  // 4 thrusters — one at each end of the cross
+  snapBlock(g, catalog, {
+    id: "thruster-fl",
+    typeId: "utility.thruster.up",
+    targetBlockId: "fuselage",
+    targetAnchorId: "yn.l",
+    sourceAnchorId: "mount",
+  });
+
+  snapBlock(g, catalog, {
+    id: "thruster-fr",
+    typeId: "utility.thruster.up",
+    targetBlockId: "fuselage",
+    targetAnchorId: "yn.r",
+    sourceAnchorId: "mount",
+  });
+
+  snapBlock(g, catalog, {
+    id: "thruster-bl",
+    typeId: "utility.thruster.up",
+    targetBlockId: "crossbeam",
+    targetAnchorId: "yn.l",
+    sourceAnchorId: "mount",
+  });
+
+  snapBlock(g, catalog, {
+    id: "thruster-br",
+    typeId: "utility.thruster.up",
+    targetBlockId: "crossbeam",
+    targetAnchorId: "yn.r",
+    sourceAnchorId: "mount",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// 9. Suspended Car — Chassis with shock absorbers + wheels
+// ---------------------------------------------------------------------------
+
+function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Chassis beam
+  g.addNode({
+    id: "chassis",
+    typeId: "frame.beam.5x1",
+    transform: { position: vec3(0, 2.5, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // 4 suspension struts using the compound template system
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zp.l", "fl/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zp.r", "fr/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zn.l", "rl/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zn.r", "rr/");
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Export gallery
 // ---------------------------------------------------------------------------
 
@@ -524,6 +733,34 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     description: "A floor, 4 walls (one with a hinged door), and a roof. Demonstrates structures and compound machines.",
     build: buildHouse,
     autoInput: {},
+    cameraPosition: [10, 6, 10],
+  },
+  {
+    name: "Plane",
+    description: "A fuselage with wings, propeller, jet engine, and control surfaces.",
+    build: buildPlane,
+    autoInput: { throttle: 1, propellerSpin: 1 },
+    cameraPosition: [10, 6, 10],
+  },
+  {
+    name: "Crane",
+    description: "A heavy base with yaw and pitch arm segments. Demonstrates robotic arm compounds.",
+    build: buildCrane,
+    autoInput: {},
+    cameraPosition: [10, 8, 10],
+  },
+  {
+    name: "Helicopter",
+    description: "A cross-frame with 4 upward thrusters for VTOL flight.",
+    build: buildHelicopter,
+    autoInput: { throttle: 1 },
+    cameraPosition: [8, 5, 8],
+  },
+  {
+    name: "Suspended Car",
+    description: "A beam chassis with 4 suspension struts (shock absorbers + wheels). Uses the compound template system.",
+    build: buildSuspendedCar,
+    autoInput: { motorSpin: 1 },
     cameraPosition: [10, 6, 10],
   },
 ];

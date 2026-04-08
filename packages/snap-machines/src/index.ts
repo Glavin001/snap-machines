@@ -6,3 +6,5 @@ export * from "./compile/plan.js";
 export * from "./adapters/rapier.js";
 export * from "./integrations/three.js";
 export * from "./examples/catalog.js";
+export * from "./compound.js";
+export * from "./besiege/index.js";

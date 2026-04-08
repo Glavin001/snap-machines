@@ -12,29 +12,50 @@ import { SnapScene, PhysicsScene } from "@snap-machines/react";
 import { demoCatalog } from "./catalog.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
 
-const BLOCK_TYPES = [
-  "frame.cube.1",
-  "frame.plank.3x1",
-  "frame.beam.5x1",
-  "joint.hinge.small",
-  "joint.motor.wheel",
-  "utility.thruster.small",
-] as const;
-type BlockType = (typeof BLOCK_TYPES)[number];
+// Block categories for the toolbar
+const BLOCK_CATEGORIES = {
+  Structural: [
+    { id: "primitive.block.1x1", label: "Block 1x1" },
+    { id: "primitive.block.2x1", label: "Block 2x1" },
+    { id: "primitive.plate.2x1", label: "Plate" },
+    { id: "primitive.cylinder", label: "Cylinder" },
+    { id: "primitive.sphere", label: "Sphere" },
+    { id: "frame.cube.1", label: "Frame Cube" },
+    { id: "frame.plank.3x1", label: "Plank 3x1" },
+    { id: "frame.beam.5x1", label: "Beam 5x1" },
+  ],
+  Joints: [
+    { id: "joint.hinge.small", label: "Hinge" },
+    { id: "joint.hinge.passive", label: "Passive Hinge" },
+    { id: "joint.fixed", label: "Fixed Joint" },
+    { id: "joint.slider", label: "Slider" },
+    { id: "joint.ball", label: "Ball Joint" },
+  ],
+  Locomotion: [
+    { id: "compound.wheel", label: "Wheel" },
+    { id: "joint.motor.wheel", label: "Motor Wheel" },
+    { id: "compound.shock", label: "Shock Absorber" },
+  ],
+  Flight: [
+    { id: "compound.propeller", label: "Propeller" },
+    { id: "compound.jet", label: "Jet Engine" },
+    { id: "compound.flap", label: "Control Surface" },
+    { id: "utility.thruster.small", label: "Thruster" },
+  ],
+  Manipulation: [
+    { id: "compound.arm", label: "Arm Segment" },
+    { id: "compound.arm.yaw", label: "Yaw Arm" },
+  ],
+} as const;
 
-const BLOCK_LABELS: Record<BlockType, string> = {
-  "frame.cube.1": "Cube",
-  "frame.plank.3x1": "Plank 3x1",
-  "frame.beam.5x1": "Beam 5x1",
-  "joint.hinge.small": "Hinge",
-  "joint.motor.wheel": "Motor Wheel",
-  "utility.thruster.small": "Thruster",
-};
+// Flat list for compatibility
+const BLOCK_TYPES = Object.values(BLOCK_CATEGORIES).flatMap((items) => items.map((b) => b.id));
+type BlockType = string;
 
 type Mode = "gallery" | "build" | "play";
 
 export function App() {
-  const [selectedType, setSelectedType] = useState<BlockType>("frame.cube.1");
+  const [selectedType, setSelectedType] = useState<BlockType>("primitive.block.1x1");
   const [blockCount, setBlockCount] = useState(1);
   const [mode, setMode] = useState<Mode>("gallery");
   const [physicsReady, setPhysicsReady] = useState(false);
@@ -101,10 +122,25 @@ export function App() {
     };
     const updateInput = () => {
       const keys = keysDown.current;
+      const qe = (keys.has("e") ? 1 : 0) - (keys.has("q") ? 1 : 0);
+      const ws = (keys.has("w") ? 1 : 0) - (keys.has("s") ? 1 : 0);
+      const ad = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
       setInputState({
-        hingeSpin: (keys.has("e") ? 1 : 0) - (keys.has("q") ? 1 : 0),
+        // Legacy
+        hingeSpin: qe,
+        motorSpin: qe,
+        // Throttle / thrust
         throttle: keys.has(" ") ? 1 : 0,
-        motorSpin: (keys.has("e") ? 1 : 0) - (keys.has("q") ? 1 : 0),
+        propellerSpin: keys.has(" ") ? 1 : 0,
+        // Slider / prismatic
+        sliderPos: qe,
+        // Flight controls
+        flapDeflect: ws,
+        // Arm controls
+        armPitch: ws,
+        armYaw: ad,
+        // Gripper
+        gripperClose: keys.has("g") ? 1 : 0,
       });
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -333,25 +369,33 @@ export function App() {
             <p style={{ margin: "0 0 12px", fontSize: 13, opacity: 0.8 }}>
               Click a face to snap a block. Right-click to remove. Hit Play to simulate.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {BLOCK_TYPES.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  style={{
-                    padding: "7px 10px",
-                    border: selectedType === type ? "2px solid #6c63ff" : "2px solid transparent",
-                    borderRadius: 8,
-                    background: selectedType === type ? "rgba(108,99,255,0.25)" : "rgba(255,255,255,0.08)",
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    textAlign: "left",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {BLOCK_LABELS[type]}
-                </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {Object.entries(BLOCK_CATEGORIES).map(([category, items]) => (
+                <div key={category}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5, marginBottom: 3, letterSpacing: 1 }}>
+                    {category}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                    {items.map((block) => (
+                      <button
+                        key={block.id}
+                        onClick={() => setSelectedType(block.id)}
+                        style={{
+                          padding: "4px 8px",
+                          border: selectedType === block.id ? "1px solid #6c63ff" : "1px solid transparent",
+                          borderRadius: 5,
+                          background: selectedType === block.id ? "rgba(108,99,255,0.25)" : "rgba(255,255,255,0.08)",
+                          color: "#fff",
+                          cursor: "pointer",
+                          fontSize: 11,
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {block.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
             <p style={{ margin: "10px 0 0", fontSize: 12, opacity: 0.6 }}>
@@ -437,8 +481,11 @@ export function App() {
             {!activePreset && !firstPerson && (
               <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
                 <strong>Controls:</strong><br />
-                Q / E &mdash; Spin hinges &amp; motors<br />
-                Space &mdash; Fire thrusters
+                Q / E &mdash; Hinges, motors, sliders<br />
+                W / S &mdash; Arms, flaps<br />
+                A / D &mdash; Yaw arms<br />
+                Space &mdash; Thrusters, propellers<br />
+                G &mdash; Gripper close
               </div>
             )}
             {firstPerson && (
