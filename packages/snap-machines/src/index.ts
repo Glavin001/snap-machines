@@ -8,3 +8,4 @@ export * from "./integrations/three.js";
 export * from "./examples/catalog.js";
 export * from "./compound.js";
 export * from "./besiege/index.js";
+export * from "./control-map.js";

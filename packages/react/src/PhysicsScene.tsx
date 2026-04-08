@@ -11,6 +11,8 @@ import {
   MachinePlan,
   MachinePartMountPlan,
   RuntimeInputState,
+  ControlMap,
+  updateControlMapInput,
 } from "@snap-machines/core";
 import { GeometryMesh } from "./GeometryMesh.js";
 import { DEFAULT_BLOCK_COLORS } from "./colors.js";
@@ -19,24 +21,33 @@ import { PlayerController } from "./PlayerController.js";
 export interface PhysicsSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
-  inputState: RuntimeInputState;
+  /** Legacy direct input state (used when controlMap is not provided) */
+  inputState?: RuntimeInputState;
+  /** Per-motor control map — when provided, updateControlMapInput is called each frame */
+  controlMap?: ControlMap;
+  /** Ref to the set of currently pressed keys (used with controlMap) */
+  keysDownRef?: React.RefObject<Set<string>>;
   colorMap?: Record<string, string>;
   firstPerson?: boolean;
   gravity?: number;
   onReady?: () => void;
+  /** Called after compilation with the plan, so the parent can generate a ControlMap */
+  onPlanReady?: (plan: MachinePlan) => void;
 }
 
-export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson, gravity = 9.81, onReady }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownRef, colorMap, firstPerson, gravity = 9.81, onReady, onPlanReady }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
   const [rapierReady, setRapierReady] = useState(false);
   const meshGroupsRef = useRef<Map<string, THREE.Group>>(new Map());
   const readyRef = useRef(false);
-  const inputRef = useRef<RuntimeInputState>(inputState);
+  const inputRef = useRef<RuntimeInputState>(inputState ?? {});
+  const controlMapRef = useRef<ControlMap | undefined>(controlMap);
   const colors = colorMap ?? DEFAULT_BLOCK_COLORS;
 
-  inputRef.current = inputState;
+  inputRef.current = inputState ?? {};
+  controlMapRef.current = controlMap;
 
   const groundRef = useRef<RAPIER.RigidBody | null>(null);
 
@@ -74,6 +85,7 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
       runtimeRef.current = result.runtime;
       readyRef.current = true;
       setRapierReady(true);
+      onPlanReady?.(result.plan);
       onReady?.();
     });
 
@@ -97,7 +109,13 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
     if (!readyRef.current || !worldRef.current || !runtimeRef.current || !plan) return;
 
     const dt = Math.min(delta, 1 / 30);
-    runtimeRef.current.update(inputRef.current, dt);
+
+    // Use ControlMap if available, otherwise fall back to direct inputState
+    const effectiveInput = controlMapRef.current && keysDownRef?.current
+      ? updateControlMapInput(controlMapRef.current, keysDownRef.current, dt)
+      : inputRef.current;
+
+    runtimeRef.current.update(effectiveInput, dt);
     worldRef.current.step();
 
     const runtime = runtimeRef.current;

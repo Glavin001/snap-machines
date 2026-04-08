@@ -5,12 +5,16 @@ import {
   BlockCatalog,
   BlockGraph,
   TRANSFORM_IDENTITY,
-  RuntimeInputState,
   SerializedBlockGraph,
+  ControlMap,
+  MachinePlan,
+  rewritePlanActions,
+  generateControlMap,
 } from "@snap-machines/core";
 import { SnapScene, PhysicsScene } from "@snap-machines/react";
 import { demoCatalog } from "./catalog.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
+import { ControlPanel } from "./ControlPanel.js";
 
 // Block categories for the toolbar
 const BLOCK_CATEGORIES = {
@@ -105,43 +109,20 @@ export function App() {
     }
   }, [graph, graphToJsonText]);
 
-  // Keyboard input for physics controls
-  const [inputState, setInputState] = useState<RuntimeInputState>({});
+  // Per-motor control map (generated from the compiled plan)
+  const [controlMap, setControlMap] = useState<ControlMap | null>(null);
+  const [showControls, setShowControls] = useState(false);
   const keysDown = useRef(new Set<string>());
 
+  // Track pressed keys (used by PhysicsScene's updateControlMapInput via ref)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture keys when typing in textarea
       if ((e.target as HTMLElement)?.tagName === "TEXTAREA") return;
+      if ((e.target as HTMLElement)?.tagName === "BUTTON") return;
       keysDown.current.add(e.key.toLowerCase());
-      updateInput();
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysDown.current.delete(e.key.toLowerCase());
-      updateInput();
-    };
-    const updateInput = () => {
-      const keys = keysDown.current;
-      const qe = (keys.has("e") ? 1 : 0) - (keys.has("q") ? 1 : 0);
-      const ws = (keys.has("w") ? 1 : 0) - (keys.has("s") ? 1 : 0);
-      const ad = (keys.has("d") ? 1 : 0) - (keys.has("a") ? 1 : 0);
-      setInputState({
-        // Legacy
-        hingeSpin: qe,
-        motorSpin: qe,
-        // Throttle / thrust
-        throttle: keys.has(" ") ? 1 : 0,
-        propellerSpin: keys.has(" ") ? 1 : 0,
-        // Slider / prismatic
-        sliderPos: qe,
-        // Flight controls
-        flapDeflect: ws,
-        // Arm controls
-        armPitch: ws,
-        armYaw: ad,
-        // Gripper
-        gripperClose: keys.has("g") ? 1 : 0,
-      });
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -150,6 +131,45 @@ export function App() {
       window.removeEventListener("keyup", handleKeyUp);
     };
   }, []);
+
+  // When the plan is ready (compiled by PhysicsScene), generate the ControlMap
+  const handlePlanReady = useCallback(
+    (plan: MachinePlan) => {
+      const originals = rewritePlanActions(plan);
+      const map = generateControlMap(plan, originals, catalog, playGraph ?? graph);
+      setControlMap(map);
+    },
+    [catalog, graph, playGraph],
+  );
+
+  // Handle preset auto-input: simulate key presses for the preset's autoInput actions
+  // We detect which keys the controlMap needs and inject them into keysDown
+  useEffect(() => {
+    if (mode !== "play" || !activePreset || !controlMap) return;
+
+    // For presets with autoInput, look up which original actions are active
+    // and inject the corresponding positive keys into keysDown
+    const autoKeys = new Set<string>();
+    const autoInput = activePreset.autoInput;
+    for (const entry of controlMap) {
+      const autoValue = autoInput[entry.originalAction];
+      if (typeof autoValue === "number" && autoValue > 0 && entry.positiveKey) {
+        autoKeys.add(entry.positiveKey);
+      } else if (typeof autoValue === "number" && autoValue < 0 && entry.negativeKey) {
+        autoKeys.add(entry.negativeKey);
+      }
+    }
+    // Inject auto-keys
+    for (const key of autoKeys) {
+      keysDown.current.add(key);
+    }
+    return () => {
+      // Clean up auto-injected keys on unmount
+      for (const key of autoKeys) {
+        keysDown.current.delete(key);
+      }
+    };
+  }, [mode, activePreset, controlMap]);
 
   // Toggle JSON panel – sync text on open
   const toggleShowJson = useCallback(
@@ -202,6 +222,7 @@ export function App() {
     setJsonText(graphToJsonText(g));
     setJsonError(null);
     setPhysicsReady(false);
+    setControlMap(null);
     setMode("play");
   }, [graph, graphToJsonText]);
 
@@ -210,6 +231,8 @@ export function App() {
     setPlayGraph(null);
     setPhysicsReady(false);
     setFirstPerson(false);
+    setControlMap(null);
+    setShowControls(false);
     setJsonText(graphToJsonText(graph));
     setJsonError(null);
     setMode("build");
@@ -222,6 +245,8 @@ export function App() {
     setActivePreset(null);
     setPhysicsReady(false);
     setFirstPerson(false);
+    setControlMap(null);
+    setShowControls(false);
     setShowJson(false);
   }, []);
 
@@ -243,6 +268,7 @@ export function App() {
         // Play mode: restart physics with the edited graph
         setPlayGraph(g);
         setPhysicsReady(false);
+        setControlMap(null);
       }
       setJsonError(null);
     } catch (err) {
@@ -250,8 +276,6 @@ export function App() {
     }
   }, [jsonText, catalog, mode]);
 
-  // Input: use auto-input from preset, or keyboard input
-  const effectiveInput = activePreset && mode === "play" ? activePreset.autoInput : inputState;
   const cameraPos: [number, number, number] = activePreset?.cameraPosition ?? [4, 3, 5];
 
   const jsonPanelVisible = showJson && (mode === "build" || mode === "play");
@@ -478,15 +502,34 @@ export function App() {
                 Initializing Rapier...
               </p>
             )}
-            {!activePreset && !firstPerson && (
-              <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
-                <strong>Controls:</strong><br />
-                Q / E &mdash; Hinges, motors, sliders<br />
-                W / S &mdash; Arms, flaps<br />
-                A / D &mdash; Yaw arms<br />
-                Space &mdash; Thrusters, propellers<br />
-                G &mdash; Gripper close
-              </div>
+            {!firstPerson && controlMap && controlMap.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowControls((v) => !v)}
+                  style={{
+                    marginTop: 4,
+                    padding: "6px 10px",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: 6,
+                    background: showControls ? "rgba(108,99,255,0.2)" : "transparent",
+                    color: showControls ? "#c0b8ff" : "#ccc",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    width: "100%",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {showControls ? "Hide" : "Show"} Controls
+                </button>
+                {showControls && (
+                  <div style={{ marginTop: 8 }}>
+                    <ControlPanel
+                      controlMap={controlMap}
+                      onControlMapChange={setControlMap}
+                    />
+                  </div>
+                )}
+              </>
             )}
             {firstPerson && (
               <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
@@ -735,10 +778,12 @@ export function App() {
           <PhysicsScene
             graph={playGraph}
             catalog={catalog}
-            inputState={effectiveInput}
+            controlMap={controlMap ?? undefined}
+            keysDownRef={keysDown}
             firstPerson={firstPerson}
             gravity={activePreset?.gravity}
             onReady={() => setPhysicsReady(true)}
+            onPlanReady={handlePlanReady}
           />
         )}
       </Canvas>
