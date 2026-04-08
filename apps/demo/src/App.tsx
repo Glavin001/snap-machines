@@ -112,6 +112,8 @@ export function App() {
   // Per-motor control map (generated from the compiled plan)
   const [controlMap, setControlMap] = useState<ControlMap | null>(null);
   const [showControls, setShowControls] = useState(false);
+  // Hovered actuator entry — drives 3D part highlighting + joint axis indicator
+  const [hoveredEntry, setHoveredEntry] = useState<{ blockId: string; id: string } | null>(null);
   const keysDown = useRef(new Set<string>());
 
   // Track pressed keys (used by PhysicsScene's updateControlMapInput via ref)
@@ -527,6 +529,7 @@ export function App() {
                       controlMap={controlMap}
                       onControlMapChange={setControlMap}
                       keysDownRef={keysDown}
+                      onHoverEntry={setHoveredEntry}
                     />
                   </div>
                 )}
@@ -785,6 +788,8 @@ export function App() {
             gravity={activePreset?.gravity}
             onReady={() => setPhysicsReady(true)}
             onPlanReady={handlePlanReady}
+            highlightBlockId={hoveredEntry?.blockId}
+            highlightJointId={hoveredEntry?.id}
           />
         )}
       </Canvas>

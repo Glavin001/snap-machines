@@ -9,6 +9,7 @@ import {
   buildGraphIntoRapier,
   createThrusterBehaviorFactory,
   MachinePlan,
+  MachineJointPlan,
   MachinePartMountPlan,
   RuntimeInputState,
   ControlMap,
@@ -33,9 +34,13 @@ export interface PhysicsSceneProps {
   onReady?: () => void;
   /** Called after compilation with the plan, so the parent can generate a ControlMap */
   onPlanReady?: (plan: MachinePlan) => void;
+  /** Block ID to highlight in the 3D scene (emissive glow on matching parts) */
+  highlightBlockId?: string | null;
+  /** Joint plan ID — renders an axis indicator ring at the joint location */
+  highlightJointId?: string | null;
 }
 
-export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownRef, colorMap, firstPerson, gravity = 9.81, onReady, onPlanReady }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownRef, colorMap, firstPerson, gravity = 9.81, onReady, onPlanReady, highlightBlockId, highlightJointId }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
@@ -44,6 +49,7 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
   const readyRef = useRef(false);
   const inputRef = useRef<RuntimeInputState>(inputState ?? {});
   const controlMapRef = useRef<ControlMap | undefined>(controlMap);
+  const axisIndicatorRef = useRef<THREE.Group>(null);
   const colors = colorMap ?? DEFAULT_BLOCK_COLORS;
 
   inputRef.current = inputState ?? {};
@@ -126,6 +132,46 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
       group.position.set(t.position.x, t.position.y, t.position.z);
       group.quaternion.set(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
     }
+
+    // Update the joint axis indicator position/orientation
+    const indicator = axisIndicatorRef.current;
+    if (indicator) {
+      const jointPlan = highlightJointId
+        ? plan.joints.find((j) => j.id === highlightJointId)
+        : undefined;
+      if (jointPlan) {
+        indicator.visible = true;
+        const bodyWorld = runtime.getBodyWorldTransform(jointPlan.bodyAId);
+        // Transform localAnchorA to world space
+        const anchor = new THREE.Vector3(
+          jointPlan.localAnchorA.x,
+          jointPlan.localAnchorA.y,
+          jointPlan.localAnchorA.z,
+        );
+        const bodyQuat = new THREE.Quaternion(
+          bodyWorld.rotation.x,
+          bodyWorld.rotation.y,
+          bodyWorld.rotation.z,
+          bodyWorld.rotation.w,
+        );
+        anchor.applyQuaternion(bodyQuat);
+        indicator.position.set(
+          bodyWorld.position.x + anchor.x,
+          bodyWorld.position.y + anchor.y,
+          bodyWorld.position.z + anchor.z,
+        );
+        // Orient the torus so its normal aligns with the joint axis
+        const axis = jointPlan.localAxisA
+          ? new THREE.Vector3(jointPlan.localAxisA.x, jointPlan.localAxisA.y, jointPlan.localAxisA.z)
+          : new THREE.Vector3(0, 1, 0);
+        axis.applyQuaternion(bodyQuat).normalize();
+        const up = new THREE.Vector3(0, 1, 0);
+        const orientQuat = new THREE.Quaternion().setFromUnitVectors(up, axis);
+        indicator.quaternion.copy(orientQuat);
+      } else {
+        indicator.visible = false;
+      }
+    }
   });
 
   return (
@@ -140,6 +186,7 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
           key={mount.id}
           mount={mount}
           color={colors[mount.blockTypeId] ?? "#999"}
+          highlight={highlightBlockId != null && mount.blockId === highlightBlockId}
           onRef={(group) => {
             if (group) {
               meshGroupsRef.current.set(mount.id, group);
@@ -149,6 +196,32 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
           }}
         />
       ))}
+      {/* Joint axis indicator (torus ring at joint location) */}
+      <group ref={axisIndicatorRef} visible={false}>
+        <mesh>
+          <torusGeometry args={[0.6, 0.04, 12, 32]} />
+          <meshStandardMaterial
+            color="#ffcc00"
+            emissive="#ffcc00"
+            emissiveIntensity={1.5}
+            transparent
+            opacity={0.8}
+            depthTest={false}
+          />
+        </mesh>
+        {/* Small cone to show positive rotation direction */}
+        <mesh position={[0.6, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <coneGeometry args={[0.08, 0.2, 8]} />
+          <meshStandardMaterial
+            color="#ffcc00"
+            emissive="#ffcc00"
+            emissiveIntensity={1.5}
+            transparent
+            opacity={0.8}
+            depthTest={false}
+          />
+        </mesh>
+      </group>
       {firstPerson && rapierReady && worldRef.current && (
         <PlayerController world={worldRef.current} RAPIER={RAPIER} />
       )}
@@ -159,10 +232,11 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
 interface MountMeshProps {
   mount: MachinePartMountPlan;
   color: string;
+  highlight?: boolean;
   onRef: (group: THREE.Group | null) => void;
 }
 
-function MountMesh({ mount, color, onRef }: MountMeshProps) {
+function MountMesh({ mount, color, highlight, onRef }: MountMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
 
   useEffect(() => {
@@ -173,12 +247,15 @@ function MountMesh({ mount, color, onRef }: MountMeshProps) {
   return (
     <group ref={groupRef}>
       {mount.geometry.map((geo) => (
-        <GeometryMesh key={geo.id} geometry={geo} color={color} />
+        <GeometryMesh key={geo.id} geometry={geo} color={color} highlight={highlight} />
       ))}
       {mount.geometry.length === 0 && (
         <mesh castShadow receiveShadow>
           <boxGeometry args={[0.3, 0.3, 0.3]} />
-          <meshStandardMaterial color={color} />
+          <meshStandardMaterial
+            color={color}
+            {...(highlight ? { emissive: "#ffcc00", emissiveIntensity: 0.6 } : {})}
+          />
         </mesh>
       )}
     </group>

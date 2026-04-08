@@ -6,6 +6,8 @@ export interface ControlPanelProps {
   onControlMapChange: (updated: ControlMap) => void;
   /** Ref to the set of currently pressed keys — used for live highlighting */
   keysDownRef?: React.RefObject<Set<string>>;
+  /** Called when hovering/unhovering an entry row — for 3D part highlighting */
+  onHoverEntry?: (entry: { blockId: string; id: string } | null) => void;
 }
 
 /** Display name for a key (e.g. " " → "Space") */
@@ -50,7 +52,7 @@ function usePressedKeys(keysDownRef?: React.RefObject<Set<string>>): Set<string>
   return pressed;
 }
 
-export function ControlPanel({ controlMap, onControlMapChange, keysDownRef }: ControlPanelProps) {
+export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHoverEntry }: ControlPanelProps) {
   // Which entry + slot is listening for a key rebind?
   // null = not listening; { index, slot } = waiting for key press
   const [listening, setListening] = useState<{ index: number; slot: "pos" | "neg" } | null>(null);
@@ -128,12 +130,15 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef }: Co
             {group.entries.map(({ entry, index }) => (
               <div
                 key={entry.id}
+                onMouseEnter={() => onHoverEntry?.({ blockId: entry.blockId, id: entry.id })}
+                onMouseLeave={() => onHoverEntry?.(null)}
                 style={{
                   marginBottom: 6,
                   padding: "6px 8px",
                   borderRadius: 6,
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.08)",
+                  cursor: "default",
                 }}
               >
                 {/* Header row: label + type badge */}
