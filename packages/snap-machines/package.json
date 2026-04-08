@@ -54,6 +54,9 @@
     "@dimforge/rapier3d": ">=0.17.0",
     "three": ">=0.160.0"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "devDependencies": {
     "typescript": "^5.7.0",
