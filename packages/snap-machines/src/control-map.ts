@@ -50,6 +50,8 @@ export interface ActuatorEntry {
 
   /** Position-mode: accumulated position target (mutated each frame) */
   currentTarget: number;
+  /** Actual joint position (mutated each frame by the physics scene) */
+  actualPosition: number;
   /** Joint limits used to clamp the position accumulator */
   limits?: { min: number; max: number };
 
@@ -216,6 +218,7 @@ export function generateControlMap(
       negativeKey: defaults.neg,
       scale: originalScale,
       currentTarget: 0,
+      actualPosition: 0,
       limits,
       originalAction,
       originalScale,
@@ -280,5 +283,6 @@ export function updateControlMapInput(
 export function resetControlMapState(controlMap: ControlMap): void {
   for (const entry of controlMap) {
     entry.currentTarget = 0;
+    entry.actualPosition = 0;
   }
 }

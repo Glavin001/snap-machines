@@ -29,27 +29,41 @@ const TYPE_COLORS: Record<ActuatorEntry["actuatorType"], string> = {
   trigger: "#ffb74d",
 };
 
-/** Poll keysDown ref at ~20fps for live key highlighting */
-function usePressedKeys(keysDownRef?: React.RefObject<Set<string>>): Set<string> {
+/**
+ * Poll keysDown ref + position data at ~20fps for live UI updates.
+ * Returns pressed keys and a tick counter that increments to trigger re-renders
+ * when mutable ControlMap fields (actualPosition, currentTarget) change.
+ */
+function useLivePolling(
+  keysDownRef?: React.RefObject<Set<string>>,
+  controlMap?: ControlMap,
+): { pressed: Set<string>; tick: number } {
   const [pressed, setPressed] = useState<Set<string>>(new Set());
-  const prevRef = useRef("");
+  const [tick, setTick] = useState(0);
+  const prevKeysRef = useRef("");
 
   useEffect(() => {
-    if (!keysDownRef) return;
     const id = setInterval(() => {
-      const current = keysDownRef.current;
-      if (!current) return;
-      // Cheap equality check: serialized sorted key list
-      const serialized = [...current].sort().join(",");
-      if (serialized !== prevRef.current) {
-        prevRef.current = serialized;
-        setPressed(new Set(current));
+      // Update pressed keys
+      if (keysDownRef) {
+        const current = keysDownRef.current;
+        if (current) {
+          const serialized = [...current].sort().join(",");
+          if (serialized !== prevKeysRef.current) {
+            prevKeysRef.current = serialized;
+            setPressed(new Set(current));
+          }
+        }
+      }
+      // Tick to pick up mutated actualPosition/currentTarget on position entries
+      if (controlMap?.some((e) => e.actuatorType === "position")) {
+        setTick((t) => t + 1);
       }
     }, 50);
     return () => clearInterval(id);
-  }, [keysDownRef]);
+  }, [keysDownRef, controlMap]);
 
-  return pressed;
+  return { pressed, tick };
 }
 
 export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHoverEntry }: ControlPanelProps) {
@@ -57,8 +71,8 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
   // null = not listening; { index, slot } = waiting for key press
   const [listening, setListening] = useState<{ index: number; slot: "pos" | "neg" } | null>(null);
 
-  // Live key highlighting
-  const pressedKeys = usePressedKeys(keysDownRef);
+  // Live key highlighting + position data polling
+  const { pressed: pressedKeys } = useLivePolling(keysDownRef, controlMap);
 
   // Capture keypress when in listening mode
   useEffect(() => {
@@ -211,6 +225,11 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
                     Flip
                   </button>
                 </div>
+
+                {/* Position bar: target vs actual */}
+                {entry.actuatorType === "position" && (
+                  <PositionBar entry={entry} />
+                )}
               </div>
             ))}
           </div>
@@ -261,5 +280,95 @@ function KeyButton({ label, listening, pressed, onClick }: {
     >
       {isListening ? "..." : label}
     </button>
+  );
+}
+
+/** Radians → degrees, rounded */
+function toDeg(rad: number): string {
+  return (rad * 180 / Math.PI).toFixed(1);
+}
+
+/**
+ * Visual bar showing target vs actual position for position-mode actuators.
+ * Renders a bar with the joint range, a target marker, and an actual marker.
+ */
+function PositionBar({ entry }: { entry: ActuatorEntry }) {
+  const min = entry.limits?.min ?? -Math.PI;
+  const max = entry.limits?.max ?? Math.PI;
+  const range = max - min;
+  if (range <= 0) return null;
+
+  const targetPct = ((entry.currentTarget - min) / range) * 100;
+  const actualPct = ((entry.actualPosition - min) / range) * 100;
+  const clampPct = (v: number) => Math.max(0, Math.min(100, v));
+
+  const error = entry.currentTarget - entry.actualPosition;
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      {/* Bar track */}
+      <div
+        style={{
+          position: "relative",
+          height: 8,
+          borderRadius: 4,
+          background: "rgba(255,255,255,0.08)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Zero mark (center of range) */}
+        <div
+          style={{
+            position: "absolute",
+            left: `${clampPct(((0 - min) / range) * 100)}%`,
+            top: 0,
+            bottom: 0,
+            width: 1,
+            background: "rgba(255,255,255,0.15)",
+          }}
+        />
+        {/* Actual position (green bar from zero) */}
+        {(() => {
+          const zeroPct = clampPct(((0 - min) / range) * 100);
+          const actPct = clampPct(actualPct);
+          const left = Math.min(zeroPct, actPct);
+          const width = Math.abs(actPct - zeroPct);
+          return (
+            <div
+              style={{
+                position: "absolute",
+                left: `${left}%`,
+                top: 1,
+                bottom: 1,
+                width: `${width}%`,
+                borderRadius: 2,
+                background: "rgba(76,175,80,0.5)",
+              }}
+            />
+          );
+        })()}
+        {/* Target marker (yellow line) */}
+        <div
+          style={{
+            position: "absolute",
+            left: `${clampPct(targetPct)}%`,
+            top: 0,
+            bottom: 0,
+            width: 2,
+            marginLeft: -1,
+            background: "#ffcc00",
+            borderRadius: 1,
+          }}
+        />
+      </div>
+      {/* Readout: target / actual / error */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2, fontSize: 9, fontFamily: "monospace", opacity: 0.6 }}>
+        <span style={{ color: "#ffcc00" }}>T:{toDeg(entry.currentTarget)}°</span>
+        <span style={{ color: "#a5d6a7" }}>A:{toDeg(entry.actualPosition)}°</span>
+        <span style={{ color: Math.abs(error) > 0.05 ? "#ef9a9a" : "inherit" }}>
+          Δ:{toDeg(error)}°
+        </span>
+      </div>
+    </div>
   );
 }

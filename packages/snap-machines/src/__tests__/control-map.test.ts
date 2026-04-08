@@ -286,7 +286,7 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
         positiveKey: "e", negativeKey: "q", scale: 5,
-        currentTarget: 0, originalAction: "hingeSpin", originalScale: 5,
+        currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
     ];
 
@@ -313,7 +313,7 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "w", negativeKey: "s", scale: 2,
-        currentTarget: 0, originalAction: "armPitch", originalScale: 2,
+        currentTarget: 0, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
       },
     ];
 
@@ -344,7 +344,7 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "w", negativeKey: "s", scale: 10,
-        currentTarget: 0, limits: { min: -1, max: 1 },
+        currentTarget: 0, actualPosition: 0, limits: { min: -1, max: 1 },
         originalAction: "armPitch", originalScale: 10,
       },
     ];
@@ -364,7 +364,7 @@ describe("updateControlMapInput", () => {
         id: "b1", label: "Thruster (t1)", blockId: "t1", blockName: "Thruster",
         actuatorType: "trigger", actionName: "ctrl:behavior:b1",
         positiveKey: " ", negativeKey: "", scale: 1,
-        currentTarget: 0, originalAction: "throttle", originalScale: 1,
+        currentTarget: 0, actualPosition: 0, originalAction: "throttle", originalScale: 1,
       },
     ];
 
@@ -381,7 +381,7 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
         positiveKey: "e", negativeKey: "q", scale: -5,
-        currentTarget: 0, originalAction: "hingeSpin", originalScale: 5,
+        currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
     ];
 
@@ -397,7 +397,7 @@ describe("resetControlMapState", () => {
         id: "j1", label: "Arm", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "w", negativeKey: "s", scale: 2,
-        currentTarget: 1.5, originalAction: "armPitch", originalScale: 2,
+        currentTarget: 1.5, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
       },
     ];
 

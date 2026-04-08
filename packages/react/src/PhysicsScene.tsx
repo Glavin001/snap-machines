@@ -19,6 +19,36 @@ import { GeometryMesh } from "./GeometryMesh.js";
 import { DEFAULT_BLOCK_COLORS } from "./colors.js";
 import { PlayerController } from "./PlayerController.js";
 
+/**
+ * Compute the angle of a revolute/prismatic impulse joint from body rotations
+ * and joint frame transforms. Returns the scalar angle (radians) around the
+ * joint's free axis.
+ */
+function computeJointAngle(joint: RAPIER.ImpulseJoint): number {
+  try {
+    const r1 = joint.body1().rotation();
+    const r2 = joint.body2().rotation();
+    const f1 = joint.frameX1();
+    const f2 = joint.frameX2();
+
+    // qRel = fA * conj(qA) * qB * conj(fB)
+    // The angle around X axis of qRel is the joint angle
+    const qA = new THREE.Quaternion(r1.x, r1.y, r1.z, r1.w);
+    const qB = new THREE.Quaternion(r2.x, r2.y, r2.z, r2.w);
+    const fA = new THREE.Quaternion(f1.x, f1.y, f1.z, f1.w);
+    const fB = new THREE.Quaternion(f2.x, f2.y, f2.z, f2.w);
+
+    const qRel = fA
+      .multiply(qA.conjugate())
+      .multiply(qB)
+      .multiply(fB.conjugate());
+
+    return 2 * Math.atan2(qRel.x, qRel.w);
+  } catch {
+    return 0;
+  }
+}
+
 export interface PhysicsSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
@@ -131,6 +161,22 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
       const t = runtime.getMountWorldTransform(mount.id);
       group.position.set(t.position.x, t.position.y, t.position.z);
       group.quaternion.set(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
+    }
+
+    // Update actualPosition on position-mode ControlMap entries
+    const cm = controlMapRef.current;
+    if (cm) {
+      for (const entry of cm) {
+        if (entry.actuatorType !== "position") continue;
+        if (!entry.actionName.startsWith("ctrl:joint:")) continue;
+        const jointId = entry.actionName.slice("ctrl:joint:".length);
+        try {
+          const rapierJoint = runtime.getJoint(jointId) as unknown as RAPIER.ImpulseJoint;
+          entry.actualPosition = computeJointAngle(rapierJoint);
+        } catch {
+          // Joint not found or angle computation failed
+        }
+      }
     }
 
     // Update the joint axis indicator position/orientation
