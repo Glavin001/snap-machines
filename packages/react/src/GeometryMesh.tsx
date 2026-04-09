@@ -9,10 +9,18 @@ import {
 export interface GeometryMeshProps {
   geometry: NormalizedGeometryDefinition;
   color: string;
+  /** When true, adds a bright emissive glow to highlight this part */
+  highlight?: boolean;
 }
 
-export function GeometryMesh({ geometry, color }: GeometryMeshProps) {
+const HIGHLIGHT_EMISSIVE = "#ffcc00";
+const HIGHLIGHT_INTENSITY = 0.6;
+
+export function GeometryMesh({ geometry, color, highlight }: GeometryMeshProps) {
   const t = geometry.transform;
+  const matProps = highlight
+    ? { color, emissive: HIGHLIGHT_EMISSIVE, emissiveIntensity: HIGHLIGHT_INTENSITY }
+    : { color };
 
   switch (geometry.kind) {
     case "box":
@@ -24,7 +32,7 @@ export function GeometryMesh({ geometry, color }: GeometryMeshProps) {
           receiveShadow
         >
           <boxGeometry args={[geometry.size.x, geometry.size.y, geometry.size.z]} />
-          <meshStandardMaterial color={color} />
+          <meshStandardMaterial {...matProps} />
         </mesh>
       );
     case "sphere":
@@ -35,7 +43,7 @@ export function GeometryMesh({ geometry, color }: GeometryMeshProps) {
           receiveShadow
         >
           <sphereGeometry args={[geometry.radius, 24, 24]} />
-          <meshStandardMaterial color={color} />
+          <meshStandardMaterial {...matProps} />
         </mesh>
       );
     case "capsule":
@@ -47,7 +55,7 @@ export function GeometryMesh({ geometry, color }: GeometryMeshProps) {
           receiveShadow
         >
           <capsuleGeometry args={[geometry.radius, geometry.halfHeight * 2, 8, 16]} />
-          <meshStandardMaterial color={color} />
+          <meshStandardMaterial {...matProps} />
         </mesh>
       );
     case "cylinder": {
@@ -63,7 +71,7 @@ export function GeometryMesh({ geometry, color }: GeometryMeshProps) {
           receiveShadow
         >
           <cylinderGeometry args={[geometry.radius, geometry.radius, geometry.halfHeight * 2, 24]} />
-          <meshStandardMaterial color={color} />
+          <meshStandardMaterial {...matProps} />
         </mesh>
       );
     }

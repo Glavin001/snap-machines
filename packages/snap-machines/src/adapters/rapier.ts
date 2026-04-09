@@ -405,17 +405,28 @@ function applyMotorPlan(joint: RapierImpulseJointLike, jointPlan: MachineJointPl
       break;
   }
 
-  switch (motor.mode) {
-    case "position":
-      joint.configureMotorPosition?.(targetPosition, motor.stiffness, motor.damping);
-      break;
-    case "full":
-      joint.configureMotor?.(targetPosition, targetVelocity, motor.stiffness, motor.damping);
-      break;
-    case "velocity":
-    default:
-      joint.configureMotorVelocity?.(targetVelocity, motor.damping);
-      break;
+  // Check for velocity feedforward from the ControlMap servo loop.
+  // When present, upgrades position-mode to full-mode with feedforward
+  // for better servo tracking (less oscillation, no dead zones).
+  const vffAction = motor.input ? motor.input.action + ":vff" : undefined;
+  const vff = vffAction != null ? (typeof input[vffAction] === "number" ? (input[vffAction] as number) : 0) : 0;
+
+  if (vff !== 0 && (motor.mode === "position" || motor.mode === "full")) {
+    // Use full motor with velocity feedforward
+    joint.configureMotor?.(targetPosition, targetVelocity + vff, motor.stiffness, motor.damping);
+  } else {
+    switch (motor.mode) {
+      case "position":
+        joint.configureMotorPosition?.(targetPosition, motor.stiffness, motor.damping);
+        break;
+      case "full":
+        joint.configureMotor?.(targetPosition, targetVelocity, motor.stiffness, motor.damping);
+        break;
+      case "velocity":
+      default:
+        joint.configureMotorVelocity?.(targetVelocity, motor.damping);
+        break;
+    }
   }
   if (motor.maxForce !== undefined) {
     joint.setMotorMaxForce?.(motor.maxForce);

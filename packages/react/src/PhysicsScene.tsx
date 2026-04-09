@@ -9,34 +9,81 @@ import {
   buildGraphIntoRapier,
   createThrusterBehaviorFactory,
   MachinePlan,
+  MachineJointPlan,
   MachinePartMountPlan,
   RuntimeInputState,
+  ControlMap,
+  updateControlMapInput,
 } from "@snap-machines/core";
 import { GeometryMesh } from "./GeometryMesh.js";
 import { DEFAULT_BLOCK_COLORS } from "./colors.js";
 import { PlayerController } from "./PlayerController.js";
 
+/**
+ * Compute the angle of a revolute/prismatic impulse joint from body rotations
+ * and joint frame transforms. Returns the scalar angle (radians) around the
+ * joint's free axis.
+ */
+function computeJointAngle(joint: RAPIER.ImpulseJoint): number {
+  try {
+    const r1 = joint.body1().rotation();
+    const r2 = joint.body2().rotation();
+    const f1 = joint.frameX1();
+    const f2 = joint.frameX2();
+
+    // qRel = fA * conj(qA) * qB * conj(fB)
+    // The angle around X axis of qRel is the joint angle
+    const qA = new THREE.Quaternion(r1.x, r1.y, r1.z, r1.w);
+    const qB = new THREE.Quaternion(r2.x, r2.y, r2.z, r2.w);
+    const fA = new THREE.Quaternion(f1.x, f1.y, f1.z, f1.w);
+    const fB = new THREE.Quaternion(f2.x, f2.y, f2.z, f2.w);
+
+    const qRel = fA
+      .multiply(qA.conjugate())
+      .multiply(qB)
+      .multiply(fB.conjugate());
+
+    return 2 * Math.atan2(qRel.x, qRel.w);
+  } catch {
+    return 0;
+  }
+}
+
 export interface PhysicsSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
-  inputState: RuntimeInputState;
+  /** Legacy direct input state (used when controlMap is not provided) */
+  inputState?: RuntimeInputState;
+  /** Per-motor control map — when provided, updateControlMapInput is called each frame */
+  controlMap?: ControlMap;
+  /** Ref to the set of currently pressed keys (used with controlMap) */
+  keysDownRef?: React.RefObject<Set<string>>;
   colorMap?: Record<string, string>;
   firstPerson?: boolean;
   gravity?: number;
   onReady?: () => void;
+  /** Called after compilation with the plan, so the parent can generate a ControlMap */
+  onPlanReady?: (plan: MachinePlan) => void;
+  /** Block ID to highlight in the 3D scene (emissive glow on matching parts) */
+  highlightBlockId?: string | null;
+  /** Joint plan ID — renders an axis indicator ring at the joint location */
+  highlightJointId?: string | null;
 }
 
-export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson, gravity = 9.81, onReady }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownRef, colorMap, firstPerson, gravity = 9.81, onReady, onPlanReady, highlightBlockId, highlightJointId }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
   const [rapierReady, setRapierReady] = useState(false);
   const meshGroupsRef = useRef<Map<string, THREE.Group>>(new Map());
   const readyRef = useRef(false);
-  const inputRef = useRef<RuntimeInputState>(inputState);
+  const inputRef = useRef<RuntimeInputState>(inputState ?? {});
+  const controlMapRef = useRef<ControlMap | undefined>(controlMap);
+  const axisIndicatorRef = useRef<THREE.Group>(null);
   const colors = colorMap ?? DEFAULT_BLOCK_COLORS;
 
-  inputRef.current = inputState;
+  inputRef.current = inputState ?? {};
+  controlMapRef.current = controlMap;
 
   const groundRef = useRef<RAPIER.RigidBody | null>(null);
 
@@ -74,6 +121,7 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
       runtimeRef.current = result.runtime;
       readyRef.current = true;
       setRapierReady(true);
+      onPlanReady?.(result.plan);
       onReady?.();
     });
 
@@ -97,7 +145,13 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
     if (!readyRef.current || !worldRef.current || !runtimeRef.current || !plan) return;
 
     const dt = Math.min(delta, 1 / 30);
-    runtimeRef.current.update(inputRef.current, dt);
+
+    // Use ControlMap if available, otherwise fall back to direct inputState
+    const effectiveInput = controlMapRef.current && keysDownRef?.current
+      ? updateControlMapInput(controlMapRef.current, keysDownRef.current, dt)
+      : inputRef.current;
+
+    runtimeRef.current.update(effectiveInput, dt);
     worldRef.current.step();
 
     const runtime = runtimeRef.current;
@@ -107,6 +161,86 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
       const t = runtime.getMountWorldTransform(mount.id);
       group.position.set(t.position.x, t.position.y, t.position.z);
       group.quaternion.set(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
+    }
+
+    // Update actualPosition on position-mode ControlMap entries
+    const cm = controlMapRef.current;
+    if (cm) {
+      for (const entry of cm) {
+        if (entry.actuatorType !== "position") continue;
+        if (!entry.actionName.startsWith("ctrl:joint:")) continue;
+        const jointId = entry.actionName.slice("ctrl:joint:".length);
+        try {
+          const rapierJoint = runtime.getJoint(jointId) as unknown as RAPIER.ImpulseJoint;
+          entry.actualPosition = computeJointAngle(rapierJoint);
+        } catch {
+          // Joint not found or angle computation failed
+        }
+      }
+    }
+
+    // Update the joint axis indicator position/orientation
+    const indicator = axisIndicatorRef.current;
+    if (indicator) {
+      const jointPlan = highlightJointId
+        ? plan.joints.find((j) => j.id === highlightJointId)
+        : undefined;
+      if (jointPlan) {
+        indicator.visible = true;
+
+        // Get the Rapier joint to derive correct world-space axis from frame transforms
+        let worldPos: THREE.Vector3;
+        let worldAxis: THREE.Vector3;
+        try {
+          const rapierJoint = runtime.getJoint(jointPlan.id) as unknown as RAPIER.ImpulseJoint;
+          const body1 = rapierJoint.body1();
+          const r1 = body1.rotation();
+          const t1 = body1.translation();
+          const a1 = rapierJoint.anchor1();
+          const f1 = rapierJoint.frameX1();
+
+          const bodyQuat = new THREE.Quaternion(r1.x, r1.y, r1.z, r1.w);
+
+          // World position: body translation + rotated local anchor
+          const localAnchor = new THREE.Vector3(a1.x, a1.y, a1.z);
+          localAnchor.applyQuaternion(bodyQuat);
+          worldPos = new THREE.Vector3(t1.x + localAnchor.x, t1.y + localAnchor.y, t1.z + localAnchor.z);
+
+          // World axis: frameX1 maps body-local to joint-frame where X is the free axis.
+          // Free axis in body-local = conjugate(frameX1) * [1,0,0]
+          // Free axis in world = bodyRotation * conjugate(frameX1) * [1,0,0]
+          const frameQuat = new THREE.Quaternion(f1.x, f1.y, f1.z, f1.w);
+          worldAxis = new THREE.Vector3(1, 0, 0)
+            .applyQuaternion(frameQuat.conjugate())
+            .applyQuaternion(bodyQuat)
+            .normalize();
+        } catch {
+          // Fallback: use plan data with body transform
+          const bodyWorld = runtime.getBodyWorldTransform(jointPlan.bodyAId);
+          const bodyQuat = new THREE.Quaternion(
+            bodyWorld.rotation.x, bodyWorld.rotation.y,
+            bodyWorld.rotation.z, bodyWorld.rotation.w,
+          );
+          const anchor = new THREE.Vector3(
+            jointPlan.localAnchorA.x, jointPlan.localAnchorA.y, jointPlan.localAnchorA.z,
+          ).applyQuaternion(bodyQuat);
+          worldPos = new THREE.Vector3(
+            bodyWorld.position.x + anchor.x,
+            bodyWorld.position.y + anchor.y,
+            bodyWorld.position.z + anchor.z,
+          );
+          // localAxisA in this plan is already world-space at compile time — use directly
+          const ax = jointPlan.localAxisA ?? { x: 0, y: 1, z: 0 };
+          worldAxis = new THREE.Vector3(ax.x, ax.y, ax.z).normalize();
+        }
+
+        indicator.position.copy(worldPos);
+        const up = new THREE.Vector3(0, 1, 0);
+        const orientQuat = new THREE.Quaternion().setFromUnitVectors(up, worldAxis);
+        indicator.quaternion.copy(orientQuat);
+      } else {
+        indicator.visible = false;
+      }
     }
   });
 
@@ -122,6 +256,7 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
           key={mount.id}
           mount={mount}
           color={colors[mount.blockTypeId] ?? "#999"}
+          highlight={highlightBlockId != null && mount.blockId === highlightBlockId}
           onRef={(group) => {
             if (group) {
               meshGroupsRef.current.set(mount.id, group);
@@ -131,6 +266,32 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
           }}
         />
       ))}
+      {/* Joint axis indicator (torus ring at joint location) */}
+      <group ref={axisIndicatorRef} visible={false}>
+        <mesh>
+          <torusGeometry args={[0.6, 0.04, 12, 32]} />
+          <meshStandardMaterial
+            color="#ffcc00"
+            emissive="#ffcc00"
+            emissiveIntensity={1.5}
+            transparent
+            opacity={0.8}
+            depthTest={false}
+          />
+        </mesh>
+        {/* Small cone to show positive rotation direction */}
+        <mesh position={[0.6, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <coneGeometry args={[0.08, 0.2, 8]} />
+          <meshStandardMaterial
+            color="#ffcc00"
+            emissive="#ffcc00"
+            emissiveIntensity={1.5}
+            transparent
+            opacity={0.8}
+            depthTest={false}
+          />
+        </mesh>
+      </group>
       {firstPerson && rapierReady && worldRef.current && (
         <PlayerController world={worldRef.current} RAPIER={RAPIER} />
       )}
@@ -141,10 +302,11 @@ export function PhysicsScene({ graph, catalog, inputState, colorMap, firstPerson
 interface MountMeshProps {
   mount: MachinePartMountPlan;
   color: string;
+  highlight?: boolean;
   onRef: (group: THREE.Group | null) => void;
 }
 
-function MountMesh({ mount, color, onRef }: MountMeshProps) {
+function MountMesh({ mount, color, highlight, onRef }: MountMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
 
   useEffect(() => {
@@ -155,12 +317,15 @@ function MountMesh({ mount, color, onRef }: MountMeshProps) {
   return (
     <group ref={groupRef}>
       {mount.geometry.map((geo) => (
-        <GeometryMesh key={geo.id} geometry={geo} color={color} />
+        <GeometryMesh key={geo.id} geometry={geo} color={color} highlight={highlight} />
       ))}
       {mount.geometry.length === 0 && (
         <mesh castShadow receiveShadow>
           <boxGeometry args={[0.3, 0.3, 0.3]} />
-          <meshStandardMaterial color={color} />
+          <meshStandardMaterial
+            color={color}
+            {...(highlight ? { emissive: "#ffcc00", emissiveIntensity: 0.6 } : {})}
+          />
         </mesh>
       )}
     </group>

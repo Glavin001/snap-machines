@@ -5,36 +5,61 @@ import {
   BlockCatalog,
   BlockGraph,
   TRANSFORM_IDENTITY,
-  RuntimeInputState,
   SerializedBlockGraph,
+  ControlMap,
+  MachinePlan,
+  rewritePlanActions,
+  generateControlMap,
 } from "@snap-machines/core";
 import { SnapScene, PhysicsScene } from "@snap-machines/react";
 import { demoCatalog } from "./catalog.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
+import { ControlPanel } from "./ControlPanel.js";
 
-const BLOCK_TYPES = [
-  "frame.cube.1",
-  "frame.plank.3x1",
-  "frame.beam.5x1",
-  "joint.hinge.small",
-  "joint.motor.wheel",
-  "utility.thruster.small",
-] as const;
-type BlockType = (typeof BLOCK_TYPES)[number];
+// Block categories for the toolbar
+const BLOCK_CATEGORIES = {
+  Structural: [
+    { id: "primitive.block.1x1", label: "Block 1x1" },
+    { id: "primitive.block.2x1", label: "Block 2x1" },
+    { id: "primitive.plate.2x1", label: "Plate" },
+    { id: "primitive.cylinder", label: "Cylinder" },
+    { id: "primitive.sphere", label: "Sphere" },
+    { id: "frame.cube.1", label: "Frame Cube" },
+    { id: "frame.plank.3x1", label: "Plank 3x1" },
+    { id: "frame.beam.5x1", label: "Beam 5x1" },
+  ],
+  Joints: [
+    { id: "joint.hinge.small", label: "Hinge" },
+    { id: "joint.hinge.passive", label: "Passive Hinge" },
+    { id: "joint.fixed", label: "Fixed Joint" },
+    { id: "joint.slider", label: "Slider" },
+    { id: "joint.ball", label: "Ball Joint" },
+  ],
+  Locomotion: [
+    { id: "compound.wheel", label: "Wheel" },
+    { id: "joint.motor.wheel", label: "Motor Wheel" },
+    { id: "compound.shock", label: "Shock Absorber" },
+  ],
+  Flight: [
+    { id: "compound.propeller", label: "Propeller" },
+    { id: "compound.jet", label: "Jet Engine" },
+    { id: "compound.flap", label: "Control Surface" },
+    { id: "utility.thruster.small", label: "Thruster" },
+  ],
+  Manipulation: [
+    { id: "compound.arm", label: "Arm Segment" },
+    { id: "compound.arm.yaw", label: "Yaw Arm" },
+  ],
+} as const;
 
-const BLOCK_LABELS: Record<BlockType, string> = {
-  "frame.cube.1": "Cube",
-  "frame.plank.3x1": "Plank 3x1",
-  "frame.beam.5x1": "Beam 5x1",
-  "joint.hinge.small": "Hinge",
-  "joint.motor.wheel": "Motor Wheel",
-  "utility.thruster.small": "Thruster",
-};
+// Flat list for compatibility
+const BLOCK_TYPES = Object.values(BLOCK_CATEGORIES).flatMap((items) => items.map((b) => b.id));
+type BlockType = string;
 
 type Mode = "gallery" | "build" | "play";
 
 export function App() {
-  const [selectedType, setSelectedType] = useState<BlockType>("frame.cube.1");
+  const [selectedType, setSelectedType] = useState<BlockType>("primitive.block.1x1");
   const [blockCount, setBlockCount] = useState(1);
   const [mode, setMode] = useState<Mode>("gallery");
   const [physicsReady, setPhysicsReady] = useState(false);
@@ -84,28 +109,22 @@ export function App() {
     }
   }, [graph, graphToJsonText]);
 
-  // Keyboard input for physics controls
-  const [inputState, setInputState] = useState<RuntimeInputState>({});
+  // Per-motor control map (generated from the compiled plan)
+  const [controlMap, setControlMap] = useState<ControlMap | null>(null);
+  const [showControls, setShowControls] = useState(false);
+  // Hovered actuator entry — drives 3D part highlighting + joint axis indicator
+  const [hoveredEntry, setHoveredEntry] = useState<{ blockId: string; id: string } | null>(null);
   const keysDown = useRef(new Set<string>());
 
+  // Track pressed keys (used by PhysicsScene's updateControlMapInput via ref)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture keys when typing in textarea
       if ((e.target as HTMLElement)?.tagName === "TEXTAREA") return;
+      if ((e.target as HTMLElement)?.tagName === "BUTTON") return;
       keysDown.current.add(e.key.toLowerCase());
-      updateInput();
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysDown.current.delete(e.key.toLowerCase());
-      updateInput();
-    };
-    const updateInput = () => {
-      const keys = keysDown.current;
-      setInputState({
-        hingeSpin: (keys.has("e") ? 1 : 0) - (keys.has("q") ? 1 : 0),
-        throttle: keys.has(" ") ? 1 : 0,
-        motorSpin: (keys.has("e") ? 1 : 0) - (keys.has("q") ? 1 : 0),
-      });
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -114,6 +133,45 @@ export function App() {
       window.removeEventListener("keyup", handleKeyUp);
     };
   }, []);
+
+  // When the plan is ready (compiled by PhysicsScene), generate the ControlMap
+  const handlePlanReady = useCallback(
+    (plan: MachinePlan) => {
+      const originals = rewritePlanActions(plan);
+      const map = generateControlMap(plan, originals, catalog, playGraph ?? graph);
+      setControlMap(map);
+    },
+    [catalog, graph, playGraph],
+  );
+
+  // Handle preset auto-input: simulate key presses for the preset's autoInput actions
+  // We detect which keys the controlMap needs and inject them into keysDown
+  useEffect(() => {
+    if (mode !== "play" || !activePreset || !controlMap) return;
+
+    // For presets with autoInput, look up which original actions are active
+    // and inject the corresponding positive keys into keysDown
+    const autoKeys = new Set<string>();
+    const autoInput = activePreset.autoInput;
+    for (const entry of controlMap) {
+      const autoValue = autoInput[entry.originalAction];
+      if (typeof autoValue === "number" && autoValue > 0 && entry.positiveKey) {
+        autoKeys.add(entry.positiveKey);
+      } else if (typeof autoValue === "number" && autoValue < 0 && entry.negativeKey) {
+        autoKeys.add(entry.negativeKey);
+      }
+    }
+    // Inject auto-keys
+    for (const key of autoKeys) {
+      keysDown.current.add(key);
+    }
+    return () => {
+      // Clean up auto-injected keys on unmount
+      for (const key of autoKeys) {
+        keysDown.current.delete(key);
+      }
+    };
+  }, [mode, activePreset, controlMap]);
 
   // Toggle JSON panel – sync text on open
   const toggleShowJson = useCallback(
@@ -166,6 +224,7 @@ export function App() {
     setJsonText(graphToJsonText(g));
     setJsonError(null);
     setPhysicsReady(false);
+    setControlMap(null);
     setMode("play");
   }, [graph, graphToJsonText]);
 
@@ -174,6 +233,8 @@ export function App() {
     setPlayGraph(null);
     setPhysicsReady(false);
     setFirstPerson(false);
+    setControlMap(null);
+    setShowControls(false);
     setJsonText(graphToJsonText(graph));
     setJsonError(null);
     setMode("build");
@@ -186,6 +247,8 @@ export function App() {
     setActivePreset(null);
     setPhysicsReady(false);
     setFirstPerson(false);
+    setControlMap(null);
+    setShowControls(false);
     setShowJson(false);
   }, []);
 
@@ -207,6 +270,7 @@ export function App() {
         // Play mode: restart physics with the edited graph
         setPlayGraph(g);
         setPhysicsReady(false);
+        setControlMap(null);
       }
       setJsonError(null);
     } catch (err) {
@@ -214,8 +278,6 @@ export function App() {
     }
   }, [jsonText, catalog, mode]);
 
-  // Input: use auto-input from preset, or keyboard input
-  const effectiveInput = activePreset && mode === "play" ? activePreset.autoInput : inputState;
   const cameraPos: [number, number, number] = activePreset?.cameraPosition ?? [4, 3, 5];
 
   const jsonPanelVisible = showJson && (mode === "build" || mode === "play");
@@ -333,25 +395,33 @@ export function App() {
             <p style={{ margin: "0 0 12px", fontSize: 13, opacity: 0.8 }}>
               Click a face to snap a block. Right-click to remove. Hit Play to simulate.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {BLOCK_TYPES.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  style={{
-                    padding: "7px 10px",
-                    border: selectedType === type ? "2px solid #6c63ff" : "2px solid transparent",
-                    borderRadius: 8,
-                    background: selectedType === type ? "rgba(108,99,255,0.25)" : "rgba(255,255,255,0.08)",
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    textAlign: "left",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {BLOCK_LABELS[type]}
-                </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {Object.entries(BLOCK_CATEGORIES).map(([category, items]) => (
+                <div key={category}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5, marginBottom: 3, letterSpacing: 1 }}>
+                    {category}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                    {items.map((block) => (
+                      <button
+                        key={block.id}
+                        onClick={() => setSelectedType(block.id)}
+                        style={{
+                          padding: "4px 8px",
+                          border: selectedType === block.id ? "1px solid #6c63ff" : "1px solid transparent",
+                          borderRadius: 5,
+                          background: selectedType === block.id ? "rgba(108,99,255,0.25)" : "rgba(255,255,255,0.08)",
+                          color: "#fff",
+                          cursor: "pointer",
+                          fontSize: 11,
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {block.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
             <p style={{ margin: "10px 0 0", fontSize: 12, opacity: 0.6 }}>
@@ -434,12 +504,36 @@ export function App() {
                 Initializing Rapier...
               </p>
             )}
-            {!activePreset && !firstPerson && (
-              <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
-                <strong>Controls:</strong><br />
-                Q / E &mdash; Spin hinges &amp; motors<br />
-                Space &mdash; Fire thrusters
-              </div>
+            {!firstPerson && controlMap && controlMap.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowControls((v) => !v)}
+                  style={{
+                    marginTop: 4,
+                    padding: "6px 10px",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: 6,
+                    background: showControls ? "rgba(108,99,255,0.2)" : "transparent",
+                    color: showControls ? "#c0b8ff" : "#ccc",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    width: "100%",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {showControls ? "Hide" : "Show"} Controls
+                </button>
+                {showControls && (
+                  <div style={{ marginTop: 8 }}>
+                    <ControlPanel
+                      controlMap={controlMap}
+                      onControlMapChange={setControlMap}
+                      keysDownRef={keysDown}
+                      onHoverEntry={setHoveredEntry}
+                    />
+                  </div>
+                )}
+              </>
             )}
             {firstPerson && (
               <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
@@ -688,10 +782,14 @@ export function App() {
           <PhysicsScene
             graph={playGraph}
             catalog={catalog}
-            inputState={effectiveInput}
+            controlMap={controlMap ?? undefined}
+            keysDownRef={keysDown}
             firstPerson={firstPerson}
             gravity={activePreset?.gravity}
             onReady={() => setPhysicsReady(true)}
+            onPlanReady={handlePlanReady}
+            highlightBlockId={hoveredEntry?.blockId}
+            highlightJointId={hoveredEntry?.id}
           />
         )}
       </Canvas>
