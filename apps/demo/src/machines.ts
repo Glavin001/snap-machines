@@ -903,12 +903,21 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
-  // Tall gatehouse tower at center of north side
+  // Central rampart tower (use center anchor)
+  snapBlock(g, catalog, {
+    id: "rampart-center",
+    typeId: "structure.rampart.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
+  // Tall gatehouse tower - attach to wall-north-2 (on top of it)
   snapBlock(g, catalog, {
     id: "gatehouse",
     typeId: "tower.gatehouse.3x3",
-    targetBlockId: "foundation",
-    targetAnchorId: "north",
+    targetBlockId: "wall-north-2",
+    targetAnchorId: "top",
     sourceAnchorId: "bottom",
   });
 
@@ -942,15 +951,6 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
     typeId: "tower.round.tall.2x2",
     targetBlockId: "foundation",
     targetAnchorId: "sw",
-    sourceAnchorId: "bottom",
-  });
-
-  // Rampart bastion in center
-  snapBlock(g, catalog, {
-    id: "rampart-center",
-    typeId: "structure.rampart.2x2",
-    targetBlockId: "foundation",
-    targetAnchorId: "center",
     sourceAnchorId: "bottom",
   });
 
@@ -1053,12 +1053,22 @@ function buildFortressComplete(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
+  // Central rampart (use center anchor)
+  snapBlock(g, catalog, {
+    id: "rampart-center",
+    typeId: "structure.rampart.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
   // Gatehouse tower - the centerpiece with animated gates
+  // Attach to wall-north instead of foundation to avoid anchor conflict
   snapBlock(g, catalog, {
     id: "gatehouse",
     typeId: "tower.gatehouse.3x3",
-    targetBlockId: "foundation",
-    targetAnchorId: "center",
+    targetBlockId: "wall-north",
+    targetAnchorId: "top",
     sourceAnchorId: "bottom",
   });
 
@@ -1110,15 +1120,6 @@ function buildFortressComplete(catalog: BlockCatalog): BlockGraph {
     typeId: "tower.round.tall.2x2",
     targetBlockId: "foundation",
     targetAnchorId: "sw",
-    sourceAnchorId: "bottom",
-  });
-
-  // Central rampart
-  snapBlock(g, catalog, {
-    id: "rampart-center",
-    typeId: "structure.rampart.2x2",
-    targetBlockId: "foundation",
-    targetAnchorId: "center",
     sourceAnchorId: "bottom",
   });
 
