@@ -837,7 +837,7 @@ function buildFortressSmall(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
-// 11. Medieval Fortress — Large with Gatehouse, Drawbridge & Portcullis
+// 11. Medieval Fortress — Large with Extended Walls & Towers
 // ---------------------------------------------------------------------------
 
 function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
@@ -850,7 +850,7 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
     transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
   });
 
-  // Build perimeter walls (double-length segments for more impressive fortress)
+  // Build perimeter walls (extended for larger fortress)
   // North wall (2 segments)
   snapBlock(g, catalog, {
     id: "wall-north-1",
@@ -903,30 +903,13 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
-  // Gatehouse tower at center of north side
+  // Tall gatehouse tower at center of north side
   snapBlock(g, catalog, {
     id: "gatehouse",
     typeId: "tower.gatehouse.3x3",
     targetBlockId: "foundation",
     targetAnchorId: "north",
     sourceAnchorId: "bottom",
-  });
-
-  // Attach drawbridge and portcullis to gatehouse
-  snapBlock(g, catalog, {
-    id: "drawbridge",
-    typeId: "gate.drawbridge.3x1",
-    targetBlockId: "gatehouse",
-    targetAnchorId: "gate.bottom",
-    sourceAnchorId: "base.back",
-  });
-
-  snapBlock(g, catalog, {
-    id: "portcullis",
-    typeId: "gate.portcullis.3x2",
-    targetBlockId: "gatehouse",
-    targetAnchorId: "gate.top",
-    sourceAnchorId: "frame.top",
   });
 
   // Corner towers
@@ -962,7 +945,7 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
-  // Add rampart bastions between towers
+  // Rampart bastion in center
   snapBlock(g, catalog, {
     id: "rampart-center",
     typeId: "structure.rampart.2x2",
@@ -971,7 +954,7 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
-  // Crenellations on walls
+  // Crenellations on walls for authentic castle look
   snapBlock(g, catalog, {
     id: "cren-north-1",
     typeId: "crenellation.top.3x1",
@@ -1024,7 +1007,132 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
-// 12. Medieval Fortress — With Access Stairs and Ramparts
+// 12. Medieval Fortress — Gatehouse with Animated Drawbridge
+// ---------------------------------------------------------------------------
+
+function buildFortressGatehouse(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Simple foundation and walls
+  g.addNode({
+    id: "foundation",
+    typeId: "foundation.platform.large",
+    transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Simple perimeter walls
+  snapBlock(g, catalog, {
+    id: "wall-north",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "north",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-south",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "south",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-east",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "east",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-west",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "west",
+    sourceAnchorId: "bottom",
+  });
+
+  // Gatehouse tower
+  snapBlock(g, catalog, {
+    id: "gatehouse",
+    typeId: "tower.gatehouse.3x3",
+    targetBlockId: "foundation",
+    targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
+  // Corner towers
+  snapBlock(g, catalog, {
+    id: "tower-ne",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "ne",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-nw",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "nw",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-se",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "se",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-sw",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "sw",
+    sourceAnchorId: "bottom",
+  });
+
+  // Crenellations
+  snapBlock(g, catalog, {
+    id: "cren-north",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-north",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-south",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-south",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-east",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-east",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-west",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-west",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// 13. Medieval Fortress — With Access Stairs and Ramparts
 // ---------------------------------------------------------------------------
 
 function buildFortressWithAccess(catalog: BlockCatalog): BlockGraph {
@@ -1070,21 +1178,21 @@ function buildFortressWithAccess(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
-  // Add stairs at center for interior access
-  snapBlock(g, catalog, {
-    id: "stairs-center",
-    typeId: "access.stairs.2x1",
-    targetBlockId: "rampart-center",
-    targetAnchorId: "top",
-    sourceAnchorId: "bottom",
-  });
-
-  // Central rampart tower
+  // Central rampart tower (CREATE BEFORE stairs!)
   snapBlock(g, catalog, {
     id: "rampart-center",
     typeId: "structure.rampart.2x2",
     targetBlockId: "foundation",
     targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
+  // Add stairs at center for interior access (NOW snap to rampart)
+  snapBlock(g, catalog, {
+    id: "stairs-center",
+    typeId: "access.stairs.2x1",
+    targetBlockId: "rampart-center",
+    targetAnchorId: "top",
     sourceAnchorId: "bottom",
   });
 
@@ -1235,10 +1343,17 @@ export const MACHINE_PRESETS: MachinePreset[] = [
   },
   {
     name: "Medieval Fortress (Large)",
-    description: "An impressive fortress with gatehouse, drawbridge, portcullis, and rampart. Control drawbridge and portcullis in play mode!",
+    description: "An impressive larger fortress with extended walls, corner round towers, gatehouse, and central rampart bastion.",
     build: buildFortressLarge,
-    autoInput: { drawbridgeLift: 0.5, portcullisSlide: 0 },
+    autoInput: {},
     cameraPosition: [20, 10, 20],
+  },
+  {
+    name: "Medieval Fortress (Gatehouse)",
+    description: "A fortress centered on a tall gatehouse tower with corner towers and defensive walls.",
+    build: buildFortressGatehouse,
+    autoInput: {},
+    cameraPosition: [15, 8, 15],
   },
   {
     name: "Medieval Fortress (With Stairs)",
