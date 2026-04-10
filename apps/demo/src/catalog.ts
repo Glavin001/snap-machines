@@ -4,6 +4,7 @@
  */
 import { BlockDefinition, vec3, lookRotation, VEC3_Y, VEC3_Z, QUAT_IDENTITY, besiegePrimitives, besiegeCompounds } from "@snap-machines/core";
 import { exampleCatalog } from "@snap-machines/core/examples/catalog.js";
+import { medievalCatalog } from "./catalog-medieval.js";
 
 function sideAnchor(
   id: string,
@@ -420,11 +421,12 @@ export const walkerMotorBlock: BlockDefinition = {
   },
 };
 
-/** All demo blocks: core + extended + besiege primitives/compounds */
+/** All demo blocks: core + extended + besiege primitives/compounds + medieval structures */
 export const demoCatalog: BlockDefinition[] = [
   ...exampleCatalog,
   ...besiegePrimitives,
   ...besiegeCompounds,
+  ...medievalCatalog,
   plankBlock,
   beamBlock,
   motorWheelBlock,
