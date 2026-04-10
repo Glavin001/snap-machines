@@ -1007,20 +1007,20 @@ function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
-// 12. Medieval Fortress — Gatehouse with Animated Drawbridge
+// 12. Medieval Fortress — Complete with Drawbridge & Portcullis (Animated!)
 // ---------------------------------------------------------------------------
 
-function buildFortressGatehouse(catalog: BlockCatalog): BlockGraph {
+function buildFortressComplete(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Simple foundation and walls
+  // Foundation
   g.addNode({
     id: "foundation",
     typeId: "foundation.platform.large",
     transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
   });
 
-  // Simple perimeter walls
+  // Perimeter walls
   snapBlock(g, catalog, {
     id: "wall-north",
     typeId: "wall.segment.straight.3x2",
@@ -1053,7 +1053,7 @@ function buildFortressGatehouse(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
-  // Gatehouse tower
+  // Gatehouse tower - the centerpiece with animated gates
   snapBlock(g, catalog, {
     id: "gatehouse",
     typeId: "tower.gatehouse.3x3",
@@ -1062,10 +1062,28 @@ function buildFortressGatehouse(catalog: BlockCatalog): BlockGraph {
     sourceAnchorId: "bottom",
   });
 
-  // Corner towers
+  // Attach DRAWBRIDGE to gatehouse (animated - swings up to let traffic through!)
+  snapBlock(g, catalog, {
+    id: "drawbridge",
+    typeId: "gate.drawbridge.3x1",
+    targetBlockId: "gatehouse",
+    targetAnchorId: "gate.drawbridge",
+    sourceAnchorId: "base.mount",
+  });
+
+  // Attach PORTCULLIS to gatehouse (animated - slides down as secondary defense!)
+  snapBlock(g, catalog, {
+    id: "portcullis",
+    typeId: "gate.portcullis.3x2",
+    targetBlockId: "gatehouse",
+    targetAnchorId: "gate.portcullis",
+    sourceAnchorId: "frame.mount",
+  });
+
+  // Corner towers for defense
   snapBlock(g, catalog, {
     id: "tower-ne",
-    typeId: "tower.square.tall.2x2",
+    typeId: "tower.round.tall.2x2",
     targetBlockId: "foundation",
     targetAnchorId: "ne",
     sourceAnchorId: "bottom",
@@ -1073,7 +1091,7 @@ function buildFortressGatehouse(catalog: BlockCatalog): BlockGraph {
 
   snapBlock(g, catalog, {
     id: "tower-nw",
-    typeId: "tower.square.tall.2x2",
+    typeId: "tower.round.tall.2x2",
     targetBlockId: "foundation",
     targetAnchorId: "nw",
     sourceAnchorId: "bottom",
@@ -1081,7 +1099,7 @@ function buildFortressGatehouse(catalog: BlockCatalog): BlockGraph {
 
   snapBlock(g, catalog, {
     id: "tower-se",
-    typeId: "tower.square.tall.2x2",
+    typeId: "tower.round.tall.2x2",
     targetBlockId: "foundation",
     targetAnchorId: "se",
     sourceAnchorId: "bottom",
@@ -1089,13 +1107,22 @@ function buildFortressGatehouse(catalog: BlockCatalog): BlockGraph {
 
   snapBlock(g, catalog, {
     id: "tower-sw",
-    typeId: "tower.square.tall.2x2",
+    typeId: "tower.round.tall.2x2",
     targetBlockId: "foundation",
     targetAnchorId: "sw",
     sourceAnchorId: "bottom",
   });
 
-  // Crenellations
+  // Central rampart
+  snapBlock(g, catalog, {
+    id: "rampart-center",
+    typeId: "structure.rampart.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
+  // Crenellations for battlement defense
   snapBlock(g, catalog, {
     id: "cren-north",
     typeId: "crenellation.top.3x1",
@@ -1343,15 +1370,15 @@ export const MACHINE_PRESETS: MachinePreset[] = [
   },
   {
     name: "Medieval Fortress (Large)",
-    description: "An impressive larger fortress with extended walls, corner round towers, gatehouse, and central rampart bastion.",
+    description: "An impressive larger fortress with extended walls, corner round towers, and rampart bastion.",
     build: buildFortressLarge,
     autoInput: {},
     cameraPosition: [20, 10, 20],
   },
   {
-    name: "Medieval Fortress (Gatehouse)",
-    description: "A fortress centered on a tall gatehouse tower with corner towers and defensive walls.",
-    build: buildFortressGatehouse,
+    name: "Medieval Fortress (Complete with Gates)",
+    description: "A fully-featured fortress with gatehouse, ANIMATED DRAWBRIDGE (press 'Q'/'E' in play), and ANIMATED PORTCULLIS (press 'Q'/'E' in play). Try controlling the gates!",
+    build: buildFortressComplete,
     autoInput: {},
     cameraPosition: [15, 8, 15],
   },

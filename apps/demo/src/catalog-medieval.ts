@@ -280,9 +280,21 @@ export const gatehouseTower: BlockDefinition = {
     stoneBrickAnchor("xn", vec3(-1.5, 0, 0), VEC3_NEG_X),
     stoneBrickAnchor("zp", vec3(0, 0, 1.5), VEC3_Z),
     stoneBrickAnchor("zn", vec3(0, 0, -1.5), VEC3_NEG_Z),
-    // Gate anchors (for drawbridge/portcullis)
-    stoneBrickAnchor("gate.top", vec3(0, 1.5, 0), VEC3_Y),
-    stoneBrickAnchor("gate.bottom", vec3(0, -1, 0), VEC3_NEG_Y),
+    // Gate mechanism mount anchors (for drawbridge/portcullis attachment)
+    {
+      id: "gate.drawbridge",
+      position: vec3(0, -0.5, 0),
+      normal: vec3(0, -1, 0),
+      orientation: lookRotation(VEC3_NEG_Y, VEC3_Z),
+      type: "struct:stone",
+    },
+    {
+      id: "gate.portcullis",
+      position: vec3(0, 1, 0),
+      normal: vec3(0, 1, 0),
+      orientation: lookRotation(VEC3_Y, VEC3_Z),
+      type: "struct:stone",
+    },
     // Top for crenellations
     stoneBrickAnchor("top", vec3(0, 2.5, 0), VEC3_Y),
     // Bottom for foundation
@@ -336,8 +348,9 @@ export const crenellationTop: BlockDefinition = {
 
 /**
  * Drawbridge – 2-part hinged structure
- * Base attaches to gatehouse, bridge deck rotates up (revolute joint with motor).
+ * Base mounts to gatehouse via top anchor, bridge deck rotates down (revolute joint).
  * Can be controlled in play mode to raise/lower the bridge.
+ * Simple design: base is the hinge frame, deck is the bridge that rotates around X axis.
  */
 export const drawBridge: BlockDefinition = {
   id: "gate.drawbridge.3x1",
@@ -351,66 +364,70 @@ export const drawBridge: BlockDefinition = {
     {
       kind: "box",
       partId: "base",
-      size: vec3(3, 0.5, 1),
-      transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+      size: vec3(3, 0.5, 0.5),
+      transform: { position: vec3(0, 0.25, 0), rotation: QUAT_IDENTITY },
     },
     {
       kind: "box",
       partId: "bridge_deck",
-      size: vec3(3, 0.3, 1),
-      transform: { position: vec3(0, 0.25, 0), rotation: QUAT_IDENTITY },
+      size: vec3(3, 0.3, 1.5),
+      transform: { position: vec3(0, -0.25, -0.75), rotation: QUAT_IDENTITY },
     },
   ],
   colliders: [
     {
       kind: "box",
       partId: "base",
-      halfExtents: vec3(1.5, 0.25, 0.5),
+      halfExtents: vec3(1.5, 0.25, 0.25),
       friction: 0.8,
       restitution: 0.1,
     },
     {
       kind: "box",
       partId: "bridge_deck",
-      halfExtents: vec3(1.5, 0.15, 0.5),
+      halfExtents: vec3(1.5, 0.15, 0.75),
       friction: 0.8,
       restitution: 0.1,
     },
   ],
   anchors: [
+    // Mount point - on top of base for attaching to gatehouse
     {
-      id: "base.front",
+      id: "base.mount",
       partId: "base",
-      position: vec3(0, 0, 0.5),
-      normal: vec3(0, 0, 1),
-      orientation: lookRotation(vec3(0, 0, 1), VEC3_Y),
+      position: vec3(0, 0.5, 0),
+      normal: vec3(0, 1, 0),
+      orientation: lookRotation(VEC3_Y, VEC3_Z),
       type: "struct:stone",
     },
-    {
-      id: "base.back",
-      partId: "base",
-      position: vec3(0, 0, -0.5),
-      normal: vec3(0, 0, -1),
-      orientation: lookRotation(VEC3_NEG_Z, VEC3_Y),
-      type: "struct:stone",
-    },
+    // Internal joint anchor on base
     {
       id: "base.joint",
       partId: "base",
       position: vec3(0, 0, 0),
-      normal: vec3(0, 1, 0),
-      orientation: lookRotation(VEC3_Y, VEC3_Z),
-      type: "joint",
-      polarity: "positive",
-    },
-    {
-      id: "deck.joint",
-      partId: "bridge_deck",
-      position: vec3(0, 0, 0),
       normal: vec3(0, -1, 0),
       orientation: lookRotation(VEC3_NEG_Y, VEC3_Z),
       type: "joint",
+      polarity: "positive",
+    },
+    // Internal joint anchor on bridge deck
+    {
+      id: "deck.joint",
+      partId: "bridge_deck",
+      position: vec3(0, 0.15, -0.75),
+      normal: vec3(0, 1, 0),
+      orientation: lookRotation(VEC3_Y, VEC3_Z),
+      type: "joint",
       polarity: "negative",
+    },
+    // Front anchor for cosmetic attachment
+    {
+      id: "deck.front",
+      partId: "bridge_deck",
+      position: vec3(0, -0.25, 0.75),
+      normal: vec3(0, 0, 1),
+      orientation: lookRotation(VEC3_Z, VEC3_Y),
+      type: "struct:stone",
     },
   ],
   joint: {
@@ -419,8 +436,8 @@ export const drawBridge: BlockDefinition = {
     partB: "bridge_deck",
     anchorA: "base.joint",
     anchorB: "deck.joint",
-    axis: vec3(1, 0, 0),  // Rotate around X axis (hinge along length)
-    limits: { min: 0, max: Math.PI / 2 },  // 0-90 degrees
+    axis: vec3(1, 0, 0),  // Rotate around X axis (hinge along width)
+    limits: { min: -Math.PI / 2, max: 0 },  // Can swing from horizontal (0) to vertical up (-90°)
     motor: {
       mode: "velocity",
       targetVelocity: 0,
@@ -436,8 +453,9 @@ export const drawBridge: BlockDefinition = {
 
 /**
  * Portcullis (murder hole gate) – 2-part sliding structure
- * Frame attaches to gatehouse, gate slides vertically (prismatic joint with motor).
- * Can be controlled in play mode to open/close.
+ * Frame mounts to gatehouse, gate slides vertically down to block (prismatic joint with motor).
+ * Can be controlled in play mode to open/close the gate.
+ * Simple design: frame is the top rail, gate is the grating that slides down.
  */
 export const portcullis: BlockDefinition = {
   id: "gate.portcullis.3x2",
@@ -451,54 +469,57 @@ export const portcullis: BlockDefinition = {
     {
       kind: "box",
       partId: "frame",
-      size: vec3(3, 0.3, 0.3),
-      transform: { position: vec3(0, 1, 0), rotation: QUAT_IDENTITY },
+      size: vec3(3, 0.4, 0.4),
+      transform: { position: vec3(0, 0.2, 0), rotation: QUAT_IDENTITY },
     },
     {
       kind: "box",
       partId: "gate",
-      size: vec3(3, 2, 0.2),
-      transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+      size: vec3(3, 1.8, 0.2),
+      transform: { position: vec3(0, -1.1, 0), rotation: QUAT_IDENTITY },
     },
   ],
   colliders: [
     {
       kind: "box",
       partId: "frame",
-      halfExtents: vec3(1.5, 0.15, 0.15),
+      halfExtents: vec3(1.5, 0.2, 0.2),
       friction: 0.8,
       restitution: 0.1,
     },
     {
       kind: "box",
       partId: "gate",
-      halfExtents: vec3(1.5, 1, 0.1),
+      halfExtents: vec3(1.5, 0.9, 0.1),
       friction: 0.8,
       restitution: 0.1,
     },
   ],
   anchors: [
+    // Mount point - on top of frame for attaching to gatehouse
     {
-      id: "frame.top",
+      id: "frame.mount",
       partId: "frame",
-      position: vec3(0, 1, 0),
+      position: vec3(0, 0.4, 0),
       normal: vec3(0, 1, 0),
       orientation: lookRotation(VEC3_Y, VEC3_Z),
       type: "struct:stone",
     },
+    // Internal joint anchor on frame (bottom)
     {
       id: "frame.joint",
       partId: "frame",
-      position: vec3(0, 0.5, 0),
+      position: vec3(0, 0, 0),
       normal: vec3(0, -1, 0),
       orientation: lookRotation(VEC3_NEG_Y, VEC3_Z),
       type: "joint",
       polarity: "positive",
     },
+    // Internal joint anchor on gate (top, where it connects to frame)
     {
       id: "gate.joint",
       partId: "gate",
-      position: vec3(0, 1, 0),
+      position: vec3(0, -0.1, 0),
       normal: vec3(0, 1, 0),
       orientation: lookRotation(VEC3_Y, VEC3_Z),
       type: "joint",
@@ -511,8 +532,8 @@ export const portcullis: BlockDefinition = {
     partB: "gate",
     anchorA: "frame.joint",
     anchorB: "gate.joint",
-    axis: vec3(0, 1, 0),  // Slide vertically
-    limits: { min: -2, max: 0 },  // Fully open (down) to closed (up)
+    axis: vec3(0, 1, 0),  // Slide vertically (positive Y = down)
+    limits: { min: 0, max: 2 },  // Closed (0) to open (2 units down)
     motor: {
       mode: "velocity",
       targetVelocity: 0,
