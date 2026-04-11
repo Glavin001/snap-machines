@@ -80,6 +80,8 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
   const inputRef = useRef<RuntimeInputState>(inputState ?? {});
   const controlMapRef = useRef<ControlMap | undefined>(controlMap);
   const axisIndicatorRef = useRef<THREE.Group>(null);
+  const axisIndicatorOrbitRef = useRef<THREE.Group>(null);
+  const axisIndicatorPhaseRef = useRef(0);
   const colors = colorMap ?? DEFAULT_BLOCK_COLORS;
 
   inputRef.current = inputState ?? {};
@@ -188,56 +190,69 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
       if (jointPlan) {
         indicator.visible = true;
 
-        // Get the Rapier joint to derive correct world-space axis from frame transforms
-        let worldPos: THREE.Vector3;
-        let worldAxis: THREE.Vector3;
-        try {
-          const rapierJoint = runtime.getJoint(jointPlan.id) as unknown as RAPIER.ImpulseJoint;
-          const body1 = rapierJoint.body1();
-          const r1 = body1.rotation();
-          const t1 = body1.translation();
-          const a1 = rapierJoint.anchor1();
-          const f1 = rapierJoint.frameX1();
+        const bodyWorld = runtime.getBodyWorldTransform(jointPlan.bodyAId);
+        const currentBodyQuat = new THREE.Quaternion(
+          bodyWorld.rotation.x,
+          bodyWorld.rotation.y,
+          bodyWorld.rotation.z,
+          bodyWorld.rotation.w,
+        );
+        const localAnchor = new THREE.Vector3(
+          jointPlan.localAnchorA.x,
+          jointPlan.localAnchorA.y,
+          jointPlan.localAnchorA.z,
+        );
+        const worldPos = new THREE.Vector3(
+          bodyWorld.position.x,
+          bodyWorld.position.y,
+          bodyWorld.position.z,
+        ).add(localAnchor.applyQuaternion(currentBodyQuat.clone()));
 
-          const bodyQuat = new THREE.Quaternion(r1.x, r1.y, r1.z, r1.w);
-
-          // World position: body translation + rotated local anchor
-          const localAnchor = new THREE.Vector3(a1.x, a1.y, a1.z);
-          localAnchor.applyQuaternion(bodyQuat);
-          worldPos = new THREE.Vector3(t1.x + localAnchor.x, t1.y + localAnchor.y, t1.z + localAnchor.z);
-
-          // World axis: frameX1 maps body-local to joint-frame where X is the free axis.
-          // Free axis in body-local = conjugate(frameX1) * [1,0,0]
-          // Free axis in world = bodyRotation * conjugate(frameX1) * [1,0,0]
-          const frameQuat = new THREE.Quaternion(f1.x, f1.y, f1.z, f1.w);
-          worldAxis = new THREE.Vector3(1, 0, 0)
-            .applyQuaternion(frameQuat.conjugate())
-            .applyQuaternion(bodyQuat)
-            .normalize();
-        } catch {
-          // Fallback: use plan data with body transform
-          const bodyWorld = runtime.getBodyWorldTransform(jointPlan.bodyAId);
-          const bodyQuat = new THREE.Quaternion(
-            bodyWorld.rotation.x, bodyWorld.rotation.y,
-            bodyWorld.rotation.z, bodyWorld.rotation.w,
-          );
-          const anchor = new THREE.Vector3(
-            jointPlan.localAnchorA.x, jointPlan.localAnchorA.y, jointPlan.localAnchorA.z,
-          ).applyQuaternion(bodyQuat);
-          worldPos = new THREE.Vector3(
-            bodyWorld.position.x + anchor.x,
-            bodyWorld.position.y + anchor.y,
-            bodyWorld.position.z + anchor.z,
-          );
-          // localAxisA in this plan is already world-space at compile time — use directly
-          const ax = jointPlan.localAxisA ?? { x: 0, y: 1, z: 0 };
-          worldAxis = new THREE.Vector3(ax.x, ax.y, ax.z).normalize();
-        }
+        const axis = jointPlan.localAxisA ?? { x: 1, y: 0, z: 0 };
+        const axisAtCompileTime = new THREE.Vector3(axis.x, axis.y, axis.z).normalize();
+        const bodyPlan = plan.bodies.find((candidate) => candidate.id === jointPlan.bodyAId);
+        const initialBodyQuat = bodyPlan
+          ? new THREE.Quaternion(
+              bodyPlan.origin.rotation.x,
+              bodyPlan.origin.rotation.y,
+              bodyPlan.origin.rotation.z,
+              bodyPlan.origin.rotation.w,
+            )
+          : new THREE.Quaternion();
+        const localAxis = axisAtCompileTime.clone().applyQuaternion(initialBodyQuat.clone().invert());
+        const worldAxis = localAxis.applyQuaternion(currentBodyQuat).normalize();
 
         indicator.position.copy(worldPos);
-        const up = new THREE.Vector3(0, 1, 0);
-        const orientQuat = new THREE.Quaternion().setFromUnitVectors(up, worldAxis);
+        // torusGeometry lies in the local XY plane, so its normal is +Z.
+        // Align that normal to the joint axis; aligning +Y twists the ring incorrectly.
+        const ringNormal = new THREE.Vector3(0, 0, 1);
+        const orientQuat = new THREE.Quaternion().setFromUnitVectors(ringNormal, worldAxis);
         indicator.quaternion.copy(orientQuat);
+
+        const orbit = axisIndicatorOrbitRef.current;
+        if (orbit) {
+          const entry = controlMapRef.current?.find((candidate) => candidate.id === jointPlan.id);
+          let direction = entry && entry.scale < 0 ? -1 : 1;
+
+          if (entry) {
+            const liveInput = effectiveInput[entry.actionName];
+            if (typeof liveInput === "number" && liveInput !== 0) {
+              direction = Math.sign(liveInput) || direction;
+            }
+          }
+
+          if (entry && keysDownRef?.current) {
+            const posDown = entry.positiveKey !== "" && keysDownRef.current.has(entry.positiveKey);
+            const negDown = entry.negativeKey !== "" && keysDownRef.current.has(entry.negativeKey);
+            const keyDirection = (posDown ? 1 : 0) - (negDown ? 1 : 0);
+            if (keyDirection !== 0) {
+              direction = Math.sign(keyDirection * entry.scale) || direction;
+            }
+          }
+
+          axisIndicatorPhaseRef.current += dt * 2.8 * direction;
+          orbit.rotation.z = axisIndicatorPhaseRef.current;
+        }
       } else {
         indicator.visible = false;
       }
@@ -269,28 +284,41 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
       {/* Joint axis indicator (torus ring at joint location) */}
       <group ref={axisIndicatorRef} visible={false}>
         <mesh>
-          <torusGeometry args={[0.6, 0.04, 12, 32]} />
+          <torusGeometry args={[0.95, 0.075, 18, 72]} />
           <meshStandardMaterial
-            color="#ffcc00"
-            emissive="#ffcc00"
-            emissiveIntensity={1.5}
+            color="#33f0ff"
+            emissive="#33f0ff"
+            emissiveIntensity={2.1}
             transparent
-            opacity={0.8}
+            opacity={0.96}
             depthTest={false}
           />
         </mesh>
-        {/* Small cone to show positive rotation direction */}
-        <mesh position={[0.6, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <coneGeometry args={[0.08, 0.2, 8]} />
-          <meshStandardMaterial
-            color="#ffcc00"
-            emissive="#ffcc00"
-            emissiveIntensity={1.5}
-            transparent
-            opacity={0.8}
-            depthTest={false}
-          />
-        </mesh>
+        <group ref={axisIndicatorOrbitRef}>
+          {/* Large animated arrow showing positive spin direction */}
+          <mesh position={[0.95, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+            <coneGeometry args={[0.14, 0.34, 12]} />
+            <meshStandardMaterial
+              color="#33f0ff"
+              emissive="#33f0ff"
+              emissiveIntensity={2.4}
+              transparent
+              opacity={1}
+              depthTest={false}
+            />
+          </mesh>
+          <mesh position={[0.62, 0, 0]}>
+            <sphereGeometry args={[0.06, 16, 16]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#7df9ff"
+              emissiveIntensity={1.2}
+              transparent
+              opacity={0.9}
+              depthTest={false}
+            />
+          </mesh>
+        </group>
       </group>
       {firstPerson && rapierReady && worldRef.current && (
         <PlayerController world={worldRef.current} RAPIER={RAPIER} />

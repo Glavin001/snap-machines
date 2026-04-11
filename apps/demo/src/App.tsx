@@ -5,6 +5,7 @@ import * as THREE from "three";
 import {
   BlockCatalog,
   BlockGraph,
+  compileMachinePlan,
   ControlMap,
   degToRad,
   generateControlMap,
@@ -46,6 +47,24 @@ const TOOL_OPTIONS: Array<{ id: BuilderTool; label: string }> = [
 
 const ROTATION_STEPS = [90, 45, 15, 5, 1, 0] as const;
 const CATEGORY_ORDER = ["structure", "joints", "utility"] as const;
+
+function mergeControlMapSettings(nextMap: ControlMap, previousMap: ControlMap | null): ControlMap {
+  if (!previousMap || previousMap.length === 0) return nextMap;
+
+  const previousById = new Map(previousMap.map((entry) => [entry.id, entry] as const));
+  return nextMap.map((entry) => {
+    const previous = previousById.get(entry.id);
+    if (!previous) return entry;
+    return {
+      ...entry,
+      positiveKey: previous.positiveKey,
+      negativeKey: previous.negativeKey,
+      enabled: previous.enabled,
+      scale: previous.scale,
+      currentTarget: entry.actuatorType === "position" ? previous.currentTarget : entry.currentTarget,
+    };
+  });
+}
 
 function createFreshGraph(): BlockGraph {
   const g = new BlockGraph();
@@ -130,6 +149,22 @@ export function App() {
     setJsonText(graphToJsonText(source));
     setJsonError(null);
   }, [graph, graphToJsonText, mode, playGraph, showJson]);
+
+  useEffect(() => {
+    if (mode !== "build") {
+      if (mode === "gallery") {
+        setControlMap(null);
+        setHoveredEntry(null);
+      }
+      return;
+    }
+
+    const plan = compileMachinePlan(graph, catalog);
+    const originals = rewritePlanActions(plan);
+    const nextMap = generateControlMap(plan, originals, catalog, graph);
+    resetControlMapState(nextMap);
+    setControlMap((previous) => mergeControlMapSettings(nextMap, previous));
+  }, [catalog, graph, mode]);
 
   useEffect(() => {
     if (!selectedNode) {
@@ -391,9 +426,9 @@ export function App() {
     (plan: MachinePlan) => {
       const sourceGraph = playGraph ?? graphRef.current;
       const originals = rewritePlanActions(plan);
-      const map = generateControlMap(plan, originals, catalog, sourceGraph);
-      resetControlMapState(map);
-      setControlMap(map);
+      const nextMap = generateControlMap(plan, originals, catalog, sourceGraph);
+      resetControlMapState(nextMap);
+      setControlMap((previous) => mergeControlMapSettings(nextMap, previous));
       setShowControls(true);
     },
     [catalog, playGraph],
@@ -795,6 +830,35 @@ export function App() {
               </div>
             )}
 
+            {controlMap && (
+              <>
+                <button
+                  onClick={() => setShowControls((value) => !value)}
+                  style={{ ...secondaryButtonStyle, width: "100%", marginTop: 12 }}
+                >
+                  {showControls ? "Hide Controls" : "Show Controls"}
+                </button>
+                {showControls && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <ControlPanel
+                      controlMap={controlMap}
+                      onControlMapChange={setControlMap}
+                      keysDownRef={keysDown}
+                      onHoverEntry={setHoveredEntry}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <button onClick={handlePlay} style={{ ...primaryButtonStyle, flex: 1 }}>
                 Play
@@ -833,7 +897,7 @@ export function App() {
             >
               {inputsEnabled ? "Disable Runtime Inputs" : "Enable Runtime Inputs"}
             </button>
-            {!firstPerson && controlMap && controlMap.length > 0 && (
+            {!firstPerson && controlMap && (
               <>
                 <button
                   onClick={() => setShowControls((value) => !value)}
