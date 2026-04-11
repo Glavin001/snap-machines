@@ -38,6 +38,23 @@ interface TransformDraft {
   rz: string;
 }
 
+interface PlacementRotation {
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface DragSelectionSnapshot {
+  pivot: THREE.Vector3;
+  handlePosition: THREE.Vector3;
+  handleQuaternion: THREE.Quaternion;
+  nodes: Array<{
+    id: string;
+    position: THREE.Vector3;
+    rotation: THREE.Quaternion;
+  }>;
+}
+
 const TOOL_OPTIONS: Array<{ id: BuilderTool; label: string }> = [
   { id: "place", label: "Place" },
   { id: "select", label: "Select" },
@@ -77,10 +94,10 @@ export function App() {
   const [mode, setMode] = useState<Mode>("gallery");
   const [toolMode, setToolMode] = useState<BuilderTool>("place");
   const [transformSpace, setTransformSpace] = useState<TransformSpace>("local");
-  const [placementRotationDeg, setPlacementRotationDeg] = useState(0);
+  const [placementRotation, setPlacementRotation] = useState<PlacementRotation>({ x: 0, y: 0, z: 0 });
   const [placementStepDeg, setPlacementStepDeg] = useState<number>(15);
   const [partQuery, setPartQuery] = useState("");
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [snapResult, setSnapResult] = useState<SnapResult | null>(null);
   const [physicsReady, setPhysicsReady] = useState(false);
   const [firstPerson, setFirstPerson] = useState(false);
@@ -118,25 +135,76 @@ export function App() {
   const graphRef = useRef(graph);
   graphRef.current = graph;
 
+  const selectedNodeId = selectedNodeIds[0] ?? null;
   const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
   selectedNodeIdRef.current = selectedNodeId;
+  const selectedNodeIdsRef = useRef<string[]>(selectedNodeIds);
+  selectedNodeIdsRef.current = selectedNodeIds;
 
   const [playGraph, setPlayGraph] = useState<BlockGraph | null>(null);
   const transformHandleRef = useRef<THREE.Group>(null);
   const dragStartSnapshotRef = useRef<SerializedBlockGraph | null>(null);
+  const dragSelectionSnapshotRef = useRef<DragSelectionSnapshot | null>(null);
+  const dragHandleTransformRef = useRef<{ position: THREE.Vector3; quaternion: THREE.Quaternion } | null>(null);
 
   const selectedNode = useMemo(
     () => (selectedNodeId ? graph.getNode(selectedNodeId) ?? null : null),
     [graph, selectedNodeId],
   );
+  const selectedNodes = useMemo(
+    () =>
+      selectedNodeIds
+        .map((id) => graph.getNode(id))
+        .filter((node): node is NonNullable<typeof node> => node != null),
+    [graph, selectedNodeIds],
+  );
+  const isMultiSelection = selectedNodes.length > 1;
   const selectedDefinition = useMemo(
     () => (selectedNode ? catalog.get(selectedNode.typeId) : null),
     [catalog, selectedNode],
   );
   const selectedConnections = useMemo(
-    () => (selectedNode ? graph.getConnectionsForBlock(selectedNode.id) : []),
-    [graph, selectedNode],
+    () => selectedNodes.flatMap((node) => graph.getConnectionsForBlock(node.id)),
+    [graph, selectedNodes],
   );
+  const selectionCentroid = useMemo(() => {
+    if (selectedNodes.length === 0) return null;
+    const total = selectedNodes.reduce(
+      (acc, node) => {
+        acc.x += node.transform.position.x;
+        acc.y += node.transform.position.y;
+        acc.z += node.transform.position.z;
+        return acc;
+      },
+      { x: 0, y: 0, z: 0 },
+    );
+    const scale = 1 / selectedNodes.length;
+    return vec3(total.x * scale, total.y * scale, total.z * scale);
+  }, [selectedNodes]);
+  const effectiveTransformSpace: TransformSpace = isMultiSelection ? "world" : transformSpace;
+  const selectionHandleTransform = useMemo(() => {
+    if (selectedNodes.length === 0) return null;
+    if (isTransformDragging && dragHandleTransformRef.current) {
+      const dragHandle = dragHandleTransformRef.current;
+      return {
+        position: vec3(dragHandle.position.x, dragHandle.position.y, dragHandle.position.z),
+        rotation: {
+          x: dragHandle.quaternion.x,
+          y: dragHandle.quaternion.y,
+          z: dragHandle.quaternion.z,
+          w: dragHandle.quaternion.w,
+        },
+      };
+    }
+    if (selectedNodes.length === 1) {
+      return selectedNodes[0]!.transform;
+    }
+    if (!selectionCentroid) return null;
+    return {
+      position: selectionCentroid,
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    };
+  }, [isTransformDragging, selectedNodes, selectionCentroid]);
 
   const blockCount = graph.listNodes().length;
   const connectionCount = graph.listConnections().length;
@@ -209,7 +277,7 @@ export function App() {
       nextGraph: BlockGraph,
       options?: {
         recordHistory?: boolean;
-        selection?: string | null;
+        selectionIds?: string[] | null;
         clearRedo?: boolean;
         resetHistory?: boolean;
       },
@@ -231,13 +299,13 @@ export function App() {
       setSnapResult(null);
       setJsonError(null);
 
-      if (options && "selection" in options) {
-        setSelectedNodeId(options.selection ?? null);
+      if (options && "selectionIds" in options) {
+        setSelectedNodeIds(options.selectionIds ?? []);
         return;
       }
 
-      const currentSelection = selectedNodeIdRef.current;
-      setSelectedNodeId(currentSelection && nextGraph.getNode(currentSelection) ? currentSelection : null);
+      const currentSelection = selectedNodeIdsRef.current.filter((id) => nextGraph.getNode(id));
+      setSelectedNodeIds(currentSelection);
     },
     [],
   );
@@ -246,11 +314,11 @@ export function App() {
     (nextGraph: BlockGraph, preset: MachinePreset | null) => {
       setGraph(nextGraph);
       setActivePreset(preset);
-      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
       setSnapResult(null);
       setUndoStack([]);
       setRedoStack([]);
-      setPlacementRotationDeg(0);
+      setPlacementRotation({ x: 0, y: 0, z: 0 });
       setPlacementStepDeg(15);
       setToolMode("place");
       setTransformSpace("local");
@@ -304,7 +372,7 @@ export function App() {
     setFirstPerson(false);
     setInputsEnabled(true);
     setPhysicsReady(false);
-    setSelectedNodeId(null);
+    setSelectedNodeIds([]);
     setSnapResult(null);
     setControlMap(null);
     setShowControls(true);
@@ -319,8 +387,7 @@ export function App() {
       setRedoStack((redoPrev) => [...redoPrev, graphRef.current.toJSON()]);
       const nextGraph = BlockGraph.fromJSON(snapshot);
       setGraph(nextGraph);
-      const currentSelection = selectedNodeIdRef.current;
-      setSelectedNodeId(currentSelection && nextGraph.getNode(currentSelection) ? currentSelection : null);
+      setSelectedNodeIds(selectedNodeIdsRef.current.filter((id) => nextGraph.getNode(id)));
       setSnapResult(null);
       setJsonError(null);
       return prev.slice(0, -1);
@@ -334,8 +401,7 @@ export function App() {
       setUndoStack((undoPrev) => [...undoPrev, graphRef.current.toJSON()]);
       const nextGraph = BlockGraph.fromJSON(snapshot);
       setGraph(nextGraph);
-      const currentSelection = selectedNodeIdRef.current;
-      setSelectedNodeId(currentSelection && nextGraph.getNode(currentSelection) ? currentSelection : null);
+      setSelectedNodeIds(selectedNodeIdsRef.current.filter((id) => nextGraph.getNode(id)));
       setSnapResult(null);
       setJsonError(null);
       return prev.slice(0, -1);
@@ -351,18 +417,20 @@ export function App() {
       applyBuildGraph(nextGraph, {
         recordHistory: options?.recordHistory,
         clearRedo: options?.clearRedo,
-        selection: nodeId,
+        selectionIds: [nodeId],
       });
     },
     [applyBuildGraph],
   );
 
   const deleteSelectedBlock = useCallback(() => {
-    const nodeId = selectedNodeIdRef.current;
-    if (!nodeId || nodeId === "origin") return;
+    const selectedIds = selectedNodeIdsRef.current.filter((id) => id !== "origin");
+    if (selectedIds.length === 0) return;
     const nextGraph = graphRef.current.clone();
-    nextGraph.removeNode(nodeId);
-    applyBuildGraph(nextGraph, { selection: null });
+    for (const nodeId of selectedIds) {
+      nextGraph.removeNode(nodeId);
+    }
+    applyBuildGraph(nextGraph, { selectionIds: [] });
   }, [applyBuildGraph]);
 
   const applyDraftTransform = useCallback(() => {
@@ -409,7 +477,7 @@ export function App() {
         return;
       }
       if (mode === "build") {
-        applyBuildGraph(nextGraph, { selection: null });
+        applyBuildGraph(nextGraph, { selectionIds: [] });
       } else {
         setPlayGraph(nextGraph);
         setPhysicsReady(false);
@@ -435,32 +503,94 @@ export function App() {
   );
 
   const beginTransformDrag = useCallback(() => {
+    const handle = transformHandleRef.current;
+    const selected = selectedNodeIdsRef.current
+      .map((id) => graphRef.current.getNode(id))
+      .filter((node): node is NonNullable<typeof node> => node != null);
+    if (!handle || selected.length === 0) return;
+
+    const pivot = selected.reduce(
+      (acc, node) => acc.add(new THREE.Vector3(node.transform.position.x, node.transform.position.y, node.transform.position.z)),
+      new THREE.Vector3(),
+    ).multiplyScalar(1 / selected.length);
+
     dragStartSnapshotRef.current = graphRef.current.toJSON();
+    dragHandleTransformRef.current = {
+      position: handle.position.clone(),
+      quaternion: handle.quaternion.clone(),
+    };
+    dragSelectionSnapshotRef.current = {
+      pivot,
+      handlePosition: handle.position.clone(),
+      handleQuaternion: handle.quaternion.clone(),
+      nodes: selected.map((node) => ({
+        id: node.id,
+        position: new THREE.Vector3(node.transform.position.x, node.transform.position.y, node.transform.position.z),
+        rotation: new THREE.Quaternion(
+          node.transform.rotation.x,
+          node.transform.rotation.y,
+          node.transform.rotation.z,
+          node.transform.rotation.w,
+        ),
+      })),
+    };
     setIsTransformDragging(true);
   }, []);
 
   const handleTransformObjectChange = useCallback(() => {
-    const nodeId = selectedNodeIdRef.current;
     const handle = transformHandleRef.current;
-    if (!nodeId || !handle) return;
-    updateSelectedTransform(
-      {
-        position: vec3(handle.position.x, handle.position.y, handle.position.z),
-        rotation: {
-          x: handle.quaternion.x,
-          y: handle.quaternion.y,
-          z: handle.quaternion.z,
-          w: handle.quaternion.w,
-        },
-      },
-      { recordHistory: false },
-    );
-  }, [updateSelectedTransform]);
+    const dragSnapshot = dragSelectionSnapshotRef.current;
+    if (!handle || !dragSnapshot) return;
+
+    dragHandleTransformRef.current = {
+      position: handle.position.clone(),
+      quaternion: handle.quaternion.clone(),
+    };
+
+    const nextGraph = graphRef.current.clone();
+    if (toolMode === "move") {
+      const delta = handle.position.clone().sub(dragSnapshot.handlePosition);
+      for (const node of dragSnapshot.nodes) {
+        nextGraph.updateNodeTransform(node.id, {
+          position: vec3(node.position.x + delta.x, node.position.y + delta.y, node.position.z + delta.z),
+          rotation: {
+            x: node.rotation.x,
+            y: node.rotation.y,
+            z: node.rotation.z,
+            w: node.rotation.w,
+          },
+        });
+      }
+    } else {
+      const deltaQuat = handle.quaternion.clone().multiply(dragSnapshot.handleQuaternion.clone().invert()).normalize();
+      for (const node of dragSnapshot.nodes) {
+        const offset = node.position.clone().sub(dragSnapshot.pivot).applyQuaternion(deltaQuat);
+        const nextPosition = dragSnapshot.pivot.clone().add(offset);
+        const nextRotation = deltaQuat.clone().multiply(node.rotation).normalize();
+        nextGraph.updateNodeTransform(node.id, {
+          position: vec3(nextPosition.x, nextPosition.y, nextPosition.z),
+          rotation: {
+            x: nextRotation.x,
+            y: nextRotation.y,
+            z: nextRotation.z,
+            w: nextRotation.w,
+          },
+        });
+      }
+    }
+
+    applyBuildGraph(nextGraph, {
+      recordHistory: false,
+      selectionIds: dragSnapshot.nodes.map((node) => node.id),
+    });
+  }, [applyBuildGraph, toolMode]);
 
   const endTransformDrag = useCallback(() => {
     setIsTransformDragging(false);
     const snapshot = dragStartSnapshotRef.current;
     dragStartSnapshotRef.current = null;
+    dragSelectionSnapshotRef.current = null;
+    dragHandleTransformRef.current = null;
     if (!snapshot) return;
 
     if (JSON.stringify(snapshot) !== JSON.stringify(graphRef.current.toJSON())) {
@@ -532,16 +662,16 @@ export function App() {
       if (e.key === "[") {
         e.preventDefault();
         const step = placementStepDeg || 5;
-        setPlacementRotationDeg((value) => value - step);
+        setPlacementRotation((value) => ({ ...value, z: value.z - step }));
       }
       if (e.key === "]") {
         e.preventDefault();
         const step = placementStepDeg || 5;
-        setPlacementRotationDeg((value) => value + step);
+        setPlacementRotation((value) => ({ ...value, z: value.z + step }));
       }
       if (e.key.toLowerCase() === "r") {
         e.preventDefault();
-        setPlacementRotationDeg(0);
+        setPlacementRotation({ x: 0, y: 0, z: 0 });
       }
     };
 
@@ -573,6 +703,23 @@ export function App() {
       }
     };
   }, [activePreset, controlMap, inputsEnabled, mode]);
+
+  const handleSceneSelectionChange = useCallback((nodeId: string | null, options?: { toggle?: boolean }) => {
+    if (!nodeId) {
+      setSelectedNodeIds([]);
+      return;
+    }
+
+    setSelectedNodeIds((previous) => {
+      if (!options?.toggle) {
+        return [nodeId];
+      }
+      if (previous.includes(nodeId)) {
+        return previous.filter((id) => id !== nodeId);
+      }
+      return [...previous, nodeId];
+    });
+  }, []);
 
   const effectiveInput = inputsEnabled
     ? activePreset && mode === "play"
@@ -705,7 +852,7 @@ export function App() {
             {toolMode === "place" && (
               <>
                 <div style={{ marginBottom: 10, fontSize: 12, opacity: 0.78 }}>
-                  Hover to preview anchors. Use <code>[</code> and <code>]</code> to rotate before placing.
+                  Hover to preview anchors. Use the X/Y/Z quick rotate buttons for 90° turns, or <code>[</code> and <code>]</code> to twist around Z before placing.
                 </div>
                 <div
                   style={{
@@ -723,26 +870,70 @@ export function App() {
                     {paletteItems.find((item) => item.id === selectedType)?.label ?? selectedType}
                   </div>
                   <div style={{ marginTop: 8, fontSize: 12 }}>
-                    Rotation: <strong>{normalizeAngle(placementRotationDeg)}°</strong>
+                    Rotation:{" "}
+                    <strong>
+                      X {normalizeAngle(placementRotation.x)}° · Y {normalizeAngle(placementRotation.y)}° · Z {normalizeAngle(placementRotation.z)}°
+                    </strong>
                   </div>
                   <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                     <button
-                      onClick={() => setPlacementRotationDeg((value) => value - (placementStepDeg || 5))}
+                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z - (placementStepDeg || 5) }))}
                       style={smallActionButton(true)}
                     >
-                      - Step
+                      Z - Step
                     </button>
                     <button
-                      onClick={() => setPlacementRotationDeg((value) => value + (placementStepDeg || 5))}
+                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z + (placementStepDeg || 5) }))}
                       style={smallActionButton(true)}
                     >
-                      + Step
+                      Z + Step
                     </button>
                     <button
-                      onClick={() => setPlacementRotationDeg(0)}
+                      onClick={() => setPlacementRotation({ x: 0, y: 0, z: 0 })}
                       style={smallActionButton(true)}
                     >
                       Reset
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 11, opacity: 0.62 }}>
+                    Quick Rotate
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 6 }}>
+                    <button
+                      onClick={() => setPlacementRotation((value) => ({ ...value, x: value.x - 90 }))}
+                      style={smallActionButton(true)}
+                    >
+                      X -90°
+                    </button>
+                    <button
+                      onClick={() => setPlacementRotation((value) => ({ ...value, y: value.y - 90 }))}
+                      style={smallActionButton(true)}
+                    >
+                      Y -90°
+                    </button>
+                    <button
+                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z - 90 }))}
+                      style={smallActionButton(true)}
+                    >
+                      Z -90°
+                    </button>
+                    <button
+                      onClick={() => setPlacementRotation((value) => ({ ...value, x: value.x + 90 }))}
+                      style={smallActionButton(true)}
+                    >
+                      X +90°
+                    </button>
+                    <button
+                      onClick={() => setPlacementRotation((value) => ({ ...value, y: value.y + 90 }))}
+                      style={smallActionButton(true)}
+                    >
+                      Y +90°
+                    </button>
+                    <button
+                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z + 90 }))}
+                      style={smallActionButton(true)}
+                    >
+                      Z +90°
                     </button>
                   </div>
                   <div style={{ marginTop: 10, fontSize: 11, opacity: 0.62 }}>
@@ -824,9 +1015,9 @@ export function App() {
                   lineHeight: 1.6,
                 }}
               >
-                {toolMode === "select" && "Click a block to inspect it. Anchors stay visible on the selected block."}
-                {toolMode === "move" && "Click a block, then drag the gizmo to reposition it. Use local or world space in the inspector."}
-                {toolMode === "rotate" && "Click a block, then drag the gizmo to rotate it. Use the numeric inspector for precise angles."}
+                {toolMode === "select" && "Click a block to inspect it. Shift-click adds or removes blocks from the selection."}
+                {toolMode === "move" && "Click a block, then drag the gizmo to reposition it. Shift-click builds a multi-selection and dragging moves everything together."}
+                {toolMode === "rotate" && "Click a block, then drag the gizmo to rotate it. Multi-selection rotates around the shared centroid so the layout stays intact."}
               </div>
             )}
 
@@ -971,14 +1162,18 @@ export function App() {
               Inspector
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginTop: 4 }}>
-              {selectedDefinition?.name ?? "Nothing selected"}
+              {isMultiSelection ? `${selectedNodes.length} Blocks Selected` : (selectedDefinition?.name ?? "Nothing selected")}
             </div>
             <div style={{ fontSize: 12, opacity: 0.62, marginTop: 2 }}>
-              {selectedNode ? `${selectedNode.id} · ${selectedNode.typeId}` : "Select a block to edit it directly."}
+              {isMultiSelection
+                ? "Move and rotate the group as a single selection around its centroid."
+                : selectedNode
+                  ? `${selectedNode.id} · ${selectedNode.typeId}`
+                  : "Select a block to edit it directly."}
             </div>
           </div>
 
-          {selectedNode && inspectorDraft ? (
+          {selectedNode && inspectorDraft && !isMultiSelection ? (
             <div style={{ padding: 16 }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 <button
@@ -986,7 +1181,7 @@ export function App() {
                   style={{
                     ...chipButtonStyle,
                     flex: 1,
-                    background: transformSpace === "local" ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.06)",
+                    background: effectiveTransformSpace === "local" ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.06)",
                   }}
                 >
                   Local
@@ -996,7 +1191,7 @@ export function App() {
                   style={{
                     ...chipButtonStyle,
                     flex: 1,
-                    background: transformSpace === "world" ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.06)",
+                    background: effectiveTransformSpace === "world" ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.06)",
                   }}
                 >
                   World
@@ -1094,6 +1289,27 @@ export function App() {
                 </button>
               )}
             </div>
+          ) : isMultiSelection ? (
+            <div style={{ padding: 16, fontSize: 12, lineHeight: 1.7, opacity: 0.82 }}>
+              Selected blocks: <strong>{selectedNodes.length}</strong>
+              <br />
+              Centroid:{" "}
+              <strong>
+                {selectionCentroid
+                  ? `${selectionCentroid.x.toFixed(2)}, ${selectionCentroid.y.toFixed(2)}, ${selectionCentroid.z.toFixed(2)}`
+                  : "--"}
+              </strong>
+              <br />
+              Connections touching selection: {selectedConnections.length}
+              <br />
+              Rotation uses the selection centroid as the pivot, and the gizmo stays in world space for multi-select.
+              <button
+                onClick={deleteSelectedBlock}
+                style={{ ...secondaryButtonStyle, width: "100%", marginTop: 14, color: "#fecaca", borderColor: "rgba(248,113,113,0.2)" }}
+              >
+                Delete Selection
+              </button>
+            </div>
           ) : (
             <div style={{ padding: 16, fontSize: 12, lineHeight: 1.7, opacity: 0.76 }}>
               {snapResult ? (
@@ -1115,7 +1331,11 @@ export function App() {
                   <br />
                   1-4 switch tools
                   <br />
-                  [ / ] rotate placement preview
+                  Shift-click adds or removes blocks from the current selection
+                  <br />
+                  X/Y/Z quick rotate buttons change placement orientation
+                  <br />
+                  [ / ] twist placement around Z
                   <br />
                   Cmd/Ctrl+Z undo, Shift+Cmd/Ctrl+Z redo
                   <br />
@@ -1273,27 +1493,28 @@ export function App() {
               catalog={catalog}
               selectedType={selectedType}
               selectedNodeId={selectedNodeId}
+              selectedNodeIds={selectedNodeIds}
               toolMode={toolMode}
-              previewRotationDeg={placementRotationDeg}
+              previewRotation={placementRotation}
               onGraphChange={(nextGraph) => applyBuildGraph(nextGraph)}
-              onSelectionChange={setSelectedNodeId}
+              onSelectionChange={handleSceneSelectionChange}
               onSnapChange={setSnapResult}
             />
 
-            {selectedNode && (toolMode === "move" || toolMode === "rotate") && (
+            {selectionHandleTransform && (toolMode === "move" || toolMode === "rotate") && (
               <>
                 <group
                   ref={transformHandleRef}
                   position={[
-                    selectedNode.transform.position.x,
-                    selectedNode.transform.position.y,
-                    selectedNode.transform.position.z,
+                    selectionHandleTransform.position.x,
+                    selectionHandleTransform.position.y,
+                    selectionHandleTransform.position.z,
                   ]}
                   quaternion={[
-                    selectedNode.transform.rotation.x,
-                    selectedNode.transform.rotation.y,
-                    selectedNode.transform.rotation.z,
-                    selectedNode.transform.rotation.w,
+                    selectionHandleTransform.rotation.x,
+                    selectionHandleTransform.rotation.y,
+                    selectionHandleTransform.rotation.z,
+                    selectionHandleTransform.rotation.w,
                   ]}
                 >
                   <mesh visible={false}>
@@ -1303,10 +1524,10 @@ export function App() {
                 </group>
 
                 <TransformControls
-                  key={`${selectedNode.id}:${toolMode}`}
+                  key={`${selectedNodeIds.join(",")}:${toolMode}:${effectiveTransformSpace}`}
                   object={transformHandleRef}
                   mode={toolMode === "move" ? "translate" : "rotate"}
-                  space={transformSpace}
+                  space={effectiveTransformSpace}
                   onMouseDown={beginTransformDrag}
                   onMouseUp={endTransformDrag}
                   onChange={handleTransformObjectChange}

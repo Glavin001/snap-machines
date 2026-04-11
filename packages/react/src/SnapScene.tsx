@@ -6,13 +6,10 @@ import {
   BlockGraph,
   SnapResult,
   addSnappedBlockToGraph,
-  degToRad,
-  findBestSnap,
+  findSnapCandidates,
   getWorldAnchorTransform,
-  quatFromAxisAngle,
   transform,
   Transform,
-  VEC3_Z,
 } from "@snap-machines/core";
 import { BlockMesh } from "./BlockMesh.js";
 import { GhostPreview } from "./GhostPreview.js";
@@ -24,11 +21,12 @@ export interface SnapSceneProps {
   catalog: BlockCatalog;
   selectedType: string;
   selectedNodeId?: string | null;
+  selectedNodeIds?: string[];
   toolMode?: SnapSceneToolMode;
-  previewRotationDeg?: number;
+  previewRotation?: { x: number; y: number; z: number };
   colorMap?: Record<string, string>;
   onGraphChange?: (graph: BlockGraph) => void;
-  onSelectionChange?: (nodeId: string | null) => void;
+  onSelectionChange?: (nodeId: string | null, options?: { toggle?: boolean }) => void;
   onSnapChange?: (snap: SnapResult | null) => void;
   onBlockPlaced?: () => void;
   onBlockRemoved?: () => void;
@@ -51,8 +49,9 @@ export function SnapScene({
   catalog,
   selectedType,
   selectedNodeId,
+  selectedNodeIds = [],
   toolMode = "place",
-  previewRotationDeg = 0,
+  previewRotation = { x: 0, y: 0, z: 0 },
   colorMap,
   onGraphChange,
   onSelectionChange,
@@ -68,6 +67,7 @@ export function SnapScene({
   const ghostGroupRef = useRef<THREE.Group>(null);
   const snapTransformRef = useRef<Transform | null>(null);
   const lastHitRef = useRef<HitInfo | null>(null);
+  const preferredSourceAnchorIdRef = useRef<string | null>(null);
 
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
   const [activeSnap, setActiveSnap] = useState<SnapResult | null>(null);
@@ -96,24 +96,52 @@ export function SnapScene({
         return null;
       }
 
-      const preview = transform(
-        hit.point,
-        quatFromAxisAngle(VEC3_Z, degToRad(previewRotationDeg)),
+      const previewQuat = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(
+          THREE.MathUtils.degToRad(previewRotation.x),
+          THREE.MathUtils.degToRad(previewRotation.y),
+          THREE.MathUtils.degToRad(previewRotation.z),
+          "XYZ",
+        ),
       );
-      const snap = findBestSnap({
+      const preview = transform(hit.point, {
+        x: previewQuat.x,
+        y: previewQuat.y,
+        z: previewQuat.z,
+        w: previewQuat.w,
+      });
+      const candidates = findSnapCandidates({
         graph,
         catalog,
         candidateTypeId: selectedType,
         hit: { blockId: hit.blockId, point: hit.point },
         previewTransform: preview,
       });
+      const preferred = preferredSourceAnchorIdRef.current
+        ? candidates.find((candidate) => candidate.sourceAnchor.id === preferredSourceAnchorIdRef.current)
+        : undefined;
+      const best = preferred ?? candidates[0];
+      const snap = best
+        ? {
+            ...best,
+            connection: {
+              a: { blockId: hit.blockId, anchorId: best.target.anchor.id },
+              b: { blockId: "__candidate__", anchorId: best.sourceAnchor.id },
+            },
+          }
+        : null;
+      preferredSourceAnchorIdRef.current = snap?.sourceAnchor.id ?? null;
       snapTransformRef.current = snap ? snap.placement : null;
       setActiveSnap(snap);
       onSnapChange?.(snap);
       return snap ?? null;
     },
-    [catalog, graph, onSnapChange, previewRotationDeg, selectedType, toolMode],
+    [catalog, graph, onSnapChange, previewRotation, selectedType, toolMode],
   );
+
+  useEffect(() => {
+    preferredSourceAnchorIdRef.current = null;
+  }, [selectedType]);
 
   useEffect(() => {
     if (toolMode === "place" && lastHitRef.current) {
@@ -122,6 +150,7 @@ export function SnapScene({
     }
     snapTransformRef.current = null;
     setActiveSnap(null);
+    preferredSourceAnchorIdRef.current = null;
     onSnapChange?.(null);
   }, [computeSnap, onSnapChange, toolMode]);
 
@@ -146,7 +175,7 @@ export function SnapScene({
       if (!blockId) return;
 
       if (toolMode !== "place") {
-        onSelectionChange?.(blockId);
+        onSelectionChange?.(blockId, { toggle: e.nativeEvent.shiftKey });
         return;
       }
 
@@ -165,6 +194,7 @@ export function SnapScene({
       onGraphChange?.(nextGraph);
       onSelectionChange?.(nodeId);
       onBlockPlaced?.();
+      preferredSourceAnchorIdRef.current = null;
     },
     [computeSnap, graph, onBlockPlaced, onGraphChange, onSelectionChange, selectedType, toolMode],
   );
@@ -174,6 +204,7 @@ export function SnapScene({
     setHoveredBlockId(null);
     snapTransformRef.current = null;
     setActiveSnap(null);
+    preferredSourceAnchorIdRef.current = null;
     onSnapChange?.(null);
   }, [onSnapChange]);
 
@@ -188,17 +219,19 @@ export function SnapScene({
       const nextGraph = graph.clone();
       nextGraph.removeNode(blockId);
       onGraphChange?.(nextGraph);
-      onSelectionChange?.(selectedNodeId === blockId ? null : selectedNodeId ?? null);
+      const nextSelectedIds = selectedNodeIds.filter((id) => id !== blockId);
+      onSelectionChange?.(nextSelectedIds[0] ?? null);
 
       lastHitRef.current = null;
       setHoveredBlockId(null);
       snapTransformRef.current = null;
       setActiveSnap(null);
+      preferredSourceAnchorIdRef.current = null;
       onSnapChange?.(null);
 
       onBlockRemoved?.();
     },
-    [graph, onBlockRemoved, onGraphChange, onSelectionChange, onSnapChange, selectedNodeId],
+    [graph, onBlockRemoved, onGraphChange, onSelectionChange, onSnapChange, selectedNodeIds],
   );
 
   return (
@@ -216,23 +249,24 @@ export function SnapScene({
           blockTransform={block.transform}
           catalog={catalog}
           colorMap={colorMap}
-          highlight={block.nodeId === selectedNodeId || block.nodeId === hoveredBlockId}
+          highlight={selectedNodeIds.includes(block.nodeId) || block.nodeId === hoveredBlockId}
         />
       ))}
 
-      {selectedNodeId && (
+      {selectedNodeIds.map((nodeId) => (
         <AnchorMarkers
+          key={`selected-anchor:${nodeId}`}
           graph={graph}
           catalog={catalog}
-          nodeId={selectedNodeId}
+          nodeId={nodeId}
           getColor={(anchorId, occupied) => {
-            if (activeSnap?.target.blockId === selectedNodeId && activeSnap.target.anchor.id === anchorId) {
+            if (activeSnap?.target.blockId === nodeId && activeSnap.target.anchor.id === anchorId) {
               return ANCHOR_COLORS.compatible;
             }
             return occupied ? ANCHOR_COLORS.occupied : ANCHOR_COLORS.selected;
           }}
         />
-      )}
+      ))}
 
       {toolMode === "place" && hoveredBlockId && hoveredBlockId !== selectedNodeId && (
         <AnchorMarkers
