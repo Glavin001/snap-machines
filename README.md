@@ -84,11 +84,14 @@ cargo run -p snap-machines-viewer -- path/to/machine.envelope.json
 
 If no file path is provided, the viewer opens the bundled sample fixture at [crates/snap-machines-viewer/fixtures/hinge-thruster-machine.envelope.json](./crates/snap-machines-viewer/fixtures/hinge-thruster-machine.envelope.json).
 
-The viewer renders mount geometry from the compiled machine plan, steps the Rust Rapier runtime, and supports the same runtime actions used by the demo:
+The viewer renders mount geometry from the compiled machine plan, steps the Rust Rapier runtime, and derives its controls from the machine's runtime action bindings:
 
 - Right mouse drag to orbit the camera
 - Mouse wheel to zoom
+- Example defaults:
 - `Q` / `E` for `hingeSpin` and `motorSpin`
+- `A` / `D` for `armYaw`
+- `W` / `S` for `armPitch`
 - `Space` for `throttle`
 - `R` to reset
 - `P` to pause

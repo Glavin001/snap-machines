@@ -11,9 +11,9 @@ use bevy::{
     window::PrimaryWindow,
 };
 use snap_machines_rapier::{
-    ColliderKind, MachineRuntime, PlannedCollider, Quat as SnapQuat, RapierSimulation,
-    RuntimeBuildError, RuntimeInputState, RuntimeInputValue, SerializedMachineEnvelope,
-    Transform as SnapTransform, Vec3 as SnapVec3,
+    ColliderKind, InputBinding, MachinePlan, MachineRuntime, MotorInputTarget, PlannedCollider,
+    Quat as SnapQuat, RapierSimulation, RuntimeBuildError, RuntimeInputState, RuntimeInputValue,
+    SerializedMachineEnvelope, Transform as SnapTransform, Vec3 as SnapVec3,
 };
 
 const DEFAULT_FIXED_DT: f32 = 1.0 / 60.0;
@@ -55,6 +55,157 @@ impl Default for CameraOrbit {
 struct ViewerUiState {
     paused: bool,
     debug_overlay: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ViewerActuatorType {
+    Velocity,
+    Position,
+    Trigger,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ViewerKeyBinding {
+    positive_key: KeyCode,
+    positive_label: String,
+    negative_key: Option<KeyCode>,
+    negative_label: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct ViewerControlEntry {
+    action_name: String,
+    actuator_type: ViewerActuatorType,
+    binding: ViewerKeyBinding,
+    scale: f32,
+    default_target: f32,
+    current_target: f32,
+    limits: Option<(f32, f32)>,
+}
+
+#[derive(Resource, Clone, Debug, Default)]
+struct ViewerControls {
+    entries: Vec<ViewerControlEntry>,
+}
+
+impl ViewerControls {
+    fn from_plan(plan: &MachinePlan) -> Self {
+        let mut entries = Vec::<ViewerControlEntry>::new();
+        let mut action_to_index = HashMap::<String, usize>::new();
+        let mut fallback_index = 0usize;
+
+        for joint in &plan.joints {
+            let Some(motor) = &joint.motor else {
+                continue;
+            };
+            let Some(binding) = &motor.input else {
+                continue;
+            };
+
+            let actuator_type = match motor.input_target {
+                MotorInputTarget::Position | MotorInputTarget::Both => ViewerActuatorType::Position,
+                MotorInputTarget::Velocity => ViewerActuatorType::Velocity,
+            };
+            let default_target = motor.target_position;
+            let limits = joint.limits.as_ref().map(|limits| (limits.min, limits.max));
+            merge_control_entry(
+                &mut entries,
+                &mut action_to_index,
+                &mut fallback_index,
+                binding,
+                actuator_type,
+                default_target,
+                limits,
+            );
+        }
+
+        for behavior in &plan.behaviors {
+            let Some(binding) = &behavior.input else {
+                continue;
+            };
+            merge_control_entry(
+                &mut entries,
+                &mut action_to_index,
+                &mut fallback_index,
+                binding,
+                ViewerActuatorType::Trigger,
+                0.0,
+                None,
+            );
+        }
+
+        Self { entries }
+    }
+
+    fn reset_targets(&mut self) {
+        for entry in &mut self.entries {
+            entry.current_target = entry.default_target;
+        }
+    }
+
+    fn build_runtime_input(&mut self, keys: &ButtonInput<KeyCode>, dt: f32) -> RuntimeInputState {
+        let mut input = RuntimeInputState::new();
+
+        for entry in &mut self.entries {
+            let positive = keys.pressed(entry.binding.positive_key);
+            let negative = entry
+                .binding
+                .negative_key
+                .map(|key| keys.pressed(key))
+                .unwrap_or(false);
+
+            match entry.actuator_type {
+                ViewerActuatorType::Velocity => {
+                    let axis = scalar_axis_input(positive, negative);
+                    input.insert(
+                        entry.action_name.clone(),
+                        RuntimeInputValue::Scalar(axis * entry.scale),
+                    );
+                }
+                ViewerActuatorType::Position => {
+                    let axis = scalar_axis_input(positive, negative);
+                    entry.current_target += axis * entry.scale * dt;
+                    if let Some((min, max)) = entry.limits {
+                        entry.current_target = entry.current_target.clamp(min, max);
+                    }
+                    input.insert(
+                        entry.action_name.clone(),
+                        RuntimeInputValue::Scalar(entry.current_target),
+                    );
+                }
+                ViewerActuatorType::Trigger => {
+                    input.insert(
+                        entry.action_name.clone(),
+                        RuntimeInputValue::Scalar(if positive { entry.scale } else { 0.0 }),
+                    );
+                }
+            }
+        }
+
+        input
+    }
+
+    fn hud_lines(&self) -> Vec<String> {
+        if self.entries.is_empty() {
+            return vec!["No runtime controls".to_string()];
+        }
+
+        self.entries
+            .iter()
+            .map(|entry| {
+                let binding = match &entry.binding.negative_label {
+                    Some(negative) => format!("{negative} / {}", entry.binding.positive_label),
+                    None => entry.binding.positive_label.clone(),
+                };
+                let kind = match entry.actuator_type {
+                    ViewerActuatorType::Velocity => "velocity",
+                    ViewerActuatorType::Position => "position",
+                    ViewerActuatorType::Trigger => "trigger",
+                };
+                format!("{binding}: {} ({kind})", entry.action_name)
+            })
+            .collect()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -110,11 +261,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source_path =
         viewer_source_path_from_args(env::args_os().skip(1)).unwrap_or_else(default_fixture_path);
     let viewer_state = ViewerState::load(source_path)?;
+    let viewer_controls = ViewerControls::from_plan(viewer_state.runtime.plan());
 
     App::new()
         .insert_non_send_resource(viewer_state)
         .insert_resource(ClearColor(Color::srgb(0.80, 0.86, 0.92)))
         .insert_resource(CameraOrbit::default())
+        .insert_resource(viewer_controls)
         .insert_resource(ViewerUiState {
             paused: false,
             debug_overlay: false,
@@ -284,6 +437,7 @@ fn spawn_machine_visuals(
 fn handle_viewer_hotkeys_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut viewer_ui: ResMut<ViewerUiState>,
+    mut viewer_controls: ResMut<ViewerControls>,
     mut viewer_state: NonSendMut<ViewerState>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyP) {
@@ -295,6 +449,8 @@ fn handle_viewer_hotkeys_system(
     if keyboard.just_pressed(KeyCode::KeyR) {
         if let Err(error) = viewer_state.reset() {
             eprintln!("Failed to reset viewer state: {error}");
+        } else {
+            viewer_controls.reset_targets();
         }
     }
 }
@@ -303,6 +459,7 @@ fn step_machine_system(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
     viewer_ui: Res<ViewerUiState>,
+    mut viewer_controls: ResMut<ViewerControls>,
     mut viewer_state: NonSendMut<ViewerState>,
 ) {
     if viewer_ui.paused {
@@ -310,7 +467,7 @@ fn step_machine_system(
     }
 
     let dt = time.delta_secs().clamp(1.0 / 240.0, 1.0 / 30.0);
-    let input = runtime_input_from_keyboard(&keyboard);
+    let input = viewer_controls.build_runtime_input(&keyboard, dt.max(DEFAULT_FIXED_DT));
     viewer_state.step(&input, dt.max(DEFAULT_FIXED_DT));
 }
 
@@ -394,6 +551,7 @@ fn draw_debug_overlay_system(
 
 fn hud_system(
     viewer_ui: Res<ViewerUiState>,
+    viewer_controls: Res<ViewerControls>,
     viewer_state: NonSend<ViewerState>,
     mut text_query: Query<&mut Text, With<HudText>>,
 ) {
@@ -402,8 +560,9 @@ fn hud_system(
     };
 
     let plan = viewer_state.runtime.plan();
+    let controls = viewer_controls.hud_lines().join("\n");
     *text = Text::new(format!(
-        "Snap Machines Viewer\nFile: {}\nBodies: {}  |  Joints: {}  |  Mounts: {}\nPaused: {}  |  Debug: {}\nQ / E: hinge + motor spin\nSpace: throttle\nR: reset  |  P: pause  |  F1: debug overlay",
+        "Snap Machines Viewer\nFile: {}\nBodies: {}  |  Joints: {}  |  Mounts: {}\nPaused: {}  |  Debug: {}\nControls:\n{}\nR: reset  |  P: pause  |  F1: debug overlay",
         viewer_state
             .source_path
             .file_name()
@@ -414,6 +573,7 @@ fn hud_system(
         plan.mounts.len(),
         if viewer_ui.paused { "yes" } else { "no" },
         if viewer_ui.debug_overlay { "on" } else { "off" },
+        controls,
     ));
 }
 
@@ -616,25 +776,101 @@ fn draw_collider_gizmo(
     }
 }
 
-fn runtime_input_from_keyboard(keys: &ButtonInput<KeyCode>) -> RuntimeInputState {
-    let mut input = RuntimeInputState::new();
-    let spin = axis_input(keys, KeyCode::KeyQ, KeyCode::KeyE);
-    input.insert("hingeSpin".into(), RuntimeInputValue::Scalar(spin));
-    input.insert("motorSpin".into(), RuntimeInputValue::Scalar(spin));
-    input.insert(
-        "throttle".into(),
-        RuntimeInputValue::Scalar(if keys.pressed(KeyCode::Space) {
-            1.0
+fn merge_control_entry(
+    entries: &mut Vec<ViewerControlEntry>,
+    action_to_index: &mut HashMap<String, usize>,
+    fallback_index: &mut usize,
+    binding: &InputBinding,
+    actuator_type: ViewerActuatorType,
+    default_target: f32,
+    limits: Option<(f32, f32)>,
+) {
+    let scale = binding.scale.unwrap_or(1.0)
+        * if binding.invert.unwrap_or(false) {
+            -1.0
         } else {
-            0.0
-        }),
-    );
-    input
+            1.0
+        };
+
+    if let Some(index) = action_to_index.get(&binding.action).copied() {
+        let entry = &mut entries[index];
+        if matches!(actuator_type, ViewerActuatorType::Position) {
+            entry.actuator_type = ViewerActuatorType::Position;
+        } else if matches!(actuator_type, ViewerActuatorType::Trigger) {
+            entry.actuator_type = ViewerActuatorType::Trigger;
+        }
+        if entry.limits.is_none() {
+            entry.limits = limits;
+        } else if let (Some((entry_min, entry_max)), Some((min, max))) = (entry.limits, limits) {
+            entry.limits = Some((entry_min.max(min), entry_max.min(max)));
+        }
+        return;
+    }
+
+    let key_binding = default_key_binding(&binding.action)
+        .unwrap_or_else(|| fallback_key_binding(*fallback_index));
+    if default_key_binding(&binding.action).is_none() {
+        *fallback_index += 1;
+    }
+
+    let index = entries.len();
+    action_to_index.insert(binding.action.clone(), index);
+    entries.push(ViewerControlEntry {
+        action_name: binding.action.clone(),
+        actuator_type,
+        binding: key_binding,
+        scale,
+        default_target,
+        current_target: default_target,
+        limits,
+    });
 }
 
-fn axis_input(keys: &ButtonInput<KeyCode>, negative: KeyCode, positive: KeyCode) -> f32 {
-    (if keys.pressed(positive) { 1.0 } else { 0.0 })
-        - (if keys.pressed(negative) { 1.0 } else { 0.0 })
+fn default_key_binding(action: &str) -> Option<ViewerKeyBinding> {
+    match action {
+        "motorSpin" | "hingeSpin" => {
+            Some(key_binding(KeyCode::KeyE, "E", Some((KeyCode::KeyQ, "Q"))))
+        }
+        "sliderPos" => Some(key_binding(KeyCode::KeyE, "E", Some((KeyCode::KeyQ, "Q")))),
+        "armPitch" | "flapDeflect" => {
+            Some(key_binding(KeyCode::KeyW, "W", Some((KeyCode::KeyS, "S"))))
+        }
+        "armYaw" => Some(key_binding(KeyCode::KeyD, "D", Some((KeyCode::KeyA, "A")))),
+        "throttle" | "propellerSpin" => Some(key_binding(KeyCode::Space, "Space", None)),
+        "gripperClose" => Some(key_binding(KeyCode::KeyG, "G", None)),
+        _ => None,
+    }
+}
+
+fn fallback_key_binding(index: usize) -> ViewerKeyBinding {
+    const FALLBACKS: &[(KeyCode, &str, Option<(KeyCode, &str)>)] = &[
+        (KeyCode::KeyL, "L", Some((KeyCode::KeyJ, "J"))),
+        (KeyCode::KeyI, "I", Some((KeyCode::KeyK, "K"))),
+        (KeyCode::KeyO, "O", Some((KeyCode::KeyU, "U"))),
+        (KeyCode::KeyM, "M", Some((KeyCode::KeyN, "N"))),
+        (KeyCode::Digit2, "2", Some((KeyCode::Digit1, "1"))),
+        (KeyCode::Digit4, "4", Some((KeyCode::Digit3, "3"))),
+    ];
+
+    let (positive, positive_label, negative) = FALLBACKS[index % FALLBACKS.len()];
+    key_binding(positive, positive_label, negative)
+}
+
+fn key_binding(
+    positive_key: KeyCode,
+    positive_label: &str,
+    negative: Option<(KeyCode, &str)>,
+) -> ViewerKeyBinding {
+    ViewerKeyBinding {
+        positive_key,
+        positive_label: positive_label.to_string(),
+        negative_key: negative.map(|(key, _)| key),
+        negative_label: negative.map(|(_, label)| label.to_string()),
+    }
+}
+
+fn scalar_axis_input(positive: bool, negative: bool) -> f32 {
+    (if positive { 1.0 } else { 0.0 }) - (if negative { 1.0 } else { 0.0 })
 }
 
 fn color_for_block_type(block_type_id: &str) -> Color {
@@ -910,9 +1146,13 @@ fn vertex_at(vertices: &[f32], index: usize) -> Vec3 {
 }
 
 fn default_fixture_path() -> PathBuf {
+    fixture_path("hinge-thruster-machine.envelope.json")
+}
+
+fn fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")
-        .join("hinge-thruster-machine.envelope.json")
+        .join(name)
 }
 
 fn viewer_source_path_from_args(
@@ -971,5 +1211,30 @@ mod tests {
         let state = ViewerState::load(default_fixture_path()).expect("fixture loads");
         assert!(state.ground_y.is_finite());
         assert!(state.ground_y < 0.0);
+    }
+
+    #[test]
+    fn crane_fixture_derives_position_controls() {
+        let state =
+            ViewerState::load(fixture_path("crane.envelope.json")).expect("crane fixture loads");
+        let controls = ViewerControls::from_plan(state.runtime.plan());
+
+        let yaw = controls
+            .entries
+            .iter()
+            .find(|entry| entry.action_name == "armYaw")
+            .expect("armYaw control exists");
+        assert_eq!(yaw.actuator_type, ViewerActuatorType::Position);
+        assert_eq!(yaw.binding.positive_key, KeyCode::KeyD);
+        assert_eq!(yaw.binding.negative_key, Some(KeyCode::KeyA));
+
+        let pitch = controls
+            .entries
+            .iter()
+            .find(|entry| entry.action_name == "armPitch")
+            .expect("armPitch control exists");
+        assert_eq!(pitch.actuator_type, ViewerActuatorType::Position);
+        assert_eq!(pitch.binding.positive_key, KeyCode::KeyW);
+        assert_eq!(pitch.binding.negative_key, Some(KeyCode::KeyS));
     }
 }

@@ -290,12 +290,39 @@ impl MachineRuntime {
                 }
             }
 
+            let vff = motor
+                .input
+                .as_ref()
+                .map(|binding| {
+                    let action = format!("{}:vff", binding.action);
+                    match input.get(&action) {
+                        Some(RuntimeInputValue::Bool(value)) => {
+                            if *value {
+                                1.0
+                            } else {
+                                0.0
+                            }
+                        }
+                        Some(RuntimeInputValue::Scalar(value)) => *value,
+                        None => 0.0,
+                    }
+                })
+                .unwrap_or(0.0);
+
+            let mode = if vff != 0.0
+                && matches!(motor.mode, JointMotorMode::Position | JointMotorMode::Full)
+            {
+                JointMotorMode::Full
+            } else {
+                motor.mode
+            };
+
             apply_motor(
                 &mut joint.data,
                 joint_plan.kind,
-                motor.mode,
+                mode,
                 target_position,
-                target_velocity,
+                target_velocity + vff,
                 motor.stiffness,
                 motor.damping,
                 motor.max_force,
