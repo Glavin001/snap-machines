@@ -31,6 +31,7 @@ import {
   exampleCatalog,
   findBestSnap,
   compileMachinePlan,
+  compileMachineEnvelope,
   buildGraphIntoRapier,
   transform,
   vec3,
@@ -69,6 +70,13 @@ if (snap) {
 const plan = compileMachinePlan(graph, catalog);
 console.log(plan.bodies.length, plan.joints.length);
 
+const envelope = compileMachineEnvelope(graph, catalog, {
+  metadata: {
+    builder: "web",
+  },
+});
+console.log(envelope.catalogVersion, envelope.schemaVersion);
+
 // With a Rapier world:
 // const { plan, runtime } = buildGraphIntoRapier(graph, catalog, RAPIER, world, {
 //   behaviorFactories: {
@@ -96,6 +104,16 @@ Use `compileMachinePlan` to merge structural components into compound rigid bodi
 ### Rapier runtime
 
 Use `buildGraphIntoRapier` or `new RapierMachineRuntime(...)` to instantiate the compiled plan into a Rapier3D physics world. Call `runtime.update(inputState, dt)` each frame to drive motors and behaviors.
+
+### Headless / Rust integration
+
+Use `compileMachineEnvelope(graph, catalog)` to emit a sanitized machine payload for a non-web runtime such as Rust + Rapier. The returned envelope contains:
+
+- `schemaVersion` — serialized machine schema version
+- `catalogVersion` — deterministic version hash derived from the normalized catalog
+- `plan` — the compiled `MachinePlan` with bodies, colliders, joints, mounts, motors, and behaviors
+
+If you need to ship the block catalog alongside the machine contract, use `serializeBlockCatalog(catalog)`. Runtime control inputs should stay separate from the machine payload and be supplied as action-value maps, the same way the JS Rapier runtime expects `runtime.update({ throttle: 1, hingeSpin: 0.5 }, dt)`.
 
 ## Joint blocks
 

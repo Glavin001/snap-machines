@@ -1,0 +1,16 @@
+[package]
+name = "snap-machines-rapier"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Headless Rust + Rapier runtime for serialized snap-machines."
+
+[dependencies]
+nalgebra = { version = "0.33", features = ["serde-serialize"] }
+rapier3d = { version = "0.23", features = ["serde-serialize"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+approx = "0.5"

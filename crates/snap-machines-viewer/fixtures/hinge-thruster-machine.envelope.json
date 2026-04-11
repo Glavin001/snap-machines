@@ -1,0 +1,527 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "smcat1-e3c3fc9e49a493b0",
+  "plan": {
+    "behaviors": [
+      {
+        "blockId": "thruster",
+        "blockTypeId": "utility.thruster.small",
+        "bodyId": "body:1",
+        "id": "behavior:thruster:thruster:main",
+        "input": {
+          "action": "throttle",
+          "scale": 1
+        },
+        "kind": "thruster",
+        "partId": "main",
+        "props": {
+          "force": 25,
+          "localDirection": {
+            "x": 1,
+            "y": 0,
+            "z": 0
+          },
+          "localPoint": {
+            "x": 0.5,
+            "y": 0,
+            "z": 0
+          }
+        }
+      }
+    ],
+    "bodies": [
+      {
+        "colliders": [
+          {
+            "blockId": "root",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.5357142857142857,
+                "y": 0,
+                "z": -9.516197353929913e-17
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "hinge",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.25
+            },
+            "id": "joint.hinge.small:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.4642857142857143,
+                "y": 0,
+                "z": 1.5860328923216527e-17
+              },
+              "rotation": {
+                "w": -1,
+                "x": 0,
+                "y": 2.220446049250313e-16,
+                "z": 0
+              }
+            },
+            "mass": 0.75,
+            "partId": "base",
+            "sensor": false
+          }
+        ],
+        "id": "body:0",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": 0.5357142857142857,
+            "y": 0,
+            "z": 9.516197353929913e-17
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "root",
+          "hinge"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "root",
+            "partId": "main"
+          },
+          {
+            "blockId": "hinge",
+            "partId": "base"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "blockId": "hinge",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.25
+            },
+            "id": "joint.hinge.small:collider:1",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.8055555555555554,
+                "y": 0,
+                "z": -4.934324553889585e-16
+              },
+              "rotation": {
+                "w": -1,
+                "x": 0,
+                "y": 2.220446049250313e-16,
+                "z": 0
+              }
+            },
+            "mass": 0.75,
+            "partId": "rotor",
+            "sensor": false
+          },
+          {
+            "blockId": "tail",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.19444444444444464,
+                "y": 0,
+                "z": 6.167905692361979e-17
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": -2.7755575615628914e-16,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "thruster",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.25
+            },
+            "id": "utility.thruster.small:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 1.1944444444444446,
+                "y": 0,
+                "z": 7.833240229299715e-16
+              },
+              "rotation": {
+                "w": -1,
+                "x": 0,
+                "y": 4.440892098500626e-16,
+                "z": 0
+              }
+            },
+            "mass": 0.5,
+            "partId": "main",
+            "sensor": false
+          }
+        ],
+        "id": "body:1",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": 2.3055555555555554,
+            "y": 0,
+            "z": 8.264993627765054e-16
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "hinge",
+          "tail",
+          "thruster"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "hinge",
+            "partId": "rotor"
+          },
+          {
+            "blockId": "tail",
+            "partId": "main"
+          },
+          {
+            "blockId": "thruster",
+            "partId": "main"
+          }
+        ]
+      }
+    ],
+    "diagnostics": [],
+    "joints": [
+      {
+        "blockId": "hinge",
+        "bodyAId": "body:0",
+        "bodyBId": "body:1",
+        "collideConnected": false,
+        "id": "joint:hinge",
+        "kind": "revolute",
+        "localAnchorA": {
+          "x": 0.7142857142857143,
+          "y": 0,
+          "z": 1.2688263138573217e-16
+        },
+        "localAnchorB": {
+          "x": -1.0555555555555554,
+          "y": 0,
+          "z": -6.044547578514741e-16
+        },
+        "localAxisA": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "localAxisB": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "localFrameA": {
+          "w": -0.7071067811865477,
+          "x": 0,
+          "y": -0.7071067811865474,
+          "z": 0
+        },
+        "localFrameB": {
+          "w": -0.7071067811865475,
+          "x": 0,
+          "y": 0.7071067811865476,
+          "z": 0
+        },
+        "motor": {
+          "damping": 2,
+          "input": {
+            "action": "hingeSpin",
+            "scale": 12
+          },
+          "inputTarget": "velocity",
+          "mode": "velocity",
+          "stiffness": 10,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      }
+    ],
+    "mounts": [
+      {
+        "blockId": "root",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:root::main",
+        "localTransform": {
+          "position": {
+            "x": -0.5357142857142857,
+            "y": 0,
+            "z": -9.516197353929913e-17
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "hinge",
+        "blockTypeId": "joint.hinge.small",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "joint.hinge.small:geometry:0",
+            "kind": "box",
+            "partId": "base",
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "transform": {
+              "position": {
+                "x": -0.25,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:hinge::base",
+        "localTransform": {
+          "position": {
+            "x": 0.7142857142857143,
+            "y": 0,
+            "z": 1.2688263138573217e-16
+          },
+          "rotation": {
+            "w": -1,
+            "x": 0,
+            "y": 2.220446049250313e-16,
+            "z": 0
+          }
+        },
+        "partId": "base"
+      },
+      {
+        "blockId": "hinge",
+        "blockTypeId": "joint.hinge.small",
+        "bodyId": "body:1",
+        "geometry": [
+          {
+            "id": "joint.hinge.small:geometry:1",
+            "kind": "box",
+            "partId": "rotor",
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "transform": {
+              "position": {
+                "x": 0.25,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:hinge::rotor",
+        "localTransform": {
+          "position": {
+            "x": -1.0555555555555554,
+            "y": 0,
+            "z": -6.044547578514741e-16
+          },
+          "rotation": {
+            "w": -1,
+            "x": 0,
+            "y": 2.220446049250313e-16,
+            "z": 0
+          }
+        },
+        "partId": "rotor"
+      },
+      {
+        "blockId": "tail",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:1",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:tail::main",
+        "localTransform": {
+          "position": {
+            "x": 0.19444444444444464,
+            "y": 0,
+            "z": 6.167905692361979e-17
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": -2.7755575615628914e-16,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "thruster",
+        "blockTypeId": "utility.thruster.small",
+        "bodyId": "body:1",
+        "geometry": [
+          {
+            "id": "utility.thruster.small:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:thruster::main",
+        "localTransform": {
+          "position": {
+            "x": 1.1944444444444446,
+            "y": 0,
+            "z": 7.833240229299715e-16
+          },
+          "rotation": {
+            "w": -1,
+            "x": 0,
+            "y": 4.440892098500626e-16,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      }
+    ]
+  },
+  "metadata": {
+    "builder": "fixture",
+    "presetName": "hinge-thruster-machine"
+  }
+}

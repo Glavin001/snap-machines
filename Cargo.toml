@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/snap-machines-rapier", "crates/snap-machines-viewer"]
+resolver = "2"

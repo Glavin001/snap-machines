@@ -5,6 +5,7 @@ import {
   BlockCatalog,
   BlockGraph,
   TRANSFORM_IDENTITY,
+  compileMachineEnvelope,
   SerializedBlockGraph,
   ControlMap,
   MachinePlan,
@@ -93,6 +94,32 @@ export function App() {
   const graphToJsonText = useCallback((g: BlockGraph) => {
     return JSON.stringify(g.toJSON(), null, 2);
   }, []);
+
+  const exportMachineEnvelope = useCallback(
+    (currentMode: Mode, currentGraph: BlockGraph, currentPlayGraph: BlockGraph | null) => {
+      const source = currentMode === "play" ? (currentPlayGraph ?? currentGraph) : currentGraph;
+      const envelope = compileMachineEnvelope(source, catalog, {
+        metadata: {
+          builder: "snap-machines-demo",
+          mode: currentMode,
+          presetName: activePreset?.name ?? null,
+        },
+      });
+      const json = JSON.stringify(envelope, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const baseName = (activePreset?.name ?? "machine")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      link.href = url;
+      link.download = `${baseName || "machine"}.envelope.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    [activePreset?.name, catalog],
+  );
 
   const onBlockPlaced = useCallback(() => {
     setBlockCount((c) => c + 1);
@@ -445,6 +472,23 @@ export function App() {
             >
               {showJson ? "Hide" : "Show"} Graph JSON
             </button>
+            <button
+              onClick={() => exportMachineEnvelope(mode, graph, playGraph)}
+              style={{
+                marginTop: 6,
+                padding: "6px 10px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 6,
+                background: "rgba(76,175,80,0.12)",
+                color: "#b7f0ba",
+                cursor: "pointer",
+                fontSize: 12,
+                width: "100%",
+                transition: "all 0.15s",
+              }}
+            >
+              Export Machine JSON
+            </button>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button
                 onClick={handlePlay}
@@ -580,6 +624,23 @@ export function App() {
               }}
             >
               {showJson ? "Hide" : "Show"} Graph JSON
+            </button>
+            <button
+              onClick={() => exportMachineEnvelope(mode, graph, playGraph)}
+              style={{
+                marginTop: 6,
+                padding: "6px 10px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 6,
+                background: "rgba(76,175,80,0.12)",
+                color: "#b7f0ba",
+                cursor: "pointer",
+                fontSize: 12,
+                width: "100%",
+                transition: "all 0.15s",
+              }}
+            >
+              Export Machine JSON
             </button>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button

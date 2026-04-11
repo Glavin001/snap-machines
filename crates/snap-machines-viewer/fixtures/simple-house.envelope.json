@@ -1,0 +1,744 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "smcat1-6c8337bf81d06ae1",
+  "plan": {
+    "behaviors": [],
+    "bodies": [
+      {
+        "colliders": [
+          {
+            "blockId": "floor",
+            "halfExtents": {
+              "x": 2,
+              "y": 0.1,
+              "z": 2
+            },
+            "id": "structure.floor.4x4:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -2.8480158119705913e-19,
+                "y": -1.5999999999999999,
+                "z": 0.048837209302325615
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            },
+            "mass": 5,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "wall-xp",
+            "halfExtents": {
+              "x": 2,
+              "y": 1.5,
+              "z": 0.1
+            },
+            "id": "structure.wall.4x3:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 2.1,
+                "y": 0,
+                "z": 0.04883720930232563
+              },
+              "rotation": {
+                "w": 0.7071067811865476,
+                "x": 0,
+                "y": 0.7071067811865475,
+                "z": 0
+              }
+            },
+            "mass": 3,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "wall-xn",
+            "halfExtents": {
+              "x": 2,
+              "y": 1.5,
+              "z": 0.1
+            },
+            "id": "structure.wall.4x3:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -2.1,
+                "y": 0,
+                "z": 0.04883720930232563
+              },
+              "rotation": {
+                "w": 0.7071067811865476,
+                "x": 0,
+                "y": -0.7071067811865475,
+                "z": 0
+              }
+            },
+            "mass": 3,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "wall-zn",
+            "halfExtents": {
+              "x": 2,
+              "y": 1.5,
+              "z": 0.1
+            },
+            "id": "structure.wall.4x3:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 1.1961666410276474e-17,
+                "y": 0,
+                "z": -2.0511627906976746
+              },
+              "rotation": {
+                "w": 6.123233995736766e-17,
+                "x": 0,
+                "y": 1,
+                "z": 0
+              }
+            },
+            "mass": 3,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "wall-door",
+            "halfExtents": {
+              "x": 0.6,
+              "y": 1.5,
+              "z": 0.1
+            },
+            "id": "structure.wall-door.4x3:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -1.4,
+                "y": 0,
+                "z": 2.1488372093023256
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": -6.123233995736766e-17,
+                "z": 0
+              }
+            },
+            "mass": 0.8333333333333334,
+            "partId": "frame",
+            "sensor": false
+          },
+          {
+            "blockId": "wall-door",
+            "halfExtents": {
+              "x": 0.6,
+              "y": 1.5,
+              "z": 0.1
+            },
+            "id": "structure.wall-door.4x3:collider:1",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 1.4,
+                "y": 0,
+                "z": 2.1488372093023256
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": -6.123233995736766e-17,
+                "z": 0
+              }
+            },
+            "mass": 0.8333333333333334,
+            "partId": "frame",
+            "sensor": false
+          },
+          {
+            "blockId": "wall-door",
+            "halfExtents": {
+              "x": 0.8,
+              "y": 0.3,
+              "z": 0.1
+            },
+            "id": "structure.wall-door.4x3:collider:2",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -1.2531269572670591e-17,
+                "y": 1.2,
+                "z": 2.1488372093023256
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": -6.123233995736766e-17,
+                "z": 0
+              }
+            },
+            "mass": 0.8333333333333334,
+            "partId": "frame",
+            "sensor": false
+          },
+          {
+            "blockId": "roof",
+            "halfExtents": {
+              "x": 2,
+              "y": 0.1,
+              "z": 2
+            },
+            "id": "structure.roof.4x4:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -2.8480158119705913e-19,
+                "y": 1.6000000000000003,
+                "z": 0.048837209302325615
+              },
+              "rotation": {
+                "w": -1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            },
+            "mass": 5,
+            "partId": "main",
+            "sensor": false
+          }
+        ],
+        "id": "body:0",
+        "kind": "fixed",
+        "origin": {
+          "position": {
+            "x": 2.8480158119705913e-19,
+            "y": 1.7,
+            "z": -0.048837209302325615
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "floor",
+          "wall-xp",
+          "wall-xn",
+          "wall-zn",
+          "wall-door",
+          "roof"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "floor",
+            "partId": "main"
+          },
+          {
+            "blockId": "wall-xp",
+            "partId": "main"
+          },
+          {
+            "blockId": "wall-xn",
+            "partId": "main"
+          },
+          {
+            "blockId": "wall-zn",
+            "partId": "main"
+          },
+          {
+            "blockId": "wall-door",
+            "partId": "frame"
+          },
+          {
+            "blockId": "roof",
+            "partId": "main"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "blockId": "wall-door",
+            "halfExtents": {
+              "x": 0.8,
+              "y": 1.2,
+              "z": 0.05
+            },
+            "id": "structure.wall-door.4x3:collider:3",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0,
+                "y": -0.30000000000000004,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": -6.123233995736766e-17,
+                "z": 0
+              }
+            },
+            "mass": 0.5,
+            "partId": "door",
+            "sensor": false
+          }
+        ],
+        "id": "body:1",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": -1.2246467991473533e-17,
+            "y": 1.7,
+            "z": 2.1
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "wall-door"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "wall-door",
+            "partId": "door"
+          }
+        ]
+      }
+    ],
+    "diagnostics": [],
+    "joints": [
+      {
+        "blockId": "wall-door",
+        "bodyAId": "body:0",
+        "bodyBId": "body:1",
+        "collideConnected": false,
+        "id": "joint:wall-door",
+        "kind": "revolute",
+        "localAnchorA": {
+          "x": -0.8,
+          "y": -0.30000000000000004,
+          "z": 2.1488372093023256
+        },
+        "localAnchorB": {
+          "x": -0.8,
+          "y": -0.30000000000000004,
+          "z": 0
+        },
+        "localAxisA": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "localAxisB": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "localFrameA": {
+          "w": 1,
+          "x": 0,
+          "y": -6.123233995736766e-17,
+          "z": 0
+        },
+        "localFrameB": {
+          "w": 6.123233995736766e-17,
+          "x": 0,
+          "y": 1,
+          "z": 0
+        }
+      }
+    ],
+    "mounts": [
+      {
+        "blockId": "floor",
+        "blockTypeId": "structure.floor.4x4",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "structure.floor.4x4:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 4,
+              "y": 0.2,
+              "z": 4
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:floor::main",
+        "localTransform": {
+          "position": {
+            "x": -2.8480158119705913e-19,
+            "y": -1.5999999999999999,
+            "z": 0.048837209302325615
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "wall-xp",
+        "blockTypeId": "structure.wall.4x3",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "structure.wall.4x3:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 4,
+              "y": 3,
+              "z": 0.2
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:wall-xp::main",
+        "localTransform": {
+          "position": {
+            "x": 2.1,
+            "y": 0,
+            "z": 0.04883720930232563
+          },
+          "rotation": {
+            "w": 0.7071067811865476,
+            "x": 0,
+            "y": 0.7071067811865475,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "wall-xn",
+        "blockTypeId": "structure.wall.4x3",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "structure.wall.4x3:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 4,
+              "y": 3,
+              "z": 0.2
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:wall-xn::main",
+        "localTransform": {
+          "position": {
+            "x": -2.1,
+            "y": 0,
+            "z": 0.04883720930232563
+          },
+          "rotation": {
+            "w": 0.7071067811865476,
+            "x": 0,
+            "y": -0.7071067811865475,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "wall-zn",
+        "blockTypeId": "structure.wall.4x3",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "structure.wall.4x3:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 4,
+              "y": 3,
+              "z": 0.2
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:wall-zn::main",
+        "localTransform": {
+          "position": {
+            "x": 1.1961666410276474e-17,
+            "y": 0,
+            "z": -2.0511627906976746
+          },
+          "rotation": {
+            "w": 6.123233995736766e-17,
+            "x": 0,
+            "y": 1,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "wall-door",
+        "blockTypeId": "structure.wall-door.4x3",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "structure.wall-door.4x3:geometry:0",
+            "kind": "box",
+            "partId": "frame",
+            "size": {
+              "x": 1.2,
+              "y": 3,
+              "z": 0.2
+            },
+            "transform": {
+              "position": {
+                "x": -1.4,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          },
+          {
+            "id": "structure.wall-door.4x3:geometry:1",
+            "kind": "box",
+            "partId": "frame",
+            "size": {
+              "x": 1.2,
+              "y": 3,
+              "z": 0.2
+            },
+            "transform": {
+              "position": {
+                "x": 1.4,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          },
+          {
+            "id": "structure.wall-door.4x3:geometry:2",
+            "kind": "box",
+            "partId": "frame",
+            "size": {
+              "x": 1.6,
+              "y": 0.6,
+              "z": 0.2
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 1.2,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:wall-door::frame",
+        "localTransform": {
+          "position": {
+            "x": -1.2531269572670591e-17,
+            "y": 0,
+            "z": 2.1488372093023256
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": -6.123233995736766e-17,
+            "z": 0
+          }
+        },
+        "partId": "frame"
+      },
+      {
+        "blockId": "wall-door",
+        "blockTypeId": "structure.wall-door.4x3",
+        "bodyId": "body:1",
+        "geometry": [
+          {
+            "id": "structure.wall-door.4x3:geometry:3",
+            "kind": "box",
+            "partId": "door",
+            "size": {
+              "x": 1.6,
+              "y": 2.4,
+              "z": 0.1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": -0.3,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:wall-door::door",
+        "localTransform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": -6.123233995736766e-17,
+            "z": 0
+          }
+        },
+        "partId": "door"
+      },
+      {
+        "blockId": "roof",
+        "blockTypeId": "structure.roof.4x4",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "structure.roof.4x4:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 4,
+              "y": 0.2,
+              "z": 4
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:roof::main",
+        "localTransform": {
+          "position": {
+            "x": -2.8480158119705913e-19,
+            "y": 1.6000000000000003,
+            "z": 0.048837209302325615
+          },
+          "rotation": {
+            "w": -1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      }
+    ]
+  },
+  "metadata": {
+    "builder": "snap-machines-demo",
+    "mode": "play",
+    "presetName": "Simple House"
+  }
+}
