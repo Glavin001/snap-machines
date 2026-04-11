@@ -237,6 +237,7 @@ describe("generateControlMap", () => {
     expect(entry.blockId).toBe("h1");
     expect(entry.blockName).toBe("Motor Hinge");
     expect(entry.originalAction).toBe("hingeSpin");
+    expect(entry.enabled).toBe(true);
   });
 
   it("creates entries with correct default keys for position motors", () => {
@@ -286,6 +287,7 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
         positiveKey: "e", negativeKey: "q", scale: 5,
+        enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
     ];
@@ -313,6 +315,7 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "w", negativeKey: "s", scale: 2,
+        enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
       },
     ];
@@ -344,6 +347,7 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "w", negativeKey: "s", scale: 10,
+        enabled: true,
         currentTarget: 0, actualPosition: 0, limits: { min: -1, max: 1 },
         originalAction: "armPitch", originalScale: 10,
       },
@@ -364,6 +368,7 @@ describe("updateControlMapInput", () => {
         id: "b1", label: "Thruster (t1)", blockId: "t1", blockName: "Thruster",
         actuatorType: "trigger", actionName: "ctrl:behavior:b1",
         positiveKey: " ", negativeKey: "", scale: 1,
+        enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "throttle", originalScale: 1,
       },
     ];
@@ -381,12 +386,38 @@ describe("updateControlMapInput", () => {
         id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
         positiveKey: "e", negativeKey: "q", scale: -5,
+        enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
     ];
 
     const input = updateControlMapInput(map, new Set(["e"]), 1 / 60);
     expect(input["ctrl:joint:j1"]).toBe(-5); // Flipped
+  });
+
+  it("ignores disabled actuators and resets disabled position targets", () => {
+    const map: ControlMap = [
+      {
+        id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
+        actuatorType: "velocity", actionName: "ctrl:joint:j1",
+        positiveKey: "e", negativeKey: "q", scale: 5,
+        enabled: false,
+        currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
+      },
+      {
+        id: "j2", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
+        actuatorType: "position", actionName: "ctrl:joint:j2",
+        positiveKey: "w", negativeKey: "s", scale: 2,
+        enabled: false,
+        currentTarget: 1.5, actualPosition: 0.2, originalAction: "armPitch", originalScale: 2,
+      },
+    ];
+
+    const input = updateControlMapInput(map, new Set(["e", "w"]), 0.5);
+    expect(input["ctrl:joint:j1"]).toBe(0);
+    expect(input["ctrl:joint:j2"]).toBe(0);
+    expect(input["ctrl:joint:j2:vff"]).toBe(0);
+    expect(map[1]!.currentTarget).toBe(0);
   });
 });
 
@@ -397,6 +428,7 @@ describe("resetControlMapState", () => {
         id: "j1", label: "Arm", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "w", negativeKey: "s", scale: 2,
+        enabled: true,
         currentTarget: 1.5, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
       },
     ];

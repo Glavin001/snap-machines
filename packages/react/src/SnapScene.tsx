@@ -1,59 +1,82 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   BlockCatalog,
   BlockGraph,
-  findBestSnap,
+  SnapResult,
   addSnappedBlockToGraph,
+  degToRad,
+  findBestSnap,
+  getWorldAnchorTransform,
+  quatFromAxisAngle,
+  transform,
   Transform,
+  VEC3_Z,
 } from "@snap-machines/core";
 import { BlockMesh } from "./BlockMesh.js";
 import { GhostPreview } from "./GhostPreview.js";
+
+export type SnapSceneToolMode = "place" | "select" | "move" | "rotate";
 
 export interface SnapSceneProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
   selectedType: string;
+  selectedNodeId?: string | null;
+  toolMode?: SnapSceneToolMode;
+  previewRotationDeg?: number;
   colorMap?: Record<string, string>;
+  onGraphChange?: (graph: BlockGraph) => void;
+  onSelectionChange?: (nodeId: string | null) => void;
+  onSnapChange?: (snap: SnapResult | null) => void;
   onBlockPlaced?: () => void;
   onBlockRemoved?: () => void;
 }
 
-interface PlacedBlock {
-  nodeId: string;
-  typeId: string;
-  transform: Transform;
-}
-
-/** Cached hit info so we can recompute snaps without a new pointer event. */
 interface HitInfo {
   blockId: string;
   point: { x: number; y: number; z: number };
 }
 
-export function SnapScene({ graph, catalog, selectedType, colorMap, onBlockPlaced, onBlockRemoved }: SnapSceneProps) {
-  const graphRef = useRef<BlockGraph>(graph);
-  graphRef.current = graph;
+const ANCHOR_COLORS = {
+  compatible: "#7cff88",
+  free: "#63c7ff",
+  occupied: "#ff7a7a",
+  selected: "#ffd166",
+} as const;
 
-  const [blocks, setBlocks] = useState<PlacedBlock[]>(() =>
-    graph.listNodes().map((n) => ({ nodeId: n.id, typeId: n.typeId, transform: n.transform })),
+export function SnapScene({
+  graph,
+  catalog,
+  selectedType,
+  selectedNodeId,
+  toolMode = "place",
+  previewRotationDeg = 0,
+  colorMap,
+  onGraphChange,
+  onSelectionChange,
+  onSnapChange,
+  onBlockPlaced,
+  onBlockRemoved,
+}: SnapSceneProps) {
+  const blocks = useMemo(
+    () => graph.listNodes().map((n) => ({ nodeId: n.id, typeId: n.typeId, transform: n.transform })),
+    [graph],
   );
 
-  // ---------------------------------------------------------------------------
-  // Ghost preview – all fast-changing state lives in refs so pointer-move
-  // updates never trigger React re-renders.  useFrame syncs the visual.
-  // ---------------------------------------------------------------------------
   const ghostGroupRef = useRef<THREE.Group>(null);
   const snapTransformRef = useRef<Transform | null>(null);
   const lastHitRef = useRef<HitInfo | null>(null);
 
-  // Apply the latest snap transform to the ghost group every frame.
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+  const [activeSnap, setActiveSnap] = useState<SnapResult | null>(null);
+
   useFrame(() => {
     const group = ghostGroupRef.current;
     if (!group) return;
     const t = snapTransformRef.current;
-    if (t) {
+    if (toolMode === "place" && t) {
       group.position.set(t.position.x, t.position.y, t.position.z);
       group.quaternion.set(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w);
       group.visible = true;
@@ -62,27 +85,45 @@ export function SnapScene({ graph, catalog, selectedType, colorMap, onBlockPlace
     }
   });
 
-  // Compute snap and store result in the ref (no setState, no re-render).
   const computeSnap = useCallback(
     (hit: HitInfo) => {
+      setHoveredBlockId(hit.blockId);
+
+      if (toolMode !== "place") {
+        snapTransformRef.current = null;
+        setActiveSnap(null);
+        onSnapChange?.(null);
+        return null;
+      }
+
+      const preview = transform(
+        hit.point,
+        quatFromAxisAngle(VEC3_Z, degToRad(previewRotationDeg)),
+      );
       const snap = findBestSnap({
-        graph: graphRef.current,
+        graph,
         catalog,
         candidateTypeId: selectedType,
         hit: { blockId: hit.blockId, point: hit.point },
+        previewTransform: preview,
       });
       snapTransformRef.current = snap ? snap.placement : null;
+      setActiveSnap(snap);
+      onSnapChange?.(snap);
       return snap ?? null;
     },
-    [catalog, selectedType],
+    [catalog, graph, onSnapChange, previewRotationDeg, selectedType, toolMode],
   );
 
-  // When selectedType changes, recompute snap at the last pointer position.
   useEffect(() => {
-    if (lastHitRef.current) {
+    if (toolMode === "place" && lastHitRef.current) {
       computeSnap(lastHitRef.current);
+      return;
     }
-  }, [computeSnap]);
+    snapTransformRef.current = null;
+    setActiveSnap(null);
+    onSnapChange?.(null);
+  }, [computeSnap, onSnapChange, toolMode]);
 
   const handlePointerMove = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
@@ -104,41 +145,37 @@ export function SnapScene({ graph, catalog, selectedType, colorMap, onBlockPlace
       const blockId = findBlockId(e.object);
       if (!blockId) return;
 
-      const point = e.point;
-      const snap = findBestSnap({
-        graph: graphRef.current,
-        catalog,
-        candidateTypeId: selectedType,
-        hit: { blockId, point: { x: point.x, y: point.y, z: point.z } },
-      });
+      if (toolMode !== "place") {
+        onSelectionChange?.(blockId);
+        return;
+      }
 
+      const point = e.point;
+      const hit: HitInfo = { blockId, point: { x: point.x, y: point.y, z: point.z } };
+      const snap = computeSnap(hit);
       if (!snap) return;
 
+      const nextGraph = graph.clone();
       const { nodeId } = addSnappedBlockToGraph({
-        graph: graphRef.current,
+        graph: nextGraph,
         typeId: selectedType,
         snap,
       });
 
-      setBlocks((prev) => [
-        ...prev,
-        { nodeId, typeId: selectedType, transform: snap.placement },
-      ]);
-
-      // Recompute ghost targeting the newly placed block.
-      const updatedHit: HitInfo = { blockId: nodeId, point: { x: point.x, y: point.y, z: point.z } };
-      lastHitRef.current = updatedHit;
-      computeSnap(updatedHit);
-
+      onGraphChange?.(nextGraph);
+      onSelectionChange?.(nodeId);
       onBlockPlaced?.();
     },
-    [catalog, selectedType, onBlockPlaced, computeSnap],
+    [computeSnap, graph, onBlockPlaced, onGraphChange, onSelectionChange, selectedType, toolMode],
   );
 
   const handlePointerLeave = useCallback(() => {
     lastHitRef.current = null;
+    setHoveredBlockId(null);
     snapTransformRef.current = null;
-  }, []);
+    setActiveSnap(null);
+    onSnapChange?.(null);
+  }, [onSnapChange]);
 
   const handleContextMenu = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
@@ -146,20 +183,22 @@ export function SnapScene({ graph, catalog, selectedType, colorMap, onBlockPlace
       e.nativeEvent.preventDefault();
 
       const blockId = findBlockId(e.object);
-      if (!blockId) return;
+      if (!blockId || blockId === "origin") return;
 
-      // Don't allow deleting the origin block
-      if (blockId === "origin") return;
-
-      graphRef.current.removeNode(blockId);
-      setBlocks((prev) => prev.filter((b) => b.nodeId !== blockId));
+      const nextGraph = graph.clone();
+      nextGraph.removeNode(blockId);
+      onGraphChange?.(nextGraph);
+      onSelectionChange?.(selectedNodeId === blockId ? null : selectedNodeId ?? null);
 
       lastHitRef.current = null;
+      setHoveredBlockId(null);
       snapTransformRef.current = null;
+      setActiveSnap(null);
+      onSnapChange?.(null);
 
       onBlockRemoved?.();
     },
-    [onBlockRemoved],
+    [graph, onBlockRemoved, onGraphChange, onSelectionChange, onSnapChange, selectedNodeId],
   );
 
   return (
@@ -177,13 +216,80 @@ export function SnapScene({ graph, catalog, selectedType, colorMap, onBlockPlace
           blockTransform={block.transform}
           catalog={catalog}
           colorMap={colorMap}
+          highlight={block.nodeId === selectedNodeId || block.nodeId === hoveredBlockId}
         />
       ))}
+
+      {selectedNodeId && (
+        <AnchorMarkers
+          graph={graph}
+          catalog={catalog}
+          nodeId={selectedNodeId}
+          getColor={(anchorId, occupied) => {
+            if (activeSnap?.target.blockId === selectedNodeId && activeSnap.target.anchor.id === anchorId) {
+              return ANCHOR_COLORS.compatible;
+            }
+            return occupied ? ANCHOR_COLORS.occupied : ANCHOR_COLORS.selected;
+          }}
+        />
+      )}
+
+      {toolMode === "place" && hoveredBlockId && hoveredBlockId !== selectedNodeId && (
+        <AnchorMarkers
+          graph={graph}
+          catalog={catalog}
+          nodeId={hoveredBlockId}
+          getColor={(anchorId, occupied) => {
+            if (activeSnap?.target.blockId === hoveredBlockId && activeSnap.target.anchor.id === anchorId) {
+              return ANCHOR_COLORS.compatible;
+            }
+            return occupied ? ANCHOR_COLORS.occupied : ANCHOR_COLORS.free;
+          }}
+        />
+      )}
+
       <GhostPreview
         ref={ghostGroupRef}
         typeId={selectedType}
         catalog={catalog}
       />
+    </group>
+  );
+}
+
+interface AnchorMarkersProps {
+  graph: BlockGraph;
+  catalog: BlockCatalog;
+  nodeId: string;
+  getColor: (anchorId: string, occupied: boolean) => string;
+}
+
+function AnchorMarkers({ graph, catalog, nodeId, getColor }: AnchorMarkersProps) {
+  const node = graph.getNode(nodeId);
+  const block = node ? catalog.get(node.typeId) : null;
+
+  if (!node || !block) {
+    return null;
+  }
+
+  return (
+    <group>
+      {block.anchors.map((anchor) => {
+        const world = getWorldAnchorTransform(node.transform, anchor);
+        const occupied = graph.isAnchorOccupied({ blockId: nodeId, anchorId: anchor.id });
+        const color = getColor(anchor.id, occupied);
+        return (
+          <group
+            key={`${nodeId}:${anchor.id}`}
+            position={[world.position.x, world.position.y, world.position.z]}
+          >
+            <mesh renderOrder={3}>
+              <sphereGeometry args={[0.11, 18, 18]} />
+              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} depthWrite={false} />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
   );
 }

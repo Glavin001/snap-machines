@@ -40,6 +40,9 @@ export interface ActuatorEntry {
   /** Key for -1 direction (e.g. "q"). Empty = no negative key (triggers) */
   negativeKey: string;
 
+  /** Whether this actuator currently participates in runtime input updates */
+  enabled: boolean;
+
   /**
    * velocity: target speed (rad/s or m/s)
    * position: rate of position change (rad/s or m/s)
@@ -216,6 +219,7 @@ export function generateControlMap(
       actionName,
       positiveKey: defaults.pos,
       negativeKey: defaults.neg,
+      enabled: true,
       scale: originalScale,
       currentTarget: 0,
       actualPosition: 0,
@@ -244,6 +248,15 @@ export function updateControlMapInput(
   const input: RuntimeInputState = {};
 
   for (const entry of controlMap) {
+    if (!entry.enabled) {
+      if (entry.actuatorType === "position") {
+        entry.currentTarget = 0;
+        input[entry.actionName + ":vff"] = 0;
+      }
+      input[entry.actionName] = 0;
+      continue;
+    }
+
     const posDown = entry.positiveKey !== "" && keysDown.has(entry.positiveKey);
     const negDown = entry.negativeKey !== "" && keysDown.has(entry.negativeKey);
 

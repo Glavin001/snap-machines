@@ -105,6 +105,20 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
     [controlMap, onControlMapChange],
   );
 
+  const handleToggleEnabled = useCallback(
+    (index: number) => {
+      const updated = [...controlMap];
+      const entry = updated[index]!;
+      updated[index] = {
+        ...entry,
+        enabled: !entry.enabled,
+        currentTarget: entry.enabled ? 0 : entry.currentTarget,
+      };
+      onControlMapChange(updated);
+    },
+    [controlMap, onControlMapChange],
+  );
+
   if (controlMap.length === 0) {
     return (
       <div style={{ padding: "8px 0", fontSize: 12, opacity: 0.5 }}>
@@ -150,9 +164,10 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
                   marginBottom: 6,
                   padding: "6px 8px",
                   borderRadius: 6,
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: entry.enabled ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.025)",
+                  border: entry.enabled ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.05)",
                   cursor: "default",
+                  opacity: entry.enabled ? 1 : 0.58,
                 }}
               >
                 {/* Header row: label + type badge */}
@@ -160,19 +175,39 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
                   <div style={{ fontSize: 12, color: "#ddd", fontWeight: 500 }}>
                     {entry.label}
                   </div>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      padding: "1px 5px",
-                      borderRadius: 3,
-                      background: `${TYPE_COLORS[entry.actuatorType]}22`,
-                      color: TYPE_COLORS[entry.actuatorType],
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {TYPE_LABELS[entry.actuatorType]}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button
+                      onClick={() => handleToggleEnabled(index)}
+                      title={entry.enabled ? "Disable this actuator" : "Enable this actuator"}
+                      style={{
+                        padding: "2px 6px",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 999,
+                        background: entry.enabled ? "rgba(76,175,80,0.2)" : "rgba(255,255,255,0.06)",
+                        color: entry.enabled ? "#a5d6a7" : "#bbb",
+                        cursor: "pointer",
+                        fontSize: 9,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      {entry.enabled ? "On" : "Off"}
+                    </button>
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "1px 5px",
+                        borderRadius: 3,
+                        background: `${TYPE_COLORS[entry.actuatorType]}22`,
+                        color: TYPE_COLORS[entry.actuatorType],
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      {TYPE_LABELS[entry.actuatorType]}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Key bindings row */}
@@ -182,7 +217,7 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
                     <KeyButton
                       label={keyLabel(entry.negativeKey)}
                       listening={listening?.index === index && listening.slot === "neg"}
-                      pressed={entry.negativeKey !== "" && pressedKeys.has(entry.negativeKey)}
+                      pressed={entry.enabled && entry.negativeKey !== "" && pressedKeys.has(entry.negativeKey)}
                       onClick={() => setListening({ index, slot: "neg" })}
                     />
                   )}
@@ -197,7 +232,7 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
                   <KeyButton
                     label={keyLabel(entry.positiveKey)}
                     listening={listening?.index === index && listening.slot === "pos"}
-                    pressed={entry.positiveKey !== "" && pressedKeys.has(entry.positiveKey)}
+                    pressed={entry.enabled && entry.positiveKey !== "" && pressedKeys.has(entry.positiveKey)}
                     onClick={() => setListening({ index, slot: "pos" })}
                   />
 

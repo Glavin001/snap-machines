@@ -13,9 +13,17 @@ export interface BlockMeshProps {
   blockTransform: Transform;
   catalog: BlockCatalog;
   colorMap?: Record<string, string>;
+  highlight?: boolean;
 }
 
-export const BlockMesh = memo(function BlockMesh({ nodeId, typeId, blockTransform, catalog, colorMap }: BlockMeshProps) {
+export const BlockMesh = memo(function BlockMesh({
+  nodeId,
+  typeId,
+  blockTransform,
+  catalog,
+  colorMap,
+  highlight,
+}: BlockMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const block = useMemo(() => catalog.get(typeId), [catalog, typeId]);
   const colors = colorMap ?? DEFAULT_BLOCK_COLORS;
@@ -37,7 +45,7 @@ export const BlockMesh = memo(function BlockMesh({ nodeId, typeId, blockTransfor
       quaternion={[rot.x, rot.y, rot.z, rot.w]}
     >
       {block.geometry.map((geo) => (
-        <GeometryMesh key={geo.id} geometry={geo} color={color} />
+        <GeometryMesh key={geo.id} geometry={geo} color={color} highlight={highlight} />
       ))}
       {/* Fallback: if no geometry, render from colliders */}
       {block.geometry.length === 0 &&
@@ -54,7 +62,11 @@ export const BlockMesh = memo(function BlockMesh({ nodeId, typeId, blockTransfor
                 receiveShadow
               >
                 <boxGeometry args={[he.x * 2, he.y * 2, he.z * 2]} />
-                <meshStandardMaterial color={color} />
+                <meshStandardMaterial
+                  color={color}
+                  emissive={highlight ? "#ffcc00" : "#000000"}
+                  emissiveIntensity={highlight ? 0.6 : 0}
+                />
               </mesh>
             );
           }
@@ -68,7 +80,11 @@ export const BlockMesh = memo(function BlockMesh({ nodeId, typeId, blockTransfor
                 receiveShadow
               >
                 <sphereGeometry args={[col.radius!, 16, 16]} />
-                <meshStandardMaterial color={color} />
+                <meshStandardMaterial
+                  color={color}
+                  emissive={highlight ? "#ffcc00" : "#000000"}
+                  emissiveIntensity={highlight ? 0.6 : 0}
+                />
               </mesh>
             );
           }
