@@ -35,9 +35,9 @@ export interface ActuatorEntry {
   /** Unique key in RuntimeInputState, e.g. "ctrl:joint:..." */
   actionName: string;
 
-  /** Key for +1 direction (e.g. "e", " ") */
+  /** Physical keyboard code for +1 direction (e.g. "KeyE", "Space") */
   positiveKey: string;
-  /** Key for -1 direction (e.g. "q"). Empty = no negative key (triggers) */
+  /** Physical keyboard code for -1 direction (e.g. "KeyQ"). Empty = no negative key (triggers) */
   negativeKey: string;
 
   /** Whether this actuator currently participates in runtime input updates */
@@ -77,6 +77,36 @@ export interface ActuatorEntry {
 
 export type ControlMap = ActuatorEntry[];
 
+export interface MachineControlTarget {
+  kind: "joint" | "behavior";
+  id: string;
+}
+
+export interface MachineKeyboardKey {
+  code: string;
+}
+
+export interface MachineKeyboardBinding {
+  target: MachineControlTarget;
+  positive: MachineKeyboardKey;
+  negative?: MachineKeyboardKey;
+  enabled: boolean;
+  scale: number;
+}
+
+export interface MachineKeyboardControlProfile {
+  id: string;
+  kind: "keyboard";
+  bindings: MachineKeyboardBinding[];
+}
+
+export type MachineControlProfile = MachineKeyboardControlProfile;
+
+export interface MachineControls {
+  defaultProfileId: string;
+  profiles: MachineControlProfile[];
+}
+
 // ---------------------------------------------------------------------------
 // Default key assignment table
 // ---------------------------------------------------------------------------
@@ -88,18 +118,19 @@ interface KeyDefaults {
 }
 
 const DEFAULT_KEY_MAP: Record<string, KeyDefaults> = {
-  motorSpin: { pos: "e", neg: "q", type: "velocity" },
-  hingeSpin: { pos: "e", neg: "q", type: "velocity" },
-  sliderPos: { pos: "e", neg: "q", type: "position" },
-  armPitch: { pos: "w", neg: "s", type: "position" },
-  armYaw: { pos: "d", neg: "a", type: "position" },
-  flapDeflect: { pos: "w", neg: "s", type: "position" },
-  throttle: { pos: " ", neg: "", type: "trigger" },
-  propellerSpin: { pos: " ", neg: "", type: "trigger" },
-  gripperClose: { pos: "g", neg: "", type: "trigger" },
+  motorSpin: { pos: "KeyE", neg: "KeyQ", type: "velocity" },
+  hingeSpin: { pos: "KeyE", neg: "KeyQ", type: "velocity" },
+  sliderPos: { pos: "KeyE", neg: "KeyQ", type: "position" },
+  armPitch: { pos: "KeyW", neg: "KeyS", type: "position" },
+  armYaw: { pos: "KeyD", neg: "KeyA", type: "position" },
+  flapDeflect: { pos: "KeyW", neg: "KeyS", type: "position" },
+  throttle: { pos: "Space", neg: "", type: "trigger" },
+  propellerSpin: { pos: "Space", neg: "", type: "trigger" },
+  gripperClose: { pos: "KeyG", neg: "", type: "trigger" },
 };
 
-const DEFAULT_FALLBACK: KeyDefaults = { pos: "e", neg: "q", type: "velocity" };
+const DEFAULT_FALLBACK: KeyDefaults = { pos: "KeyE", neg: "KeyQ", type: "velocity" };
+const DEFAULT_CONTROL_PROFILE_ID = "keyboard.default";
 
 // ---------------------------------------------------------------------------
 // 1. Rewrite plan motor actions to unique per-actuator names
@@ -265,6 +296,138 @@ export function generateControlMap(
   }
 
   return entries;
+}
+
+function controlTargetForEntry(entry: Pick<ActuatorEntry, "id" | "actionName">): MachineControlTarget | null {
+  if (entry.actionName.startsWith("ctrl:joint:")) {
+    return { kind: "joint", id: entry.id };
+  }
+  if (entry.actionName.startsWith("ctrl:behavior:")) {
+    return { kind: "behavior", id: entry.id };
+  }
+  return null;
+}
+
+function defaultKeyboardProfile(controls: MachineControls | null | undefined): MachineKeyboardControlProfile | null {
+  if (!controls) {
+    return null;
+  }
+  const preferred = controls.profiles.find(
+    (profile) => profile.id === controls.defaultProfileId && profile.kind === "keyboard",
+  );
+  if (preferred) {
+    return preferred;
+  }
+  return controls.profiles.find((profile) => profile.kind === "keyboard") ?? null;
+}
+
+export function createMachineControlsFromControlMap(
+  controlMap: ControlMap,
+  options: { profileId?: string } = {},
+): MachineControls {
+  const profileId = options.profileId ?? DEFAULT_CONTROL_PROFILE_ID;
+
+  return {
+    defaultProfileId: profileId,
+    profiles: [
+      {
+        id: profileId,
+        kind: "keyboard",
+        bindings: controlMap.flatMap((entry) => {
+          const target = controlTargetForEntry(entry);
+          if (!target) {
+            return [];
+          }
+          return [{
+            target,
+            positive: { code: entry.positiveKey },
+            negative: entry.negativeKey ? { code: entry.negativeKey } : undefined,
+            enabled: entry.enabled,
+            scale: entry.scale,
+          }];
+        }),
+      },
+    ],
+  };
+}
+
+export function generateMachineControls(
+  plan: MachinePlan,
+  catalog: BlockCatalog,
+  graph: BlockGraph,
+  options: { profileId?: string } = {},
+): MachineControls {
+  const interactivePlan = JSON.parse(JSON.stringify(plan)) as MachinePlan;
+  const originals = rewritePlanActions(interactivePlan);
+  const controlMap = generateControlMap(interactivePlan, originals, catalog, graph);
+  return createMachineControlsFromControlMap(controlMap, options);
+}
+
+export function applyMachineControls(
+  controlMap: ControlMap,
+  controls: MachineControls | null | undefined,
+): ControlMap {
+  const profile = defaultKeyboardProfile(controls);
+  if (!profile) {
+    return controlMap;
+  }
+
+  const bindings = new Map(
+    profile.bindings.map((binding) => [`${binding.target.kind}:${binding.target.id}`, binding] as const),
+  );
+
+  return controlMap.map((entry) => {
+    const target = controlTargetForEntry(entry);
+    if (!target) {
+      return entry;
+    }
+    const binding = bindings.get(`${target.kind}:${target.id}`);
+    if (!binding) {
+      return entry;
+    }
+    return {
+      ...entry,
+      positiveKey: binding.positive.code,
+      negativeKey: binding.negative?.code ?? "",
+      enabled: binding.enabled,
+      scale: binding.scale,
+    };
+  });
+}
+
+export function keyboardCodeLabel(code: string): string {
+  if (code === "") {
+    return "--";
+  }
+  if (code === "Space") {
+    return "Space";
+  }
+  if (/^Key[A-Z]$/.test(code)) {
+    return code.slice(3);
+  }
+  if (/^Digit[0-9]$/.test(code)) {
+    return code.slice(5);
+  }
+
+  const aliases: Record<string, string> = {
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Backslash: "\\",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+    Minus: "-",
+    Equal: "=",
+    Backquote: "`",
+  };
+
+  return aliases[code] ?? code;
 }
 
 // ---------------------------------------------------------------------------

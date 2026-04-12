@@ -103,7 +103,7 @@ cargo run -p snap-machines-viewer -- path/to/machine.envelope.json
 
 If no file path is provided, the viewer opens the bundled sample fixture at [crates/snap-machines-viewer/fixtures/hinge-thruster-machine.envelope.json](./crates/snap-machines-viewer/fixtures/hinge-thruster-machine.envelope.json).
 
-The viewer renders mount geometry from the compiled machine plan, steps the Rust Rapier runtime, and derives its controls from the machine's runtime action bindings:
+The viewer renders mount geometry from the compiled machine plan, steps the Rust Rapier runtime, and uses the exported control defaults when present, falling back to action-name heuristics for older envelopes:
 
 - Right mouse drag to orbit the camera
 - Mouse wheel to zoom

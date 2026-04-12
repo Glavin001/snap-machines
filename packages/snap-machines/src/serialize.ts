@@ -1,15 +1,17 @@
 import { BlockGraph } from "./graph.js";
 import { compileMachinePlan } from "./compile/plan.js";
 import type { CompileMachineOptions, MachinePlan } from "./compile/plan.js";
+import { MachineControls, generateMachineControls } from "./control-map.js";
 import { BlockCatalog, BlockDefinition, JsonObject, JsonValue, NormalizedBlockDefinition } from "./schema.js";
 
-export const SERIALIZED_MACHINE_SCHEMA_VERSION = 1 as const;
+export const SERIALIZED_MACHINE_SCHEMA_VERSION = 2 as const;
 export const SERIALIZED_CATALOG_SCHEMA_VERSION = 1 as const;
 
 export interface SerializedMachineEnvelope {
   schemaVersion: typeof SERIALIZED_MACHINE_SCHEMA_VERSION;
   catalogVersion: string;
   plan: MachinePlan;
+  controls?: MachineControls;
   metadata?: JsonObject;
 }
 
@@ -26,6 +28,7 @@ export interface SerializeCatalogOptions {
 
 export interface SerializeMachineOptions extends CompileMachineOptions {
   catalogVersion?: string;
+  controls?: MachineControls;
   metadata?: JsonObject;
 }
 
@@ -53,12 +56,13 @@ export function serializeMachineEnvelope(
   source: BlockCatalog | readonly BlockDefinition[],
   options: SerializeMachineOptions = {},
 ): SerializedMachineEnvelope {
-  const { catalogVersion, metadata } = options;
+  const { catalogVersion, controls, metadata } = options;
 
   return {
     schemaVersion: SERIALIZED_MACHINE_SCHEMA_VERSION,
     catalogVersion: catalogVersion ?? serializeBlockCatalog(source).catalogVersion,
     plan: canonicalizeDocument(plan),
+    controls: controls ? canonicalizeDocument(controls) : undefined,
     metadata: metadata ? canonicalizeDocument(metadata) : undefined,
   };
 }
@@ -68,9 +72,13 @@ export function compileMachineEnvelope(
   catalog: BlockCatalog,
   options: SerializeMachineOptions = {},
 ): SerializedMachineEnvelope {
-  const { catalogVersion, metadata, ...compileOptions } = options;
+  const { catalogVersion, controls, metadata, ...compileOptions } = options;
   const plan = compileMachinePlan(graph, catalog, compileOptions);
-  return serializeMachineEnvelope(plan, catalog, { catalogVersion, metadata });
+  return serializeMachineEnvelope(plan, catalog, {
+    catalogVersion,
+    controls: controls ?? generateMachineControls(plan, catalog, graph),
+    metadata,
+  });
 }
 
 export function canonicalJsonStringify(value: JsonValue | Record<string, unknown> | unknown[]): string {

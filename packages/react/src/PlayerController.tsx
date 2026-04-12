@@ -85,10 +85,10 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "TEXTAREA") return;
-      keysRef.current.add(e.key.toLowerCase());
+      keysRef.current.add(e.code);
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      keysRef.current.delete(e.key.toLowerCase());
+      keysRef.current.delete(e.code);
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -144,10 +144,10 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
 
     let moveX = 0;
     let moveZ = 0;
-    if (keys.has("w") || keys.has("arrowup")) moveZ -= 1;
-    if (keys.has("s") || keys.has("arrowdown")) moveZ += 1;
-    if (keys.has("a") || keys.has("arrowleft")) moveX -= 1;
-    if (keys.has("d") || keys.has("arrowright")) moveX += 1;
+    if (keys.has("KeyW") || keys.has("ArrowUp")) moveZ -= 1;
+    if (keys.has("KeyS") || keys.has("ArrowDown")) moveZ += 1;
+    if (keys.has("KeyA") || keys.has("ArrowLeft")) moveX -= 1;
+    if (keys.has("KeyD") || keys.has("ArrowRight")) moveX += 1;
 
     const yaw = yawRef.current;
     const sinYaw = Math.sin(yaw);
@@ -163,7 +163,7 @@ export function PlayerController({ world, RAPIER: R, spawnPosition = [0, 2, 6] }
     const grounded = controller.computedGrounded();
     if (grounded) {
       verticalVelocity.current = 0;
-      if (keys.has(" ")) {
+      if (keys.has("Space")) {
         verticalVelocity.current = JUMP_VELOCITY;
       }
     } else {

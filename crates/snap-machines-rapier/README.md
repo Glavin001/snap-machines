@@ -24,6 +24,7 @@ In Rust code, the crate is imported as `snap_machines_rapier`.
 
 - deserializes the serialized machine envelope produced by `compileMachineEnvelope(...)`
 - validates body, collider, joint, mount, and behavior references before instantiation
+- validates optional exported control profiles and their actuator targets
 - instantiates rigid bodies, colliders, impulse joints, limits, and motors into Rapier
 - applies runtime input bindings with the same `scale`, `invert`, `deadzone`, and `clamp` rules as the JS runtime
 - supports the built-in `thruster` behavior for server-authoritative simulation

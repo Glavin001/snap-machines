@@ -71,13 +71,14 @@ describe("serializeMachineEnvelope", () => {
     expect(envelope.schemaVersion).toBe(SERIALIZED_MACHINE_SCHEMA_VERSION);
     expect(envelope.catalogVersion).toBe(serializeBlockCatalog(catalog).catalogVersion);
     expect(envelope.plan).toEqual(plan);
+    expect(envelope.controls).toBeUndefined();
     expect(envelope.metadata).toEqual({
       builder: "web",
       tags: ["authoritative", "server"],
     });
   });
 
-  it("compiles a graph directly into an envelope", () => {
+  it("compiles a graph directly into an envelope with portable controls", () => {
     const catalog = new BlockCatalog().register(cubeBlock());
     const graph = new BlockGraph();
     graph.addNode({ id: "root", typeId: "cube", transform: TRANSFORM_IDENTITY });
@@ -87,6 +88,32 @@ describe("serializeMachineEnvelope", () => {
     expect(envelope.plan.bodies).toHaveLength(1);
     expect(envelope.plan.mounts).toHaveLength(1);
     expect(envelope.plan.joints).toHaveLength(0);
+    expect(envelope.controls).toEqual({
+      defaultProfileId: "keyboard.default",
+      profiles: [{ id: "keyboard.default", kind: "keyboard", bindings: [] }],
+    });
+  });
+
+  it("preserves explicit exported controls when provided", () => {
+    const catalog = new BlockCatalog().register(cubeBlock());
+    const graph = new BlockGraph();
+    graph.addNode({ id: "root", typeId: "cube", transform: TRANSFORM_IDENTITY });
+
+    const envelope = compileMachineEnvelope(graph, catalog, {
+      controls: {
+        defaultProfileId: "custom",
+        profiles: [{
+          id: "custom",
+          kind: "keyboard",
+          bindings: [],
+        }],
+      },
+    });
+
+    expect(envelope.controls).toEqual({
+      defaultProfileId: "custom",
+      profiles: [{ id: "custom", kind: "keyboard", bindings: [] }],
+    });
   });
 });
 

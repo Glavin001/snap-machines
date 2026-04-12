@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const SERIALIZED_MACHINE_SCHEMA_VERSION: u32 = 1;
+pub const SERIALIZED_MACHINE_SCHEMA_VERSION: u32 = 2;
 pub const SERIALIZED_CATALOG_SCHEMA_VERSION: u32 = 1;
 
 pub type JsonValue = Value;
@@ -36,7 +36,47 @@ pub struct SerializedMachineEnvelope {
     pub catalog_version: String,
     pub plan: MachinePlan,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controls: Option<MachineControls>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<JsonObject>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineControls {
+    pub default_profile_id: String,
+    pub profiles: Vec<MachineControlProfile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineControlProfile {
+    pub id: String,
+    pub kind: MachineControlProfileKind,
+    pub bindings: Vec<MachineKeyboardBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineKeyboardBinding {
+    pub target: MachineControlTarget,
+    pub positive: MachineKeyboardKey,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub negative: Option<MachineKeyboardKey>,
+    pub enabled: bool,
+    pub scale: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineControlTarget {
+    pub kind: MachineControlTargetKind,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MachineKeyboardKey {
+    pub code: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -416,6 +456,19 @@ pub enum MotorInputTarget {
     Position,
     Velocity,
     Both,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MachineControlProfileKind {
+    Keyboard,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MachineControlTargetKind {
+    Joint,
+    Behavior,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

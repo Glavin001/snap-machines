@@ -715,9 +715,10 @@ mod tests {
     use super::*;
     use crate::types::{
         ColliderKind, CompileDiagnostic, DiagnosticLevel, JointLimits, JointMotorMode::Velocity,
-        MachineBodyPlan, MachineJointPlan, MachinePartMountPlan, MotorInputTarget,
-        PlannedJointMotor, SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope,
-        SourcePart,
+        MachineBodyPlan, MachineControlProfile, MachineControlProfileKind, MachineControlTarget,
+        MachineControlTargetKind, MachineControls, MachineJointPlan, MachineKeyboardBinding,
+        MachineKeyboardKey, MachinePartMountPlan, MotorInputTarget, PlannedJointMotor,
+        SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope, SourcePart,
     };
 
     fn identity_transform() -> Transform {
@@ -867,6 +868,7 @@ mod tests {
             schema_version: SERIALIZED_MACHINE_SCHEMA_VERSION,
             catalog_version: "smcat1-test".into(),
             plan: cube_plan(),
+            controls: None,
             metadata: None,
         };
         let json = serde_json::to_string(&envelope).unwrap();
@@ -875,6 +877,67 @@ mod tests {
         let runtime = MachineRuntime::from_json_str(&mut simulation, &json).unwrap();
 
         assert_eq!(runtime.plan().bodies.len(), 1);
+    }
+
+    #[test]
+    fn loads_serialized_envelope_json_with_controls() {
+        let mut plan = cube_plan();
+        plan.behaviors.push(MachineBehaviorPlan {
+            id: "behavior:thruster".into(),
+            block_id: "root".into(),
+            block_type_id: "utility.thruster.small".into(),
+            part_id: "main".into(),
+            body_id: "body:0".into(),
+            kind: "thruster".into(),
+            props: serde_json::json!({
+                "force": 10.0,
+                "localDirection": { "x": 1.0, "y": 0.0, "z": 0.0 },
+                "localPoint": { "x": 0.0, "y": 0.0, "z": 0.0 }
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+            input: Some(InputBinding {
+                action: "throttle".into(),
+                scale: Some(1.0),
+                invert: None,
+                deadzone: None,
+                clamp: None,
+            }),
+            metadata: None,
+        });
+
+        let envelope = SerializedMachineEnvelope {
+            schema_version: SERIALIZED_MACHINE_SCHEMA_VERSION,
+            catalog_version: "smcat1-test".into(),
+            plan,
+            controls: Some(MachineControls {
+                default_profile_id: "keyboard.default".into(),
+                profiles: vec![MachineControlProfile {
+                    id: "keyboard.default".into(),
+                    kind: MachineControlProfileKind::Keyboard,
+                    bindings: vec![MachineKeyboardBinding {
+                        target: MachineControlTarget {
+                            kind: MachineControlTargetKind::Behavior,
+                            id: "behavior:thruster".into(),
+                        },
+                        positive: MachineKeyboardKey {
+                            code: "Space".into(),
+                        },
+                        negative: None,
+                        enabled: true,
+                        scale: 1.0,
+                    }],
+                }],
+            }),
+            metadata: None,
+        };
+        let json = serde_json::to_string(&envelope).unwrap();
+        let mut simulation = RapierSimulation::default();
+
+        let runtime = MachineRuntime::from_json_str(&mut simulation, &json).unwrap();
+
+        assert_eq!(runtime.plan().behaviors.len(), 1);
     }
 
     #[test]

@@ -10,6 +10,7 @@ import {
   compileMachineEnvelope,
   compileMachinePlan,
   ControlMap,
+  createMachineControlsFromControlMap,
   degToRad,
   generateControlMap,
   makeId,
@@ -799,6 +800,7 @@ export function App() {
       }
 
       const envelope = compileMachineEnvelope(nextGraph, catalog, {
+        controls: controlMap ? createMachineControlsFromControlMap(controlMap) : undefined,
         metadata: {
           builder: "snap-machines-demo",
           mode,
@@ -821,7 +823,7 @@ export function App() {
     } catch (err) {
       setJsonError(err instanceof Error ? err.message : String(err));
     }
-  }, [activePreset?.name, catalog, jsonText, mode]);
+  }, [activePreset?.name, catalog, controlMap, jsonText, mode]);
 
   const handlePlanReady = useCallback(
     (plan: MachinePlan) => {
@@ -940,19 +942,19 @@ export function App() {
       if ((e.target as HTMLElement)?.tagName === "TEXTAREA" || (e.target as HTMLElement)?.tagName === "INPUT") {
         return;
       }
-      keysDown.current.add(e.key.toLowerCase());
+      keysDown.current.add(e.code);
       setInputState({
-        hingeSpin: (keysDown.current.has("e") ? 1 : 0) - (keysDown.current.has("q") ? 1 : 0),
-        throttle: keysDown.current.has(" ") ? 1 : 0,
-        motorSpin: (keysDown.current.has("e") ? 1 : 0) - (keysDown.current.has("q") ? 1 : 0),
+        hingeSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
+        throttle: keysDown.current.has("Space") ? 1 : 0,
+        motorSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
       });
     };
     const handleKeyUp = (e: KeyboardEvent) => {
-      keysDown.current.delete(e.key.toLowerCase());
+      keysDown.current.delete(e.code);
       setInputState({
-        hingeSpin: (keysDown.current.has("e") ? 1 : 0) - (keysDown.current.has("q") ? 1 : 0),
-        throttle: keysDown.current.has(" ") ? 1 : 0,
-        motorSpin: (keysDown.current.has("e") ? 1 : 0) - (keysDown.current.has("q") ? 1 : 0),
+        hingeSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
+        throttle: keysDown.current.has("Space") ? 1 : 0,
+        motorSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
       });
     };
     window.addEventListener("keydown", handleKeyDown);

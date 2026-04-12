@@ -3,13 +3,19 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 use crate::types::{
-    ColliderKind, JointKind, MachinePlan, PlannedCollider, SERIALIZED_MACHINE_SCHEMA_VERSION,
-    SerializedMachineEnvelope,
+    ColliderKind, JointKind, MachineControlProfileKind, MachineControlTargetKind, MachinePlan,
+    PlannedCollider, SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope,
 };
+
+const MIN_SUPPORTED_SERIALIZED_MACHINE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum MachineValidationError {
-    #[error("unsupported schema version {0}, expected {expected}", expected = SERIALIZED_MACHINE_SCHEMA_VERSION)]
+    #[error(
+        "unsupported schema version {0}, expected between {min_supported} and {expected}",
+        min_supported = MIN_SUPPORTED_SERIALIZED_MACHINE_SCHEMA_VERSION,
+        expected = SERIALIZED_MACHINE_SCHEMA_VERSION
+    )]
     UnsupportedSchemaVersion(u32),
     #[error("plan references non-finite numeric values at {0}")]
     NonFiniteValue(String),
@@ -35,17 +41,30 @@ pub enum MachineValidationError {
     DegenerateJoint { joint_id: String, body_id: String },
     #[error("joint {joint_id} is missing axis data for kind {kind:?}")]
     MissingJointAxis { joint_id: String, kind: JointKind },
+    #[error("controls.defaultProfileId {0} does not match any profile")]
+    UnknownDefaultControlProfile(String),
+    #[error("control profile {0} uses an unsupported kind")]
+    UnsupportedControlProfileKind(String),
+    #[error("control binding references unknown joint {0}")]
+    UnknownControlJoint(String),
+    #[error("control binding references unknown behavior {0}")]
+    UnknownControlBehavior(String),
+    #[error("control binding uses invalid keyboard code {0}")]
+    InvalidKeyboardCode(String),
 }
 
 pub fn validate_machine_envelope(
     envelope: &SerializedMachineEnvelope,
 ) -> Result<(), MachineValidationError> {
-    if envelope.schema_version != SERIALIZED_MACHINE_SCHEMA_VERSION {
+    if envelope.schema_version < MIN_SUPPORTED_SERIALIZED_MACHINE_SCHEMA_VERSION
+        || envelope.schema_version > SERIALIZED_MACHINE_SCHEMA_VERSION
+    {
         return Err(MachineValidationError::UnsupportedSchemaVersion(
             envelope.schema_version,
         ));
     }
-    validate_machine_plan(&envelope.plan)
+    validate_machine_plan(&envelope.plan)?;
+    validate_machine_controls(&envelope.plan, envelope.controls.as_ref())
 }
 
 pub fn validate_machine_plan(plan: &MachinePlan) -> Result<(), MachineValidationError> {
@@ -206,6 +225,146 @@ fn validate_collider(collider: &PlannedCollider) -> Result<(), MachineValidation
     Ok(())
 }
 
+fn validate_machine_controls(
+    plan: &MachinePlan,
+    controls: Option<&crate::types::MachineControls>,
+) -> Result<(), MachineValidationError> {
+    let Some(controls) = controls else {
+        return Ok(());
+    };
+
+    let joint_ids = plan
+        .joints
+        .iter()
+        .map(|joint| joint.id.as_str())
+        .collect::<HashSet<_>>();
+    let behavior_ids = plan
+        .behaviors
+        .iter()
+        .map(|behavior| behavior.id.as_str())
+        .collect::<HashSet<_>>();
+
+    if !controls
+        .profiles
+        .iter()
+        .any(|profile| profile.id == controls.default_profile_id)
+    {
+        return Err(MachineValidationError::UnknownDefaultControlProfile(
+            controls.default_profile_id.clone(),
+        ));
+    }
+
+    for profile in &controls.profiles {
+        if !matches!(profile.kind, MachineControlProfileKind::Keyboard) {
+            return Err(MachineValidationError::UnsupportedControlProfileKind(
+                profile.id.clone(),
+            ));
+        }
+
+        for binding in &profile.bindings {
+            match binding.target.kind {
+                MachineControlTargetKind::Joint => {
+                    if !joint_ids.contains(binding.target.id.as_str()) {
+                        return Err(MachineValidationError::UnknownControlJoint(
+                            binding.target.id.clone(),
+                        ));
+                    }
+                }
+                MachineControlTargetKind::Behavior => {
+                    if !behavior_ids.contains(binding.target.id.as_str()) {
+                        return Err(MachineValidationError::UnknownControlBehavior(
+                            binding.target.id.clone(),
+                        ));
+                    }
+                }
+            }
+
+            validate_keyboard_code(&binding.positive.code)?;
+            if let Some(negative) = &binding.negative {
+                validate_keyboard_code(&negative.code)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_keyboard_code(code: &str) -> Result<(), MachineValidationError> {
+    if !is_valid_keyboard_code(code) {
+        return Err(MachineValidationError::InvalidKeyboardCode(code.to_owned()));
+    }
+    Ok(())
+}
+
+fn is_valid_keyboard_code(code: &str) -> bool {
+    if code.is_empty() {
+        return false;
+    }
+
+    matches!(
+        code,
+        "Space"
+            | "Enter"
+            | "Tab"
+            | "Escape"
+            | "Backspace"
+            | "Delete"
+            | "Insert"
+            | "Home"
+            | "End"
+            | "PageUp"
+            | "PageDown"
+            | "ArrowUp"
+            | "ArrowDown"
+            | "ArrowLeft"
+            | "ArrowRight"
+            | "ShiftLeft"
+            | "ShiftRight"
+            | "ControlLeft"
+            | "ControlRight"
+            | "AltLeft"
+            | "AltRight"
+            | "MetaLeft"
+            | "MetaRight"
+            | "CapsLock"
+            | "Backquote"
+            | "Minus"
+            | "Equal"
+            | "BracketLeft"
+            | "BracketRight"
+            | "Backslash"
+            | "Semicolon"
+            | "Quote"
+            | "Comma"
+            | "Period"
+            | "Slash"
+            | "Numpad0"
+            | "Numpad1"
+            | "Numpad2"
+            | "Numpad3"
+            | "Numpad4"
+            | "Numpad5"
+            | "Numpad6"
+            | "Numpad7"
+            | "Numpad8"
+            | "Numpad9"
+            | "NumpadAdd"
+            | "NumpadSubtract"
+            | "NumpadMultiply"
+            | "NumpadDivide"
+            | "NumpadDecimal"
+            | "NumpadEnter"
+    ) || code
+        .strip_prefix("Key")
+        .is_some_and(|suffix| suffix.len() == 1 && suffix.chars().all(|ch| ch.is_ascii_uppercase()))
+        || code
+            .strip_prefix("Digit")
+            .is_some_and(|suffix| suffix.len() == 1 && suffix.chars().all(|ch| ch.is_ascii_digit()))
+        || code.strip_prefix('F').is_some_and(
+            |suffix| matches!(suffix.parse::<u8>(), Ok(value) if (1..=24).contains(&value)),
+        )
+}
+
 fn ensure_unique(ids: &mut HashSet<String>, id: &str) -> Result<(), MachineValidationError> {
     if !ids.insert(id.to_owned()) {
         return Err(MachineValidationError::DuplicateId(id.to_owned()));
@@ -245,8 +404,11 @@ fn ensure_quat_finite(
 mod tests {
     use super::*;
     use crate::types::{
-        ColliderKind, MachineBehaviorPlan, MachineBodyPlan, MachinePlan, PlannedCollider, Quat,
-        RigidBodyKind, SerializedMachineEnvelope, SourcePart, Transform, Vec3,
+        ColliderKind, MachineBehaviorPlan, MachineBodyPlan, MachineControlProfile,
+        MachineControlProfileKind, MachineControlTarget, MachineControlTargetKind, MachineControls,
+        MachineKeyboardBinding, MachineKeyboardKey, MachinePlan, PlannedCollider, Quat,
+        RigidBodyKind, SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope, SourcePart,
+        Transform, Vec3,
     };
 
     fn identity_transform() -> Transform {
@@ -316,6 +478,7 @@ mod tests {
             schema_version: 99,
             catalog_version: "smcat1-test".into(),
             plan: minimal_plan(),
+            controls: None,
             metadata: None,
         };
 
@@ -342,6 +505,103 @@ mod tests {
         assert_eq!(
             error,
             MachineValidationError::UnsupportedBehaviorKind("not-supported".into())
+        );
+    }
+
+    #[test]
+    fn accepts_legacy_schema_version_without_controls() {
+        let envelope = SerializedMachineEnvelope {
+            schema_version: 1,
+            catalog_version: "smcat1-test".into(),
+            plan: minimal_plan(),
+            controls: None,
+            metadata: None,
+        };
+
+        validate_machine_envelope(&envelope).expect("legacy v1 envelope remains readable");
+    }
+
+    #[test]
+    fn rejects_control_binding_with_unknown_target() {
+        let envelope = SerializedMachineEnvelope {
+            schema_version: SERIALIZED_MACHINE_SCHEMA_VERSION,
+            catalog_version: "smcat1-test".into(),
+            plan: minimal_plan(),
+            controls: Some(MachineControls {
+                default_profile_id: "keyboard.default".into(),
+                profiles: vec![MachineControlProfile {
+                    id: "keyboard.default".into(),
+                    kind: MachineControlProfileKind::Keyboard,
+                    bindings: vec![MachineKeyboardBinding {
+                        target: MachineControlTarget {
+                            kind: MachineControlTargetKind::Joint,
+                            id: "missing-joint".into(),
+                        },
+                        positive: MachineKeyboardKey {
+                            code: "KeyE".into(),
+                        },
+                        negative: Some(MachineKeyboardKey {
+                            code: "KeyQ".into(),
+                        }),
+                        enabled: true,
+                        scale: 1.0,
+                    }],
+                }],
+            }),
+            metadata: None,
+        };
+
+        let error = validate_machine_envelope(&envelope).unwrap_err();
+        assert_eq!(
+            error,
+            MachineValidationError::UnknownControlJoint("missing-joint".into())
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_keyboard_code() {
+        let mut plan = minimal_plan();
+        plan.behaviors.push(MachineBehaviorPlan {
+            id: "behavior:0".into(),
+            block_id: "root".into(),
+            block_type_id: "utility.thruster.small".into(),
+            part_id: "main".into(),
+            body_id: "body:0".into(),
+            kind: "thruster".into(),
+            props: serde_json::Map::new(),
+            input: None,
+            metadata: None,
+        });
+        let envelope = SerializedMachineEnvelope {
+            schema_version: SERIALIZED_MACHINE_SCHEMA_VERSION,
+            catalog_version: "smcat1-test".into(),
+            plan,
+            controls: Some(MachineControls {
+                default_profile_id: "keyboard.default".into(),
+                profiles: vec![MachineControlProfile {
+                    id: "keyboard.default".into(),
+                    kind: MachineControlProfileKind::Keyboard,
+                    bindings: vec![MachineKeyboardBinding {
+                        target: MachineControlTarget {
+                            kind: MachineControlTargetKind::Behavior,
+                            id: "behavior:0".into(),
+                        },
+                        positive: MachineKeyboardKey {
+                            code: "BadKey".into(),
+                        },
+                        negative: None,
+                        enabled: true,
+                        scale: 1.0,
+                    }],
+                }],
+            }),
+            metadata: None,
+        };
+
+        let error = validate_machine_envelope(&envelope).unwrap_err();
+        assert_eq!(
+            error,
+            MachineValidationError::InvalidKeyboardCode("BadKey".into())
         );
     }
 }

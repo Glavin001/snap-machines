@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { ControlMap, ActuatorEntry } from "@snap-machines/core";
+import { keyboardCodeLabel, type ControlMap, type ActuatorEntry } from "@snap-machines/core";
 
 export interface ControlPanelProps {
   controlMap: ControlMap;
@@ -8,13 +8,6 @@ export interface ControlPanelProps {
   keysDownRef?: React.RefObject<Set<string>>;
   /** Called when hovering/unhovering an entry row — for 3D part highlighting */
   onHoverEntry?: (entry: { blockId: string; id: string } | null) => void;
-}
-
-/** Display name for a key (e.g. " " → "Space") */
-function keyLabel(key: string): string {
-  if (key === " ") return "Space";
-  if (key === "") return "--";
-  return key.toUpperCase();
 }
 
 const TYPE_LABELS: Record<ActuatorEntry["actuatorType"], string> = {
@@ -80,7 +73,7 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
     const handler = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const key = e.key === "Escape" ? "" : e.key.toLowerCase();
+      const key = e.code === "Escape" ? "" : e.code;
       const updated = [...controlMap];
       const entry = { ...updated[listening.index] };
       if (listening.slot === "pos") {
@@ -215,7 +208,7 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
                   {/* Negative key */}
                   {entry.actuatorType !== "trigger" && (
                     <KeyButton
-                      label={keyLabel(entry.negativeKey)}
+                      label={keyboardCodeLabel(entry.negativeKey)}
                       listening={listening?.index === index && listening.slot === "neg"}
                       pressed={entry.enabled && entry.negativeKey !== "" && pressedKeys.has(entry.negativeKey)}
                       onClick={() => setListening({ index, slot: "neg" })}
@@ -230,7 +223,7 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
 
                   {/* Positive key */}
                   <KeyButton
-                    label={keyLabel(entry.positiveKey)}
+                    label={keyboardCodeLabel(entry.positiveKey)}
                     listening={listening?.index === index && listening.slot === "pos"}
                     pressed={entry.enabled && entry.positiveKey !== "" && pressedKeys.has(entry.positiveKey)}
                     onClick={() => setListening({ index, slot: "pos" })}

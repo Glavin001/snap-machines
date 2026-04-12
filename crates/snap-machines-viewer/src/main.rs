@@ -11,9 +11,10 @@ use bevy::{
     window::PrimaryWindow,
 };
 use snap_machines_rapier::{
-    ColliderKind, InputBinding, MachinePlan, MachineRuntime, MotorInputTarget, PlannedCollider,
-    Quat as SnapQuat, RapierSimulation, RuntimeBuildError, RuntimeInputState, RuntimeInputValue,
-    SerializedMachineEnvelope, Transform as SnapTransform, Vec3 as SnapVec3,
+    ColliderKind, InputBinding, MachineControlTargetKind, MachineControls, MachinePlan,
+    MachineRuntime, MotorInputTarget, PlannedCollider, Quat as SnapQuat, RapierSimulation,
+    RuntimeBuildError, RuntimeInputState, RuntimeInputValue, SerializedMachineEnvelope,
+    Transform as SnapTransform, Vec3 as SnapVec3, validate_machine_envelope,
 };
 
 const DEFAULT_FIXED_DT: f32 = 1.0 / 60.0;
@@ -75,6 +76,7 @@ struct ViewerKeyBinding {
 #[derive(Clone, Debug)]
 struct ViewerControlEntry {
     action_name: String,
+    original_action: String,
     actuator_type: ViewerActuatorType,
     binding: ViewerKeyBinding,
     scale: f32,
@@ -83,16 +85,26 @@ struct ViewerControlEntry {
     limits: Option<(f32, f32)>,
 }
 
+#[derive(Clone, Debug)]
+struct OriginalViewerBinding {
+    action: String,
+    scale: f32,
+}
+
 #[derive(Resource, Clone, Debug, Default)]
 struct ViewerControls {
     entries: Vec<ViewerControlEntry>,
 }
 
 impl ViewerControls {
-    fn from_plan(plan: &MachinePlan) -> Self {
+    fn from_plan(
+        plan: &MachinePlan,
+        controls: Option<&MachineControls>,
+        originals: &HashMap<String, OriginalViewerBinding>,
+    ) -> Self {
         let mut entries = Vec::<ViewerControlEntry>::new();
-        let mut action_to_index = HashMap::<String, usize>::new();
         let mut fallback_index = 0usize;
+        let exported_bindings = exported_viewer_bindings(controls);
 
         for joint in &plan.joints {
             let Some(motor) = &joint.motor else {
@@ -106,32 +118,36 @@ impl ViewerControls {
                 MotorInputTarget::Position | MotorInputTarget::Both => ViewerActuatorType::Position,
                 MotorInputTarget::Velocity => ViewerActuatorType::Velocity,
             };
-            let default_target = motor.target_position;
-            let limits = joint.limits.as_ref().map(|limits| (limits.min, limits.max));
-            merge_control_entry(
-                &mut entries,
-                &mut action_to_index,
+            entries.push(build_control_entry(
                 &mut fallback_index,
                 binding,
+                originals.get(&binding.action),
+                exported_bindings.get(&viewer_binding_key(
+                    MachineControlTargetKind::Joint,
+                    &joint.id,
+                )),
                 actuator_type,
-                default_target,
-                limits,
-            );
+                motor.target_position,
+                joint.limits.as_ref().map(|limits| (limits.min, limits.max)),
+            ));
         }
 
         for behavior in &plan.behaviors {
             let Some(binding) = &behavior.input else {
                 continue;
             };
-            merge_control_entry(
-                &mut entries,
-                &mut action_to_index,
+            entries.push(build_control_entry(
                 &mut fallback_index,
                 binding,
+                originals.get(&binding.action),
+                exported_bindings.get(&viewer_binding_key(
+                    MachineControlTargetKind::Behavior,
+                    &behavior.id,
+                )),
                 ViewerActuatorType::Trigger,
                 0.0,
                 None,
-            );
+            ));
         }
 
         Self { entries }
@@ -202,7 +218,7 @@ impl ViewerControls {
                     ViewerActuatorType::Position => "position",
                     ViewerActuatorType::Trigger => "trigger",
                 };
-                format!("{binding}: {} ({kind})", entry.action_name)
+                format!("{binding}: {} ({kind})", entry.original_action)
             })
             .collect()
     }
@@ -217,7 +233,8 @@ struct SceneFocus {
 
 struct ViewerState {
     source_path: PathBuf,
-    envelope: SerializedMachineEnvelope,
+    runtime_plan: MachinePlan,
+    viewer_controls: ViewerControls,
     ground_y: f32,
     simulation: RapierSimulation,
     runtime: MachineRuntime,
@@ -227,13 +244,19 @@ impl ViewerState {
     fn load(path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         let json = fs::read_to_string(&path)?;
         let envelope: SerializedMachineEnvelope = serde_json::from_str(&json)?;
+        validate_machine_envelope(&envelope)?;
+        let mut runtime_plan = envelope.plan.clone();
+        let originals = rewrite_viewer_plan_actions(&mut runtime_plan);
+        let viewer_controls =
+            ViewerControls::from_plan(&runtime_plan, envelope.controls.as_ref(), &originals);
         let mut simulation = RapierSimulation::default();
-        let runtime = MachineRuntime::from_envelope(&mut simulation, envelope.clone())?;
+        let runtime = MachineRuntime::from_plan(&mut simulation, runtime_plan.clone())?;
         let ground_y = compute_ground_plane_y(&runtime, &simulation);
         simulation.insert_static_ground(ground_y, GROUND_HALF_EXTENT, GROUND_THICKNESS);
         Ok(Self {
             source_path: path,
-            envelope,
+            runtime_plan,
+            viewer_controls,
             ground_y,
             simulation,
             runtime,
@@ -242,7 +265,7 @@ impl ViewerState {
 
     fn reset(&mut self) -> Result<(), RuntimeBuildError> {
         let mut simulation = RapierSimulation::default();
-        let runtime = MachineRuntime::from_envelope(&mut simulation, self.envelope.clone())?;
+        let runtime = MachineRuntime::from_plan(&mut simulation, self.runtime_plan.clone())?;
         let ground_y = compute_ground_plane_y(&runtime, &simulation);
         simulation.insert_static_ground(ground_y, GROUND_HALF_EXTENT, GROUND_THICKNESS);
         self.ground_y = ground_y;
@@ -261,7 +284,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source_path =
         viewer_source_path_from_args(env::args_os().skip(1)).unwrap_or_else(default_fixture_path);
     let viewer_state = ViewerState::load(source_path)?;
-    let viewer_controls = ViewerControls::from_plan(viewer_state.runtime.plan());
+    let viewer_controls = viewer_state.viewer_controls.clone();
 
     App::new()
         .insert_non_send_resource(viewer_state)
@@ -776,54 +799,138 @@ fn draw_collider_gizmo(
     }
 }
 
-fn merge_control_entry(
-    entries: &mut Vec<ViewerControlEntry>,
-    action_to_index: &mut HashMap<String, usize>,
+fn rewrite_viewer_plan_actions(plan: &mut MachinePlan) -> HashMap<String, OriginalViewerBinding> {
+    let mut originals = HashMap::new();
+
+    for joint in &mut plan.joints {
+        let Some(binding) = joint.motor.as_mut().and_then(|motor| motor.input.as_mut()) else {
+            continue;
+        };
+        let unique_action = format!("ctrl:joint:{}", joint.id);
+        let effective_scale = binding.scale.unwrap_or(1.0)
+            * if binding.invert.unwrap_or(false) {
+                -1.0
+            } else {
+                1.0
+            };
+        originals.insert(
+            unique_action.clone(),
+            OriginalViewerBinding {
+                action: binding.action.clone(),
+                scale: effective_scale,
+            },
+        );
+        binding.action = unique_action;
+        binding.scale = Some(1.0);
+        binding.invert = Some(false);
+    }
+
+    for behavior in &mut plan.behaviors {
+        let Some(binding) = behavior.input.as_mut() else {
+            continue;
+        };
+        let unique_action = format!("ctrl:behavior:{}", behavior.id);
+        let effective_scale = binding.scale.unwrap_or(1.0)
+            * if binding.invert.unwrap_or(false) {
+                -1.0
+            } else {
+                1.0
+            };
+        originals.insert(
+            unique_action.clone(),
+            OriginalViewerBinding {
+                action: binding.action.clone(),
+                scale: effective_scale,
+            },
+        );
+        binding.action = unique_action;
+        binding.scale = Some(1.0);
+        binding.invert = Some(false);
+    }
+
+    originals
+}
+
+fn exported_viewer_bindings(
+    controls: Option<&MachineControls>,
+) -> HashMap<String, ViewerKeyBinding> {
+    let Some(controls) = controls else {
+        return HashMap::new();
+    };
+    let Some(profile) = controls
+        .profiles
+        .iter()
+        .find(|profile| profile.id == controls.default_profile_id)
+        .or_else(|| controls.profiles.first())
+    else {
+        return HashMap::new();
+    };
+
+    profile
+        .bindings
+        .iter()
+        .filter_map(|binding| {
+            viewer_key_binding_from_codes(
+                &binding.positive.code,
+                binding.negative.as_ref().map(|key| key.code.as_str()),
+            )
+            .map(|viewer_binding| {
+                (
+                    viewer_binding_key(binding.target.kind, &binding.target.id),
+                    viewer_binding,
+                )
+            })
+        })
+        .collect()
+}
+
+fn viewer_binding_key(kind: MachineControlTargetKind, id: &str) -> String {
+    match kind {
+        MachineControlTargetKind::Joint => format!("joint:{id}"),
+        MachineControlTargetKind::Behavior => format!("behavior:{id}"),
+    }
+}
+
+fn build_control_entry(
     fallback_index: &mut usize,
     binding: &InputBinding,
+    original: Option<&OriginalViewerBinding>,
+    exported_binding: Option<&ViewerKeyBinding>,
     actuator_type: ViewerActuatorType,
     default_target: f32,
     limits: Option<(f32, f32)>,
-) {
-    let scale = binding.scale.unwrap_or(1.0)
-        * if binding.invert.unwrap_or(false) {
-            -1.0
-        } else {
-            1.0
-        };
+) -> ViewerControlEntry {
+    let scale = original.map(|binding| binding.scale).unwrap_or_else(|| {
+        binding.scale.unwrap_or(1.0)
+            * if binding.invert.unwrap_or(false) {
+                -1.0
+            } else {
+                1.0
+            }
+    });
+    let default_action = original
+        .map(|binding| binding.action.as_str())
+        .unwrap_or(binding.action.as_str());
 
-    if let Some(index) = action_to_index.get(&binding.action).copied() {
-        let entry = &mut entries[index];
-        if matches!(actuator_type, ViewerActuatorType::Position) {
-            entry.actuator_type = ViewerActuatorType::Position;
-        } else if matches!(actuator_type, ViewerActuatorType::Trigger) {
-            entry.actuator_type = ViewerActuatorType::Trigger;
-        }
-        if entry.limits.is_none() {
-            entry.limits = limits;
-        } else if let (Some((entry_min, entry_max)), Some((min, max))) = (entry.limits, limits) {
-            entry.limits = Some((entry_min.max(min), entry_max.min(max)));
-        }
-        return;
-    }
+    let key_binding = exported_binding
+        .cloned()
+        .or_else(|| default_key_binding(default_action))
+        .unwrap_or_else(|| {
+            let binding = fallback_key_binding(*fallback_index);
+            *fallback_index += 1;
+            binding
+        });
 
-    let key_binding = default_key_binding(&binding.action)
-        .unwrap_or_else(|| fallback_key_binding(*fallback_index));
-    if default_key_binding(&binding.action).is_none() {
-        *fallback_index += 1;
-    }
-
-    let index = entries.len();
-    action_to_index.insert(binding.action.clone(), index);
-    entries.push(ViewerControlEntry {
+    ViewerControlEntry {
         action_name: binding.action.clone(),
+        original_action: default_action.to_string(),
         actuator_type,
         binding: key_binding,
         scale,
         default_target,
         current_target: default_target,
         limits,
-    });
+    }
 }
 
 fn default_key_binding(action: &str) -> Option<ViewerKeyBinding> {
@@ -867,6 +974,174 @@ fn key_binding(
         negative_key: negative.map(|(key, _)| key),
         negative_label: negative.map(|(_, label)| label.to_string()),
     }
+}
+
+fn viewer_key_binding_from_codes(
+    positive_code: &str,
+    negative_code: Option<&str>,
+) -> Option<ViewerKeyBinding> {
+    let positive_key = key_code_from_web_code(positive_code)?;
+    let positive_label = key_label_from_web_code(positive_code);
+    let negative = match negative_code {
+        Some(code) => Some((key_code_from_web_code(code)?, key_label_from_web_code(code))),
+        None => None,
+    };
+    Some(ViewerKeyBinding {
+        positive_key,
+        positive_label,
+        negative_key: negative.as_ref().map(|(key, _)| *key),
+        negative_label: negative.map(|(_, label)| label),
+    })
+}
+
+fn key_label_from_web_code(code: &str) -> String {
+    match code {
+        "Space" => "Space".to_string(),
+        "ArrowUp" => "Up".to_string(),
+        "ArrowDown" => "Down".to_string(),
+        "ArrowLeft" => "Left".to_string(),
+        "ArrowRight" => "Right".to_string(),
+        "BracketLeft" => "[".to_string(),
+        "BracketRight" => "]".to_string(),
+        "Backslash" => "\\".to_string(),
+        "Semicolon" => ";".to_string(),
+        "Quote" => "'".to_string(),
+        "Comma" => ",".to_string(),
+        "Period" => ".".to_string(),
+        "Slash" => "/".to_string(),
+        "Minus" => "-".to_string(),
+        "Equal" => "=".to_string(),
+        "Backquote" => "`".to_string(),
+        _ if code.starts_with("Key") && code.len() == 4 => code[3..].to_string(),
+        _ if code.starts_with("Digit") && code.len() == 6 => code[5..].to_string(),
+        _ => code.to_string(),
+    }
+}
+
+fn key_code_from_web_code(code: &str) -> Option<KeyCode> {
+    Some(match code {
+        "Space" => KeyCode::Space,
+        "Enter" => KeyCode::Enter,
+        "Tab" => KeyCode::Tab,
+        "Escape" => KeyCode::Escape,
+        "Backspace" => KeyCode::Backspace,
+        "Delete" => KeyCode::Delete,
+        "Insert" => KeyCode::Insert,
+        "Home" => KeyCode::Home,
+        "End" => KeyCode::End,
+        "PageUp" => KeyCode::PageUp,
+        "PageDown" => KeyCode::PageDown,
+        "ArrowUp" => KeyCode::ArrowUp,
+        "ArrowDown" => KeyCode::ArrowDown,
+        "ArrowLeft" => KeyCode::ArrowLeft,
+        "ArrowRight" => KeyCode::ArrowRight,
+        "ShiftLeft" => KeyCode::ShiftLeft,
+        "ShiftRight" => KeyCode::ShiftRight,
+        "ControlLeft" => KeyCode::ControlLeft,
+        "ControlRight" => KeyCode::ControlRight,
+        "AltLeft" => KeyCode::AltLeft,
+        "AltRight" => KeyCode::AltRight,
+        "MetaLeft" => KeyCode::SuperLeft,
+        "MetaRight" => KeyCode::SuperRight,
+        "CapsLock" => KeyCode::CapsLock,
+        "Backquote" => KeyCode::Backquote,
+        "Minus" => KeyCode::Minus,
+        "Equal" => KeyCode::Equal,
+        "BracketLeft" => KeyCode::BracketLeft,
+        "BracketRight" => KeyCode::BracketRight,
+        "Backslash" => KeyCode::Backslash,
+        "Semicolon" => KeyCode::Semicolon,
+        "Quote" => KeyCode::Quote,
+        "Comma" => KeyCode::Comma,
+        "Period" => KeyCode::Period,
+        "Slash" => KeyCode::Slash,
+        "Numpad0" => KeyCode::Numpad0,
+        "Numpad1" => KeyCode::Numpad1,
+        "Numpad2" => KeyCode::Numpad2,
+        "Numpad3" => KeyCode::Numpad3,
+        "Numpad4" => KeyCode::Numpad4,
+        "Numpad5" => KeyCode::Numpad5,
+        "Numpad6" => KeyCode::Numpad6,
+        "Numpad7" => KeyCode::Numpad7,
+        "Numpad8" => KeyCode::Numpad8,
+        "Numpad9" => KeyCode::Numpad9,
+        "NumpadAdd" => KeyCode::NumpadAdd,
+        "NumpadSubtract" => KeyCode::NumpadSubtract,
+        "NumpadMultiply" => KeyCode::NumpadMultiply,
+        "NumpadDivide" => KeyCode::NumpadDivide,
+        "NumpadDecimal" => KeyCode::NumpadDecimal,
+        "NumpadEnter" => KeyCode::NumpadEnter,
+        _ if code.starts_with("Key") && code.len() == 4 => match &code[3..] {
+            "A" => KeyCode::KeyA,
+            "B" => KeyCode::KeyB,
+            "C" => KeyCode::KeyC,
+            "D" => KeyCode::KeyD,
+            "E" => KeyCode::KeyE,
+            "F" => KeyCode::KeyF,
+            "G" => KeyCode::KeyG,
+            "H" => KeyCode::KeyH,
+            "I" => KeyCode::KeyI,
+            "J" => KeyCode::KeyJ,
+            "K" => KeyCode::KeyK,
+            "L" => KeyCode::KeyL,
+            "M" => KeyCode::KeyM,
+            "N" => KeyCode::KeyN,
+            "O" => KeyCode::KeyO,
+            "P" => KeyCode::KeyP,
+            "Q" => KeyCode::KeyQ,
+            "R" => KeyCode::KeyR,
+            "S" => KeyCode::KeyS,
+            "T" => KeyCode::KeyT,
+            "U" => KeyCode::KeyU,
+            "V" => KeyCode::KeyV,
+            "W" => KeyCode::KeyW,
+            "X" => KeyCode::KeyX,
+            "Y" => KeyCode::KeyY,
+            "Z" => KeyCode::KeyZ,
+            _ => return None,
+        },
+        _ if code.starts_with("Digit") && code.len() == 6 => match &code[5..] {
+            "0" => KeyCode::Digit0,
+            "1" => KeyCode::Digit1,
+            "2" => KeyCode::Digit2,
+            "3" => KeyCode::Digit3,
+            "4" => KeyCode::Digit4,
+            "5" => KeyCode::Digit5,
+            "6" => KeyCode::Digit6,
+            "7" => KeyCode::Digit7,
+            "8" => KeyCode::Digit8,
+            "9" => KeyCode::Digit9,
+            _ => return None,
+        },
+        _ if code.starts_with('F') => match &code[1..] {
+            "1" => KeyCode::F1,
+            "2" => KeyCode::F2,
+            "3" => KeyCode::F3,
+            "4" => KeyCode::F4,
+            "5" => KeyCode::F5,
+            "6" => KeyCode::F6,
+            "7" => KeyCode::F7,
+            "8" => KeyCode::F8,
+            "9" => KeyCode::F9,
+            "10" => KeyCode::F10,
+            "11" => KeyCode::F11,
+            "12" => KeyCode::F12,
+            "13" => KeyCode::F13,
+            "14" => KeyCode::F14,
+            "15" => KeyCode::F15,
+            "16" => KeyCode::F16,
+            "17" => KeyCode::F17,
+            "18" => KeyCode::F18,
+            "19" => KeyCode::F19,
+            "20" => KeyCode::F20,
+            "21" => KeyCode::F21,
+            "22" => KeyCode::F22,
+            "23" => KeyCode::F23,
+            "24" => KeyCode::F24,
+            _ => return None,
+        },
+        _ => return None,
+    })
 }
 
 fn scalar_axis_input(positive: bool, negative: bool) -> f32 {
@@ -1180,6 +1455,12 @@ fn viewer_source_path_from_args(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snap_machines_rapier::{
+        MachineControlProfile, MachineControlProfileKind, MachineControlTarget,
+        MachineControlTargetKind, MachineControls, MachineKeyboardBinding, MachineKeyboardKey,
+        SERIALIZED_MACHINE_SCHEMA_VERSION,
+    };
+    use tempfile::NamedTempFile;
 
     #[test]
     fn default_fixture_path_exists() {
@@ -1217,12 +1498,12 @@ mod tests {
     fn crane_fixture_derives_position_controls() {
         let state =
             ViewerState::load(fixture_path("crane.envelope.json")).expect("crane fixture loads");
-        let controls = ViewerControls::from_plan(state.runtime.plan());
+        let controls = state.viewer_controls.clone();
 
         let yaw = controls
             .entries
             .iter()
-            .find(|entry| entry.action_name == "armYaw")
+            .find(|entry| entry.original_action == "armYaw")
             .expect("armYaw control exists");
         assert_eq!(yaw.actuator_type, ViewerActuatorType::Position);
         assert_eq!(yaw.binding.positive_key, KeyCode::KeyD);
@@ -1231,10 +1512,71 @@ mod tests {
         let pitch = controls
             .entries
             .iter()
-            .find(|entry| entry.action_name == "armPitch")
+            .find(|entry| entry.original_action == "armPitch")
             .expect("armPitch control exists");
         assert_eq!(pitch.actuator_type, ViewerActuatorType::Position);
         assert_eq!(pitch.binding.positive_key, KeyCode::KeyW);
         assert_eq!(pitch.binding.negative_key, Some(KeyCode::KeyS));
+    }
+
+    #[test]
+    fn viewer_prefers_exported_controls_from_envelope() {
+        let fixture = fixture_path("crane.envelope.json");
+        let original_json = fs::read_to_string(&fixture).expect("fixture json");
+        let original_envelope: SerializedMachineEnvelope =
+            serde_json::from_str(&original_json).expect("fixture envelope");
+        let state = ViewerState::load(fixture).expect("crane fixture loads");
+        let yaw_entry = state
+            .viewer_controls
+            .entries
+            .iter()
+            .find(|entry| entry.original_action == "armYaw")
+            .expect("armYaw control exists");
+        let yaw_joint_id = yaw_entry
+            .action_name
+            .strip_prefix("ctrl:joint:")
+            .expect("armYaw action uses rewritten joint action");
+        let envelope = SerializedMachineEnvelope {
+            schema_version: SERIALIZED_MACHINE_SCHEMA_VERSION,
+            catalog_version: original_envelope.catalog_version,
+            plan: original_envelope.plan,
+            controls: Some(MachineControls {
+                default_profile_id: "keyboard.custom".into(),
+                profiles: vec![MachineControlProfile {
+                    id: "keyboard.custom".into(),
+                    kind: MachineControlProfileKind::Keyboard,
+                    bindings: vec![MachineKeyboardBinding {
+                        target: MachineControlTarget {
+                            kind: MachineControlTargetKind::Joint,
+                            id: yaw_joint_id.into(),
+                        },
+                        positive: MachineKeyboardKey {
+                            code: "ArrowRight".into(),
+                        },
+                        negative: Some(MachineKeyboardKey {
+                            code: "ArrowLeft".into(),
+                        }),
+                        enabled: true,
+                        scale: 1.0,
+                    }],
+                }],
+            }),
+            metadata: None,
+        };
+
+        let file = NamedTempFile::new().expect("temp file");
+        serde_json::to_writer_pretty(file.as_file(), &envelope).expect("write envelope json");
+
+        let loaded = ViewerState::load(file.path().to_path_buf())
+            .expect("viewer loads envelope with controls");
+        let yaw = loaded
+            .viewer_controls
+            .entries
+            .iter()
+            .find(|entry| entry.original_action == "armYaw")
+            .expect("armYaw control exists");
+
+        assert_eq!(yaw.binding.positive_key, KeyCode::ArrowRight);
+        assert_eq!(yaw.binding.negative_key, Some(KeyCode::ArrowLeft));
     }
 }

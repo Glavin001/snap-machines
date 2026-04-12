@@ -4,11 +4,15 @@ import { BlockGraph } from "../graph.js";
 import { TRANSFORM_IDENTITY, vec3, transform, QUAT_IDENTITY } from "../math.js";
 import { compileMachinePlan } from "../compile/plan.js";
 import {
+  applyMachineControls,
+  createMachineControlsFromControlMap,
+  generateMachineControls,
   rewritePlanActions,
   generateControlMap,
   updateControlMapInput,
   resetControlMapState,
   ControlMap,
+  keyboardCodeLabel,
 } from "../control-map.js";
 
 // ---------------------------------------------------------------------------
@@ -231,8 +235,8 @@ describe("generateControlMap", () => {
     expect(map).toHaveLength(1);
     const entry = map[0]!;
     expect(entry.actuatorType).toBe("velocity");
-    expect(entry.positiveKey).toBe("e");
-    expect(entry.negativeKey).toBe("q");
+    expect(entry.positiveKey).toBe("KeyE");
+    expect(entry.negativeKey).toBe("KeyQ");
     expect(entry.scale).toBe(5);
     expect(entry.blockId).toBe("h1");
     expect(entry.blockName).toBe("Motor Hinge");
@@ -253,8 +257,8 @@ describe("generateControlMap", () => {
     expect(map).toHaveLength(1);
     const entry = map[0]!;
     expect(entry.actuatorType).toBe("position");
-    expect(entry.positiveKey).toBe("w");
-    expect(entry.negativeKey).toBe("s");
+    expect(entry.positiveKey).toBe("KeyW");
+    expect(entry.negativeKey).toBe("KeyS");
     expect(entry.scale).toBeCloseTo(Math.PI / 2);
     expect(entry.limits).toBeDefined();
     expect(entry.limits!.min).toBeCloseTo(-Math.PI / 2);
@@ -279,7 +283,7 @@ describe("generateControlMap", () => {
     expect(map).toHaveLength(1);
     const entry = map[0]!;
     expect(entry.actuatorType).toBe("trigger");
-    expect(entry.positiveKey).toBe(" ");
+    expect(entry.positiveKey).toBe("Space");
     expect(entry.negativeKey).toBe("");
     expect(entry.originalAction).toBe("throttle");
   });
@@ -329,7 +333,7 @@ describe("updateControlMapInput", () => {
       {
         id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
-        positiveKey: "e", negativeKey: "q", scale: 5,
+        positiveKey: "KeyE", negativeKey: "KeyQ", scale: 5,
         enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
@@ -340,15 +344,15 @@ describe("updateControlMapInput", () => {
     expect(input["ctrl:joint:j1"]).toBe(0);
 
     // Positive key pressed
-    input = updateControlMapInput(map, new Set(["e"]), 1 / 60);
+    input = updateControlMapInput(map, new Set(["KeyE"]), 1 / 60);
     expect(input["ctrl:joint:j1"]).toBe(5);
 
     // Negative key pressed
-    input = updateControlMapInput(map, new Set(["q"]), 1 / 60);
+    input = updateControlMapInput(map, new Set(["KeyQ"]), 1 / 60);
     expect(input["ctrl:joint:j1"]).toBe(-5);
 
     // Both keys pressed (cancel out)
-    input = updateControlMapInput(map, new Set(["q", "e"]), 1 / 60);
+    input = updateControlMapInput(map, new Set(["KeyQ", "KeyE"]), 1 / 60);
     expect(input["ctrl:joint:j1"]).toBe(0);
   });
 
@@ -357,7 +361,7 @@ describe("updateControlMapInput", () => {
       {
         id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
-        positiveKey: "w", negativeKey: "s", scale: 2,
+        positiveKey: "KeyW", negativeKey: "KeyS", scale: 2,
         enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
       },
@@ -366,12 +370,12 @@ describe("updateControlMapInput", () => {
     const dt = 0.5;
 
     // First frame: W held → target = 0 + 1 * 2 * 0.5 = 1.0
-    let input = updateControlMapInput(map, new Set(["w"]), dt);
+    let input = updateControlMapInput(map, new Set(["KeyW"]), dt);
     expect(input["ctrl:joint:j1"]).toBeCloseTo(1.0);
     expect(map[0]!.currentTarget).toBeCloseTo(1.0);
 
     // Second frame: W still held → target = 1.0 + 1 * 2 * 0.5 = 2.0
-    input = updateControlMapInput(map, new Set(["w"]), dt);
+    input = updateControlMapInput(map, new Set(["KeyW"]), dt);
     expect(input["ctrl:joint:j1"]).toBeCloseTo(2.0);
 
     // Third frame: no key → target stays at 2.0
@@ -380,7 +384,7 @@ describe("updateControlMapInput", () => {
     expect(map[0]!.currentTarget).toBeCloseTo(2.0);
 
     // Fourth frame: S held → target = 2.0 + (-1) * 2 * 0.5 = 1.0
-    input = updateControlMapInput(map, new Set(["s"]), dt);
+    input = updateControlMapInput(map, new Set(["KeyS"]), dt);
     expect(input["ctrl:joint:j1"]).toBeCloseTo(1.0);
   });
 
@@ -389,7 +393,7 @@ describe("updateControlMapInput", () => {
       {
         id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
-        positiveKey: "w", negativeKey: "s", scale: 10,
+        positiveKey: "KeyW", negativeKey: "KeyS", scale: 10,
         enabled: true,
         currentTarget: 0, actualPosition: 0, limits: { min: -1, max: 1 },
         originalAction: "armPitch", originalScale: 10,
@@ -397,11 +401,11 @@ describe("updateControlMapInput", () => {
     ];
 
     // Large dt to overshoot: target = 0 + 1 * 10 * 1 = 10, clamped to 1
-    updateControlMapInput(map, new Set(["w"]), 1.0);
+    updateControlMapInput(map, new Set(["KeyW"]), 1.0);
     expect(map[0]!.currentTarget).toBe(1);
 
     // Go negative: target = 1 + (-1) * 10 * 1 = -9, clamped to -1
-    updateControlMapInput(map, new Set(["s"]), 1.0);
+    updateControlMapInput(map, new Set(["KeyS"]), 1.0);
     expect(map[0]!.currentTarget).toBe(-1);
   });
 
@@ -410,7 +414,7 @@ describe("updateControlMapInput", () => {
       {
         id: "b1", label: "Thruster (t1)", blockId: "t1", blockName: "Thruster",
         actuatorType: "trigger", actionName: "ctrl:behavior:b1",
-        positiveKey: " ", negativeKey: "", scale: 1,
+        positiveKey: "Space", negativeKey: "", scale: 1,
         enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "throttle", originalScale: 1,
       },
@@ -419,7 +423,7 @@ describe("updateControlMapInput", () => {
     let input = updateControlMapInput(map, new Set(), 1 / 60);
     expect(input["ctrl:behavior:b1"]).toBe(0);
 
-    input = updateControlMapInput(map, new Set([" "]), 1 / 60);
+    input = updateControlMapInput(map, new Set(["Space"]), 1 / 60);
     expect(input["ctrl:behavior:b1"]).toBe(1);
   });
 
@@ -428,13 +432,13 @@ describe("updateControlMapInput", () => {
       {
         id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
-        positiveKey: "e", negativeKey: "q", scale: -5,
+        positiveKey: "KeyE", negativeKey: "KeyQ", scale: -5,
         enabled: true,
         currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
     ];
 
-    const input = updateControlMapInput(map, new Set(["e"]), 1 / 60);
+    const input = updateControlMapInput(map, new Set(["KeyE"]), 1 / 60);
     expect(input["ctrl:joint:j1"]).toBe(-5); // Flipped
   });
 
@@ -443,20 +447,20 @@ describe("updateControlMapInput", () => {
       {
         id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
-        positiveKey: "e", negativeKey: "q", scale: 5,
+        positiveKey: "KeyE", negativeKey: "KeyQ", scale: 5,
         enabled: false,
         currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
       {
         id: "j2", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j2",
-        positiveKey: "w", negativeKey: "s", scale: 2,
+        positiveKey: "KeyW", negativeKey: "KeyS", scale: 2,
         enabled: false,
         currentTarget: 1.5, defaultTarget: 0.4, actualPosition: 0.2, originalAction: "armPitch", originalScale: 2,
       },
     ];
 
-    const input = updateControlMapInput(map, new Set(["e", "w"]), 0.5);
+    const input = updateControlMapInput(map, new Set(["KeyE", "KeyW"]), 0.5);
     expect(input["ctrl:joint:j1"]).toBe(0);
     expect(input["ctrl:joint:j2"]).toBe(0.4);
     expect(input["ctrl:joint:j2:vff"]).toBeCloseTo(0.6);
@@ -470,7 +474,7 @@ describe("resetControlMapState", () => {
       {
         id: "j1", label: "Arm", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
-        positiveKey: "w", negativeKey: "s", scale: 2,
+        positiveKey: "KeyW", negativeKey: "KeyS", scale: 2,
         enabled: true,
         currentTarget: 1.5, defaultTarget: 0.35, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
       },
@@ -478,5 +482,106 @@ describe("resetControlMapState", () => {
 
     resetControlMapState(map);
     expect(map[0]!.currentTarget).toBe(0.35);
+  });
+});
+
+describe("portable machine controls", () => {
+  it("exports author-configured bindings from a control map", () => {
+    const controlMap: ControlMap = [
+      {
+        id: "joint:arm",
+        label: "Arm",
+        blockId: "a1",
+        blockName: "Arm",
+        actuatorType: "position",
+        actionName: "ctrl:joint:joint:arm",
+        positiveKey: "ArrowUp",
+        negativeKey: "ArrowDown",
+        enabled: false,
+        scale: 3,
+        currentTarget: 0,
+        actualPosition: 0,
+        originalAction: "armPitch",
+        originalScale: 2,
+      },
+    ];
+
+    const controls = createMachineControlsFromControlMap(controlMap);
+    expect(controls.defaultProfileId).toBe("keyboard.default");
+    expect(controls.profiles[0]!.bindings).toEqual([
+      {
+        target: { kind: "joint", id: "joint:arm" },
+        positive: { code: "ArrowUp" },
+        negative: { code: "ArrowDown" },
+        enabled: false,
+        scale: 3,
+      },
+    ]);
+  });
+
+  it("overlays exported bindings onto a generated control map", () => {
+    const controlMap: ControlMap = [
+      {
+        id: "joint:arm",
+        label: "Arm",
+        blockId: "a1",
+        blockName: "Arm",
+        actuatorType: "position",
+        actionName: "ctrl:joint:joint:arm",
+        positiveKey: "KeyW",
+        negativeKey: "KeyS",
+        enabled: true,
+        scale: 2,
+        currentTarget: 0,
+        actualPosition: 0,
+        originalAction: "armPitch",
+        originalScale: 2,
+      },
+    ];
+
+    const updated = applyMachineControls(controlMap, {
+      defaultProfileId: "custom",
+      profiles: [{
+        id: "custom",
+        kind: "keyboard",
+        bindings: [{
+          target: { kind: "joint", id: "joint:arm" },
+          positive: { code: "ArrowUp" },
+          negative: { code: "ArrowDown" },
+          enabled: false,
+          scale: 3,
+        }],
+      }],
+    });
+
+    expect(updated[0]!.positiveKey).toBe("ArrowUp");
+    expect(updated[0]!.negativeKey).toBe("ArrowDown");
+    expect(updated[0]!.enabled).toBe(false);
+    expect(updated[0]!.scale).toBe(3);
+  });
+
+  it("generates portable defaults from a compiled machine plan", () => {
+    const { catalog, graph, plan } = buildTestPlan([cubeBlock(), motorHingeBlock()], (g) => {
+      g.addNode({ id: "base", typeId: "cube", transform: TRANSFORM_IDENTITY });
+      g.addNode({ id: "h1", typeId: "motor-hinge", transform: transform(vec3(1, 0, 0), QUAT_IDENTITY) });
+      g.addConnection({ a: { blockId: "base", anchorId: "xp" }, b: { blockId: "h1", anchorId: "base.end" } });
+    });
+
+    const controls = generateMachineControls(plan, catalog, graph);
+    expect(controls.profiles[0]!.bindings[0]).toEqual({
+      target: { kind: "joint", id: plan.joints[0]!.id },
+      positive: { code: "KeyE" },
+      negative: { code: "KeyQ" },
+      enabled: true,
+      scale: 5,
+    });
+  });
+});
+
+describe("keyboardCodeLabel", () => {
+  it("renders common keyboard codes for the control panel", () => {
+    expect(keyboardCodeLabel("KeyE")).toBe("E");
+    expect(keyboardCodeLabel("Space")).toBe("Space");
+    expect(keyboardCodeLabel("BracketLeft")).toBe("[");
   });
 });

@@ -16,6 +16,8 @@ cargo run -p snap-machines-viewer -- path/to/machine.envelope.json
 
 ## Controls
 
+The viewer reads exported keyboard defaults from the envelope `controls` section when present. Older envelopes without that section fall back to built-in action-name defaults.
+
 - Right mouse drag: orbit camera
 - Scroll: zoom
 - `Q` / `E`: drive `hingeSpin` and `motorSpin`

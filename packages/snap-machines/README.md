@@ -112,8 +112,9 @@ Use `compileMachineEnvelope(graph, catalog)` to emit a sanitized machine payload
 - `schemaVersion` — serialized machine schema version
 - `catalogVersion` — deterministic version hash derived from the normalized catalog
 - `plan` — the compiled `MachinePlan` with bodies, colliders, joints, mounts, motors, and behaviors
+- `controls` — portable default input profiles, including the default keyboard starter bindings for each controllable joint or behavior
 
-If you need to ship the block catalog alongside the machine contract, use `serializeBlockCatalog(catalog)`. Runtime control inputs should stay separate from the machine payload and be supplied as action-value maps, the same way the JS Rapier runtime expects `runtime.update({ throttle: 1, hingeSpin: 0.5 }, dt)`.
+If you need to ship the block catalog alongside the machine contract, use `serializeBlockCatalog(catalog)`. The serialized `controls` payload is intended as a portable starter layout for interactive clients; runtime input still flows into Rapier as action-value maps, the same way the JS runtime expects `runtime.update({ throttle: 1, hingeSpin: 0.5 }, dt)`.
 
 ## Joint blocks
 
