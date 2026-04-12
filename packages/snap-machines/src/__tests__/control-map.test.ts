@@ -259,6 +259,11 @@ describe("generateControlMap", () => {
     expect(entry.limits).toBeDefined();
     expect(entry.limits!.min).toBeCloseTo(-Math.PI / 2);
     expect(entry.limits!.max).toBeCloseTo(Math.PI / 2);
+    expect(entry.defaultTarget).toBe(0);
+    expect(entry.targetPosition).toBe(0);
+    expect(entry.stiffness).toBe(100);
+    expect(entry.damping).toBe(10);
+    expect(entry.inputTarget).toBe("position");
   });
 
   it("creates trigger entries for behaviors", () => {
@@ -277,6 +282,44 @@ describe("generateControlMap", () => {
     expect(entry.positiveKey).toBe(" ");
     expect(entry.negativeKey).toBe("");
     expect(entry.originalAction).toBe("throttle");
+  });
+
+  it("surfaces builder motor overrides from graph metadata", () => {
+    const { catalog, graph, plan } = buildTestPlan([cubeBlock(), armBlock()], (g) => {
+      g.addNode({ id: "base", typeId: "cube", transform: TRANSFORM_IDENTITY });
+      g.addNode({
+        id: "a1",
+        typeId: "arm",
+        transform: transform(vec3(0, 1, 0), QUAT_IDENTITY),
+        metadata: {
+          builder: {
+            motor: {
+              targetPosition: 0.75,
+              stiffness: 180,
+              damping: 18,
+              inputTarget: "both",
+            },
+          },
+        },
+      });
+      g.addConnection({ a: { blockId: "base", anchorId: "yp" }, b: { blockId: "a1", anchorId: "mount.attach" } });
+    });
+
+    expect(plan.joints[0]!.motor!.targetPosition).toBeCloseTo(0.75);
+    expect(plan.joints[0]!.motor!.stiffness).toBe(180);
+    expect(plan.joints[0]!.motor!.damping).toBe(18);
+    expect(plan.joints[0]!.motor!.inputTarget).toBe("both");
+
+    const originals = rewritePlanActions(plan);
+    const map = generateControlMap(plan, originals, catalog, graph);
+    const entry = map[0]!;
+
+    expect(entry.defaultTarget).toBeCloseTo(0.75);
+    expect(entry.currentTarget).toBeCloseTo(0.75);
+    expect(entry.targetPosition).toBeCloseTo(0.75);
+    expect(entry.stiffness).toBe(180);
+    expect(entry.damping).toBe(18);
+    expect(entry.inputTarget).toBe("both");
   });
 });
 
@@ -409,31 +452,31 @@ describe("updateControlMapInput", () => {
         actuatorType: "position", actionName: "ctrl:joint:j2",
         positiveKey: "w", negativeKey: "s", scale: 2,
         enabled: false,
-        currentTarget: 1.5, actualPosition: 0.2, originalAction: "armPitch", originalScale: 2,
+        currentTarget: 1.5, defaultTarget: 0.4, actualPosition: 0.2, originalAction: "armPitch", originalScale: 2,
       },
     ];
 
     const input = updateControlMapInput(map, new Set(["e", "w"]), 0.5);
     expect(input["ctrl:joint:j1"]).toBe(0);
-    expect(input["ctrl:joint:j2"]).toBe(0);
-    expect(input["ctrl:joint:j2:vff"]).toBe(0);
-    expect(map[1]!.currentTarget).toBe(0);
+    expect(input["ctrl:joint:j2"]).toBe(0.4);
+    expect(input["ctrl:joint:j2:vff"]).toBeCloseTo(0.6);
+    expect(map[1]!.currentTarget).toBe(0.4);
   });
 });
 
 describe("resetControlMapState", () => {
-  it("resets position accumulators to zero", () => {
+  it("resets position accumulators to their default target", () => {
     const map: ControlMap = [
       {
         id: "j1", label: "Arm", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "w", negativeKey: "s", scale: 2,
         enabled: true,
-        currentTarget: 1.5, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
+        currentTarget: 1.5, defaultTarget: 0.35, actualPosition: 0, originalAction: "armPitch", originalScale: 2,
       },
     ];
 
     resetControlMapState(map);
-    expect(map[0]!.currentTarget).toBe(0);
+    expect(map[0]!.currentTarget).toBe(0.35);
   });
 });

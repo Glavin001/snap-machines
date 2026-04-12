@@ -91,6 +91,16 @@ export interface PlannedJointMotor {
   inputTarget: "position" | "velocity" | "both";
 }
 
+export interface BuilderJointMotorOverrides {
+  mode?: PlannedJointMotor["mode"];
+  targetPosition?: number;
+  targetVelocity?: number;
+  stiffness?: number;
+  damping?: number;
+  maxForce?: number;
+  inputTarget?: PlannedJointMotor["inputTarget"];
+}
+
 export interface MachineJointPlan {
   id: string;
   blockId: string;
@@ -521,7 +531,7 @@ function buildJointPlans(
       localAxisB: axisWorld,
       limits: joint.limits ? { ...joint.limits } : undefined,
       collideConnected: joint.collideConnected,
-      motor: joint.motor ? normalizeMotor(joint.motor) : undefined,
+      motor: joint.motor ? applyBuilderJointMotorOverrides(normalizeMotor(joint.motor), node) : undefined,
       metadata: joint.metadata,
     });
   }
@@ -596,6 +606,73 @@ function normalizeMotor(motor: NormalizedJointDefinition["motor"]): PlannedJoint
     input: motor?.input,
     inputTarget: motor?.inputTarget ?? "velocity",
   };
+}
+
+function applyBuilderJointMotorOverrides(motor: PlannedJointMotor, node: BlockNode): PlannedJointMotor {
+  const overrides = getBuilderJointMotorOverrides(node);
+  if (!overrides) {
+    return motor;
+  }
+
+  return {
+    ...motor,
+    ...(overrides.mode ? { mode: overrides.mode } : null),
+    ...(overrides.targetPosition !== undefined ? { targetPosition: overrides.targetPosition } : null),
+    ...(overrides.targetVelocity !== undefined ? { targetVelocity: overrides.targetVelocity } : null),
+    ...(overrides.stiffness !== undefined ? { stiffness: overrides.stiffness } : null),
+    ...(overrides.damping !== undefined ? { damping: overrides.damping } : null),
+    ...(overrides.maxForce !== undefined ? { maxForce: overrides.maxForce } : null),
+    ...(overrides.inputTarget ? { inputTarget: overrides.inputTarget } : null),
+  };
+}
+
+function getBuilderJointMotorOverrides(node: BlockNode): BuilderJointMotorOverrides | undefined {
+  const metadata = node.metadata;
+  if (!isRecord(metadata)) {
+    return undefined;
+  }
+  const builder = metadata.builder;
+  if (!isRecord(builder)) {
+    return undefined;
+  }
+  const motor = builder.motor;
+  if (!isRecord(motor)) {
+    return undefined;
+  }
+
+  const overrides: BuilderJointMotorOverrides = {};
+
+  if (motor.mode === "position" || motor.mode === "velocity" || motor.mode === "full") {
+    overrides.mode = motor.mode;
+  }
+  if (isFiniteNumber(motor.targetPosition)) {
+    overrides.targetPosition = motor.targetPosition;
+  }
+  if (isFiniteNumber(motor.targetVelocity)) {
+    overrides.targetVelocity = motor.targetVelocity;
+  }
+  if (isFiniteNumber(motor.stiffness)) {
+    overrides.stiffness = motor.stiffness;
+  }
+  if (isFiniteNumber(motor.damping)) {
+    overrides.damping = motor.damping;
+  }
+  if (isFiniteNumber(motor.maxForce)) {
+    overrides.maxForce = motor.maxForce;
+  }
+  if (motor.inputTarget === "position" || motor.inputTarget === "velocity" || motor.inputTarget === "both") {
+    overrides.inputTarget = motor.inputTarget;
+  }
+
+  return Object.keys(overrides).length > 0 ? overrides : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function unique<T>(values: readonly T[]): T[] {

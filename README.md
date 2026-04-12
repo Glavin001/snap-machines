@@ -31,6 +31,25 @@ For the Rust side:
 cargo run -p snap-machines-viewer
 ```
 
+## Install In Another Rust Project
+
+The reusable Rust dependency is `snap-machines-rapier`. The Bevy viewer is a local binary crate for validation and debugging, not the package you would normally depend on.
+
+Install `snap-machines-rapier` from Git:
+
+```toml
+[dependencies]
+snap-machines-rapier = { git = "https://github.com/glavin001/snap-machines", package = "snap-machines-rapier" }
+```
+
+Then import it in code as:
+
+```rust
+use snap_machines_rapier::{MachineRuntime, RapierSimulation};
+```
+
+Once the crate is published to crates.io, that dependency can be replaced with a normal version requirement.
+
 ## Run Both Apps
 
 Start the web builder:

@@ -3,12 +3,16 @@ import { Environment, Grid, OrbitControls, TransformControls } from "@react-thre
 import { useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import * as THREE from "three";
 import {
+  ActuatorEntry,
   BlockCatalog,
   BlockGraph,
+  BuilderJointMotorOverrides,
+  compileMachineEnvelope,
   compileMachinePlan,
   ControlMap,
   degToRad,
   generateControlMap,
+  makeId,
   MachinePlan,
   radToDeg,
   resetControlMapState,
@@ -28,6 +32,8 @@ import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
 type Mode = "gallery" | "build" | "play";
 type BuilderTool = "place" | "select" | "move" | "rotate";
 type TransformSpace = "local" | "world";
+type PlacementMode = "manual" | "auto_orient";
+type MirrorPlaneAxis = "x" | "y" | "z";
 
 interface TransformDraft {
   px: string;
@@ -44,6 +50,14 @@ interface PlacementRotation {
   z: number;
 }
 
+interface MotorDraft {
+  targetPositionDeg: string;
+  targetVelocityDeg: string;
+  stiffness: string;
+  damping: string;
+  maxForce: string;
+}
+
 interface DragSelectionSnapshot {
   pivot: THREE.Vector3;
   handlePosition: THREE.Vector3;
@@ -53,6 +67,13 @@ interface DragSelectionSnapshot {
     position: THREE.Vector3;
     rotation: THREE.Quaternion;
   }>;
+}
+
+interface MarqueeRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 const TOOL_OPTIONS: Array<{ id: BuilderTool; label: string }> = [
@@ -72,13 +93,16 @@ function mergeControlMapSettings(nextMap: ControlMap, previousMap: ControlMap | 
   return nextMap.map((entry) => {
     const previous = previousById.get(entry.id);
     if (!previous) return entry;
+    const shouldResetTarget = entry.actuatorType === "position" && previous.defaultTarget !== entry.defaultTarget;
     return {
       ...entry,
       positiveKey: previous.positiveKey,
       negativeKey: previous.negativeKey,
       enabled: previous.enabled,
       scale: previous.scale,
-      currentTarget: entry.actuatorType === "position" ? previous.currentTarget : entry.currentTarget,
+      currentTarget: entry.actuatorType === "position" && !shouldResetTarget
+        ? previous.currentTarget
+        : entry.currentTarget,
     };
   });
 }
@@ -96,6 +120,15 @@ export function App() {
   const [transformSpace, setTransformSpace] = useState<TransformSpace>("local");
   const [placementRotation, setPlacementRotation] = useState<PlacementRotation>({ x: 0, y: 0, z: 0 });
   const [placementStepDeg, setPlacementStepDeg] = useState<number>(15);
+  const [placementMode, setPlacementMode] = useState<PlacementMode>("manual");
+  const [activeSourceAnchorId, setActiveSourceAnchorId] = useState<string | null>(null);
+  const [activeSnapCandidateIndex, setActiveSnapCandidateIndex] = useState(0);
+  const [snapCandidateCount, setSnapCandidateCount] = useState(0);
+  const [translationSnap, setTranslationSnap] = useState<number>(0.25);
+  const [rotationSnapDeg, setRotationSnapDeg] = useState<number>(15);
+  const [mirrorPlaneAxis, setMirrorPlaneAxis] = useState<MirrorPlaneAxis>("x");
+  const [mirrorPlaneOffset, setMirrorPlaneOffset] = useState(0);
+  const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
   const [partQuery, setPartQuery] = useState("");
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [snapResult, setSnapResult] = useState<SnapResult | null>(null);
@@ -113,6 +146,8 @@ export function App() {
   const [redoStack, setRedoStack] = useState<SerializedBlockGraph[]>([]);
   const [inspectorDraft, setInspectorDraft] = useState<TransformDraft | null>(null);
   const [inspectorError, setInspectorError] = useState<string | null>(null);
+  const [motorDraft, setMotorDraft] = useState<MotorDraft | null>(null);
+  const [motorDraftError, setMotorDraftError] = useState<string | null>(null);
   const [isTransformDragging, setIsTransformDragging] = useState(false);
 
   const catalog = useMemo(() => {
@@ -134,6 +169,9 @@ export function App() {
   const [graph, setGraph] = useState(() => createFreshGraph());
   const graphRef = useRef(graph);
   graphRef.current = graph;
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const cameraRef = useRef<THREE.Camera | null>(null);
+  const suppressSceneSelectionUntilRef = useRef(0);
 
   const selectedNodeId = selectedNodeIds[0] ?? null;
   const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
@@ -163,6 +201,44 @@ export function App() {
     () => (selectedNode ? catalog.get(selectedNode.typeId) : null),
     [catalog, selectedNode],
   );
+  const selectedActuatorEntries = useMemo(
+    () => (
+      selectedNode && controlMap
+        ? controlMap.filter((entry) => entry.blockId === selectedNode.id)
+        : []
+    ),
+    [controlMap, selectedNode],
+  );
+  const selectedJointActuator = useMemo(
+    () => selectedActuatorEntries.find((entry) => entry.id.startsWith("joint:")) ?? null,
+    [selectedActuatorEntries],
+  );
+  const buildPreviewJointAngles = useMemo(() => {
+    if (mode !== "build" || toolMode === "place" || !controlMap) {
+      return {};
+    }
+
+    const previewAngles: Record<string, number> = {};
+    for (const entry of controlMap) {
+      if (!entry.id.startsWith("joint:")) continue;
+      if (entry.actuatorType !== "position") continue;
+      previewAngles[entry.blockId] = entry.defaultTarget ?? entry.targetPosition ?? 0;
+    }
+
+    if (selectedJointActuator && motorDraft) {
+      const parsed = parseMotorDraft(motorDraft);
+      if (parsed.ok && selectedNode) {
+        previewAngles[selectedNode.id] = parsed.overrides.targetPosition ?? previewAngles[selectedNode.id] ?? 0;
+      }
+    }
+
+    return previewAngles;
+  }, [controlMap, mode, motorDraft, selectedJointActuator, selectedNode, toolMode]);
+  const placementDefinition = useMemo(
+    () => catalog.get(selectedType),
+    [catalog, selectedType],
+  );
+  const placementAnchors = placementDefinition.anchors;
   const selectedConnections = useMemo(
     () => selectedNodes.flatMap((node) => graph.getConnectionsForBlock(node.id)),
     [graph, selectedNodes],
@@ -244,6 +320,44 @@ export function App() {
     setInspectorError(null);
   }, [selectedNode]);
 
+  useEffect(() => {
+    if (!selectedJointActuator) {
+      setMotorDraft(null);
+      setMotorDraftError(null);
+      return;
+    }
+    setMotorDraft(actuatorToMotorDraft(selectedJointActuator));
+    setMotorDraftError(null);
+  }, [selectedJointActuator]);
+
+  useEffect(() => {
+    setActiveSourceAnchorId(null);
+    setActiveSnapCandidateIndex(0);
+    setPlacementRotation({ x: 0, y: 0, z: 0 });
+  }, [selectedType]);
+
+  useEffect(() => {
+    if (!selectionCentroid) return;
+    const nextOffset = mirrorPlaneAxis === "x"
+      ? selectionCentroid.x
+      : mirrorPlaneAxis === "y"
+        ? selectionCentroid.y
+        : selectionCentroid.z;
+    setMirrorPlaneOffset(nextOffset);
+  }, [mirrorPlaneAxis, selectionCentroid]);
+
+  useEffect(() => {
+    setActiveSnapCandidateIndex(0);
+  }, [activeSourceAnchorId, placementMode]);
+
+  useEffect(() => {
+    if (snapCandidateCount === 0) {
+      setActiveSnapCandidateIndex(0);
+      return;
+    }
+    setActiveSnapCandidateIndex((current) => Math.min(current, snapCandidateCount - 1));
+  }, [snapCandidateCount]);
+
   const groupedPalette = useMemo(() => {
     const query = partQuery.trim().toLowerCase();
     const filtered = paletteItems.filter((item) => {
@@ -320,6 +434,10 @@ export function App() {
       setRedoStack([]);
       setPlacementRotation({ x: 0, y: 0, z: 0 });
       setPlacementStepDeg(15);
+      setPlacementMode("manual");
+      setActiveSourceAnchorId(null);
+      setActiveSnapCandidateIndex(0);
+      setSnapCandidateCount(0);
       setToolMode("place");
       setTransformSpace("local");
       setPlayGraph(null);
@@ -380,6 +498,37 @@ export function App() {
     setShowJson(false);
   }, []);
 
+  const cycleActiveSourceAnchor = useCallback(() => {
+    if (placementAnchors.length === 0) return;
+    setPlacementMode("manual");
+    setActiveSnapCandidateIndex(0);
+    setActiveSourceAnchorId((previous) => {
+      if (!previous) return placementAnchors[0]!.id;
+      const currentIndex = placementAnchors.findIndex((anchor) => anchor.id === previous);
+      if (currentIndex === -1) return placementAnchors[0]!.id;
+      return placementAnchors[(currentIndex + 1) % placementAnchors.length]!.id;
+    });
+  }, [placementAnchors]);
+
+  const cycleSnapCandidate = useCallback((direction: 1 | -1) => {
+    if (snapCandidateCount <= 1) return;
+    setActiveSnapCandidateIndex((current) => {
+      const next = current + direction;
+      return ((next % snapCandidateCount) + snapCandidateCount) % snapCandidateCount;
+    });
+  }, [snapCandidateCount]);
+
+  const centerMirrorPlaneToSelection = useCallback(() => {
+    if (!selectionCentroid) return;
+    setMirrorPlaneOffset(
+      mirrorPlaneAxis === "x"
+        ? selectionCentroid.x
+        : mirrorPlaneAxis === "y"
+          ? selectionCentroid.y
+          : selectionCentroid.z,
+    );
+  }, [mirrorPlaneAxis, selectionCentroid]);
+
   const handleUndo = useCallback(() => {
     setUndoStack((prev) => {
       if (prev.length === 0) return prev;
@@ -423,6 +572,27 @@ export function App() {
     [applyBuildGraph],
   );
 
+  const updateSelectedNodeMetadata = useCallback(
+    (
+      updater: (current: Record<string, unknown> | undefined) => Record<string, unknown> | undefined,
+      options?: { recordHistory?: boolean; clearRedo?: boolean },
+    ) => {
+      const nodeId = selectedNodeIdRef.current;
+      if (!nodeId) return;
+
+      const nextGraph = graphRef.current.clone();
+      const node = nextGraph.getNode(nodeId);
+      if (!node) return;
+      node.metadata = updater(isRecord(node.metadata) ? { ...node.metadata } : undefined);
+      applyBuildGraph(nextGraph, {
+        recordHistory: options?.recordHistory,
+        clearRedo: options?.clearRedo,
+        selectionIds: [nodeId],
+      });
+    },
+    [applyBuildGraph],
+  );
+
   const deleteSelectedBlock = useCallback(() => {
     const selectedIds = selectedNodeIdsRef.current.filter((id) => id !== "origin");
     if (selectedIds.length === 0) return;
@@ -432,6 +602,107 @@ export function App() {
     }
     applyBuildGraph(nextGraph, { selectionIds: [] });
   }, [applyBuildGraph]);
+
+  const duplicateSelectedBlocks = useCallback(() => {
+    const selected = selectedNodeIdsRef.current
+      .map((id) => graphRef.current.getNode(id))
+      .filter((node): node is NonNullable<typeof node> => node != null && node.id !== "origin");
+    if (selected.length === 0) return;
+
+    const nextGraph = graphRef.current.clone();
+    const oldToNew = new Map<string, string>();
+    const offset = new THREE.Vector3(1, 0, 0);
+
+    for (const node of selected) {
+      const duplicate = nextGraph.addNode({
+        id: makeId("dup"),
+        typeId: node.typeId,
+        transform: {
+          position: vec3(
+            node.transform.position.x + offset.x,
+            node.transform.position.y + offset.y,
+            node.transform.position.z + offset.z,
+          ),
+          rotation: node.transform.rotation,
+        },
+        metadata: node.metadata,
+      });
+      oldToNew.set(node.id, duplicate.id);
+    }
+
+    const selectedSet = new Set(selected.map((node) => node.id));
+    for (const connection of graphRef.current.listConnections()) {
+      if (!selectedSet.has(connection.a.blockId) || !selectedSet.has(connection.b.blockId)) continue;
+      nextGraph.addConnection({
+        a: { blockId: oldToNew.get(connection.a.blockId)!, anchorId: connection.a.anchorId },
+        b: { blockId: oldToNew.get(connection.b.blockId)!, anchorId: connection.b.anchorId },
+        metadata: connection.metadata,
+      });
+    }
+
+    applyBuildGraph(nextGraph, { selectionIds: [...oldToNew.values()] });
+  }, [applyBuildGraph]);
+
+  const mirrorSelectedBlocks = useCallback(() => {
+    const selected = selectedNodeIdsRef.current
+      .map((id) => graphRef.current.getNode(id))
+      .filter((node): node is NonNullable<typeof node> => node != null && node.id !== "origin");
+    if (selected.length === 0) return;
+
+    const reflection = new THREE.Matrix4().makeScale(
+      mirrorPlaneAxis === "x" ? -1 : 1,
+      mirrorPlaneAxis === "y" ? -1 : 1,
+      mirrorPlaneAxis === "z" ? -1 : 1,
+    );
+    const nextGraph = graphRef.current.clone();
+    const oldToNew = new Map<string, string>();
+
+    for (const node of selected) {
+      const position = new THREE.Vector3(node.transform.position.x, node.transform.position.y, node.transform.position.z);
+      const mirroredPosition = position.clone();
+      if (mirrorPlaneAxis === "x") mirroredPosition.x = 2 * mirrorPlaneOffset - position.x;
+      if (mirrorPlaneAxis === "y") mirroredPosition.y = 2 * mirrorPlaneOffset - position.y;
+      if (mirrorPlaneAxis === "z") mirroredPosition.z = 2 * mirrorPlaneOffset - position.z;
+
+      const rotation = new THREE.Quaternion(
+        node.transform.rotation.x,
+        node.transform.rotation.y,
+        node.transform.rotation.z,
+        node.transform.rotation.w,
+      );
+      const rotationMatrix = new THREE.Matrix4().makeRotationFromQuaternion(rotation);
+      const mirroredRotationMatrix = reflection.clone().multiply(rotationMatrix).multiply(reflection);
+      const mirroredRotation = new THREE.Quaternion().setFromRotationMatrix(mirroredRotationMatrix).normalize();
+
+      const duplicate = nextGraph.addNode({
+        id: makeId("mirror"),
+        typeId: node.typeId,
+        transform: {
+          position: vec3(mirroredPosition.x, mirroredPosition.y, mirroredPosition.z),
+          rotation: {
+            x: mirroredRotation.x,
+            y: mirroredRotation.y,
+            z: mirroredRotation.z,
+            w: mirroredRotation.w,
+          },
+        },
+        metadata: node.metadata,
+      });
+      oldToNew.set(node.id, duplicate.id);
+    }
+
+    const selectedSet = new Set(selected.map((node) => node.id));
+    for (const connection of graphRef.current.listConnections()) {
+      if (!selectedSet.has(connection.a.blockId) || !selectedSet.has(connection.b.blockId)) continue;
+      nextGraph.addConnection({
+        a: { blockId: oldToNew.get(connection.a.blockId)!, anchorId: connection.a.anchorId },
+        b: { blockId: oldToNew.get(connection.b.blockId)!, anchorId: connection.b.anchorId },
+        metadata: connection.metadata,
+      });
+    }
+
+    applyBuildGraph(nextGraph, { selectionIds: [...oldToNew.values()] });
+  }, [applyBuildGraph, mirrorPlaneAxis, mirrorPlaneOffset]);
 
   const applyDraftTransform = useCallback(() => {
     if (!selectedNode || !inspectorDraft) return;
@@ -443,6 +714,33 @@ export function App() {
     updateSelectedTransform(parsed.transform);
     setInspectorError(null);
   }, [inspectorDraft, selectedNode, updateSelectedTransform]);
+
+  const applyMotorDraft = useCallback(() => {
+    if (!selectedJointActuator || !motorDraft) return;
+
+    const parsed = parseMotorDraft(motorDraft);
+    if (!parsed.ok) {
+      setMotorDraftError(parsed.error);
+      return;
+    }
+
+    updateSelectedNodeMetadata(
+      (current) => withBuilderMotorOverrides(current, parsed.overrides),
+    );
+    setMotorDraftError(null);
+  }, [motorDraft, selectedJointActuator, updateSelectedNodeMetadata]);
+
+  const resetMotorDraft = useCallback(() => {
+    if (!selectedJointActuator) return;
+    setMotorDraft(actuatorToMotorDraft(selectedJointActuator));
+    setMotorDraftError(null);
+  }, [selectedJointActuator]);
+
+  const clearMotorOverrides = useCallback(() => {
+    if (!selectedJointActuator) return;
+    updateSelectedNodeMetadata((current) => withBuilderMotorOverrides(current, null));
+    setMotorDraftError(null);
+  }, [selectedJointActuator, updateSelectedNodeMetadata]);
 
   const nudgeSelected = useCallback(
     (kind: "position" | "rotation", axis: "x" | "y" | "z", delta: number) => {
@@ -489,6 +787,41 @@ export function App() {
       setJsonError(err instanceof Error ? err.message : String(err));
     }
   }, [applyBuildGraph, catalog, jsonText, mode]);
+
+  const handleExportMachine = useCallback(() => {
+    try {
+      const parsed = JSON.parse(jsonText) as SerializedBlockGraph;
+      const nextGraph = BlockGraph.fromJSON(parsed);
+      const validation = nextGraph.validateAgainstCatalog(catalog);
+      if (!validation.ok) {
+        setJsonError(validation.errors.join("; "));
+        return;
+      }
+
+      const envelope = compileMachineEnvelope(nextGraph, catalog, {
+        metadata: {
+          builder: "snap-machines-demo",
+          mode,
+          presetName: activePreset?.name ?? null,
+        },
+      });
+      const json = JSON.stringify(envelope, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const baseName = (activePreset?.name ?? "machine")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      link.href = url;
+      link.download = `${baseName || "machine"}.envelope.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setJsonError(null);
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : String(err));
+    }
+  }, [activePreset?.name, catalog, jsonText, mode]);
 
   const handlePlanReady = useCallback(
     (plan: MachinePlan) => {
@@ -650,6 +983,11 @@ export function App() {
         handleRedo();
         return;
       }
+      if (meta && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        duplicateSelectedBlocks();
+        return;
+      }
 
       if (e.key === "1") setToolMode("place");
       if (e.key === "2") setToolMode("select");
@@ -673,11 +1011,23 @@ export function App() {
         e.preventDefault();
         setPlacementRotation({ x: 0, y: 0, z: 0 });
       }
+      if (e.key === "Tab" && toolMode === "place") {
+        e.preventDefault();
+        cycleActiveSourceAnchor();
+      }
+      if (toolMode === "place" && e.key === ",") {
+        e.preventDefault();
+        cycleSnapCandidate(-1);
+      }
+      if (toolMode === "place" && e.key === ".") {
+        e.preventDefault();
+        cycleSnapCandidate(1);
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleteSelectedBlock, handleRedo, handleUndo, mode, placementStepDeg]);
+  }, [cycleActiveSourceAnchor, cycleSnapCandidate, deleteSelectedBlock, duplicateSelectedBlocks, handleRedo, handleUndo, mode, placementStepDeg, toolMode]);
 
   useEffect(() => {
     if (mode !== "play" || !inputsEnabled || !activePreset || !controlMap) return;
@@ -705,6 +1055,9 @@ export function App() {
   }, [activePreset, controlMap, inputsEnabled, mode]);
 
   const handleSceneSelectionChange = useCallback((nodeId: string | null, options?: { toggle?: boolean }) => {
+    if (Date.now() < suppressSceneSelectionUntilRef.current) {
+      return;
+    }
     if (!nodeId) {
       setSelectedNodeIds([]);
       return;
@@ -720,6 +1073,79 @@ export function App() {
       return [...previous, nodeId];
     });
   }, []);
+
+  const handleCanvasPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (mode !== "build" || toolMode !== "select" || !e.shiftKey || e.button !== 0) return;
+    const canvasRect = canvasWrapRef.current?.getBoundingClientRect();
+    const camera = cameraRef.current;
+    if (!canvasRect || !camera) return;
+
+    const startX = e.clientX - canvasRect.left;
+    const startY = e.clientY - canvasRect.top;
+    let dragged = false;
+    let latestBounds: MarqueeRect = {
+      left: startX,
+      top: startY,
+      width: 0,
+      height: 0,
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const currentX = moveEvent.clientX - canvasRect.left;
+      const currentY = moveEvent.clientY - canvasRect.top;
+      const dx = currentX - startX;
+      const dy = currentY - startY;
+      if (!dragged && Math.hypot(dx, dy) < 6) {
+        return;
+      }
+      dragged = true;
+      latestBounds = {
+        left: Math.min(startX, currentX),
+        top: Math.min(startY, currentY),
+        width: Math.abs(dx),
+        height: Math.abs(dy),
+      };
+      setMarqueeRect(latestBounds);
+    };
+
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+
+      if (dragged) {
+        const rect = canvasWrapRef.current?.getBoundingClientRect();
+        const currentCamera = cameraRef.current;
+        if (rect && currentCamera) {
+          const bounds = latestBounds;
+          const nextIds = graphRef.current.listNodes()
+            .filter((node) => {
+              const projected = new THREE.Vector3(
+                node.transform.position.x,
+                node.transform.position.y,
+                node.transform.position.z,
+              ).project(currentCamera);
+              if (projected.z < -1 || projected.z > 1) return false;
+              const screenX = (projected.x * 0.5 + 0.5) * rect.width;
+              const screenY = (-projected.y * 0.5 + 0.5) * rect.height;
+              return (
+                screenX >= bounds.left &&
+                screenX <= bounds.left + bounds.width &&
+                screenY >= bounds.top &&
+                screenY <= bounds.top + bounds.height
+              );
+            })
+            .map((node) => node.id);
+
+          setSelectedNodeIds((previous) => [...new Set([...previous, ...nextIds])]);
+          suppressSceneSelectionUntilRef.current = Date.now() + 150;
+        }
+      }
+      setMarqueeRect(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }, [mode, toolMode]);
 
   const effectiveInput = inputsEnabled
     ? activePreset && mode === "play"
@@ -829,12 +1255,72 @@ export function App() {
                 Redo
               </button>
               <button
+                onClick={duplicateSelectedBlocks}
+                disabled={selectedNodes.length === 0}
+                style={smallActionButton(selectedNodes.length > 0)}
+              >
+                Duplicate
+              </button>
+              <button
+                onClick={mirrorSelectedBlocks}
+                disabled={selectedNodes.length === 0}
+                style={smallActionButton(selectedNodes.length > 0)}
+              >
+                Mirror
+              </button>
+              <button
                 onClick={() => setShowJson((value) => !value)}
                 style={smallActionButton(true)}
               >
                 {showJson ? "Hide JSON" : "JSON"}
               </button>
             </div>
+
+            {(toolMode === "select" || toolMode === "move" || toolMode === "rotate") && (
+              <div
+                style={{
+                  marginBottom: 10,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, letterSpacing: 0.7 }}>
+                  Mirror Plane
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  {(["x", "y", "z"] as const).map((axis) => (
+                    <button
+                      key={`mirror-axis:${axis}`}
+                      onClick={() => setMirrorPlaneAxis(axis)}
+                      style={{
+                        ...chipButtonStyle,
+                        flex: 1,
+                        background: mirrorPlaneAxis === axis ? "rgba(244,114,182,0.18)" : "rgba(255,255,255,0.06)",
+                        borderColor: mirrorPlaneAxis === axis ? "rgba(244,114,182,0.34)" : "rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      {axis.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  Offset: <strong>{mirrorPlaneOffset.toFixed(2)}</strong>
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  <button onClick={() => setMirrorPlaneOffset((value) => value - 0.5)} style={smallActionButton(true)}>
+                    -0.5
+                  </button>
+                  <button onClick={() => setMirrorPlaneOffset((value) => value + 0.5)} style={smallActionButton(true)}>
+                    +0.5
+                  </button>
+                  <button onClick={centerMirrorPlaneToSelection} style={smallActionButton(selectedNodes.length > 0)} disabled={selectedNodes.length === 0}>
+                    Center To Selection
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div
               style={{
@@ -852,7 +1338,7 @@ export function App() {
             {toolMode === "place" && (
               <>
                 <div style={{ marginBottom: 10, fontSize: 12, opacity: 0.78 }}>
-                  Hover to preview anchors. Use the X/Y/Z quick rotate buttons for 90° turns, or <code>[</code> and <code>]</code> to twist around Z before placing.
+                  Hover to preview anchors. Use the X/Y/Z quick rotate buttons for 90° turns, <code>[</code> and <code>]</code> to twist around Z, and <code>Tab</code> to cycle the source anchor when placement is locked manually.
                 </div>
                 <div
                   style={{
@@ -868,6 +1354,94 @@ export function App() {
                   </div>
                   <div style={{ marginTop: 4, fontWeight: 700, color: "#fff" }}>
                     {paletteItems.find((item) => item.id === selectedType)?.label ?? selectedType}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      onClick={() => setPlacementMode("manual")}
+                      style={{
+                        ...chipButtonStyle,
+                        flex: 1,
+                        background: placementMode === "manual" ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.06)",
+                        borderColor: placementMode === "manual" ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      Manual Lock
+                    </button>
+                    <button
+                      onClick={() => setPlacementMode("auto_orient")}
+                      style={{
+                        ...chipButtonStyle,
+                        flex: 1,
+                        background: placementMode === "auto_orient" ? "rgba(251,191,36,0.18)" : "rgba(255,255,255,0.06)",
+                        borderColor: placementMode === "auto_orient" ? "rgba(251,191,36,0.32)" : "rgba(255,255,255,0.08)",
+                        color: placementMode === "auto_orient" ? "#fde68a" : "#d7def2",
+                      }}
+                    >
+                      Auto Orient
+                    </button>
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      background: placementMode === "manual" ? "rgba(56,189,248,0.08)" : "rgba(251,191,36,0.08)",
+                      border: placementMode === "manual" ? "1px solid rgba(56,189,248,0.16)" : "1px solid rgba(251,191,36,0.16)",
+                      fontSize: 11,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <div>
+                      Source anchor:{" "}
+                      <strong>
+                        {placementMode === "manual"
+                          ? (activeSourceAnchorId ?? snapResult?.sourceAnchor.id ?? "Hover to choose")
+                          : (snapResult?.sourceAnchor.id ?? "Auto")}
+                      </strong>
+                    </div>
+                    <div>
+                      Target anchor: <strong>{snapResult ? `${snapResult.target.blockId}:${snapResult.target.anchor.id}` : "--"}</strong>
+                    </div>
+                    <div>
+                      Candidate: <strong>{snapCandidateCount > 0 ? `${activeSnapCandidateIndex + 1}/${snapCandidateCount}` : "--"}</strong>
+                    </div>
+                    <div>
+                      Mode:{" "}
+                      <strong>{placementMode === "manual" ? "Your chosen rotation and source anchor stay locked." : "Solver may choose the best source anchor and orientation assist."}</strong>
+                    </div>
+                  </div>
+                  {placementMode === "manual" && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                      <button
+                        onClick={cycleActiveSourceAnchor}
+                        style={smallActionButton(placementAnchors.length > 0)}
+                        disabled={placementAnchors.length === 0}
+                      >
+                        Next Source Anchor
+                      </button>
+                      <button
+                        onClick={() => setActiveSourceAnchorId(null)}
+                        style={smallActionButton(true)}
+                      >
+                        Reset Source Anchor
+                      </button>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => cycleSnapCandidate(-1)}
+                      style={smallActionButton(snapCandidateCount > 1)}
+                      disabled={snapCandidateCount <= 1}
+                    >
+                      Prev Target
+                    </button>
+                    <button
+                      onClick={() => cycleSnapCandidate(1)}
+                      style={smallActionButton(snapCandidateCount > 1)}
+                      disabled={snapCandidateCount <= 1}
+                    >
+                      Next Target
+                    </button>
                   </div>
                   <div style={{ marginTop: 8, fontSize: 12 }}>
                     Rotation:{" "}
@@ -892,7 +1466,7 @@ export function App() {
                       onClick={() => setPlacementRotation({ x: 0, y: 0, z: 0 })}
                       style={smallActionButton(true)}
                     >
-                      Reset
+                      Reset Rotation
                     </button>
                   </div>
                   <div style={{ marginTop: 10, fontSize: 11, opacity: 0.62 }}>
@@ -1018,6 +1592,43 @@ export function App() {
                 {toolMode === "select" && "Click a block to inspect it. Shift-click adds or removes blocks from the selection."}
                 {toolMode === "move" && "Click a block, then drag the gizmo to reposition it. Shift-click builds a multi-selection and dragging moves everything together."}
                 {toolMode === "rotate" && "Click a block, then drag the gizmo to rotate it. Multi-selection rotates around the shared centroid so the layout stays intact."}
+                {(toolMode === "move" || toolMode === "rotate") && (
+                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {toolMode === "move" ? (
+                      <>
+                        {[0, 0.25, 0.5, 1].map((step) => (
+                          <button
+                            key={`move-snap:${step}`}
+                            onClick={() => setTranslationSnap(step)}
+                            style={{
+                              ...chipButtonStyle,
+                              background: translationSnap === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
+                              borderColor: translationSnap === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                            }}
+                          >
+                            {step === 0 ? "Move Free" : `Move ${step}`}
+                          </button>
+                        ))}
+                      </>
+                    ) : (
+                      <>
+                        {[0, 5, 15, 45].map((step) => (
+                          <button
+                            key={`rot-snap:${step}`}
+                            onClick={() => setRotationSnapDeg(step)}
+                            style={{
+                              ...chipButtonStyle,
+                              background: rotationSnapDeg === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
+                              borderColor: rotationSnapDeg === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                            }}
+                          >
+                            {step === 0 ? "Rotate Free" : `Rotate ${step}°`}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1274,10 +1885,128 @@ export function App() {
                 </div>
               )}
 
+              {selectedJointActuator && motorDraft && (
+                <div
+                  style={{
+                    marginTop: 14,
+                    padding: "12px 12px 10px",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, letterSpacing: 0.7 }}>
+                    Joint Motor
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.6, opacity: 0.8 }}>
+                    {selectedJointActuator.blockName} defaults persist on the block in build mode and carry into play mode.
+                    <br />
+                    The pose preview updates live here while you edit the values below.
+                  </div>
+
+                  {(selectedJointActuator.inputTarget === "position" || selectedJointActuator.inputTarget === "both" || selectedJointActuator.actuatorType === "position") && (
+                    <>
+                      <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, marginTop: 10, marginBottom: 6 }}>
+                        Target Position
+                      </div>
+                      <LabeledInput
+                        label="Degrees"
+                        value={motorDraft.targetPositionDeg}
+                        suffix="deg"
+                        onChange={(value) => setMotorDraft((draft) => (draft ? { ...draft, targetPositionDeg: value } : draft))}
+                      />
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                        {[-90, 0, 90].map((value) => (
+                          <button
+                            key={`pose:${value}`}
+                            onClick={() =>
+                              setMotorDraft((draft) =>
+                                draft ? { ...draft, targetPositionDeg: String(value) } : draft,
+                              )
+                            }
+                            style={smallActionButton(true)}
+                          >
+                            {value > 0 ? `+${value}°` : `${value}°`}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, marginTop: 10, marginBottom: 6 }}>
+                    Motor Tuning
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <LabeledInput
+                      label="Target Velocity"
+                      value={motorDraft.targetVelocityDeg}
+                      suffix="deg/s"
+                      onChange={(value) => setMotorDraft((draft) => (draft ? { ...draft, targetVelocityDeg: value } : draft))}
+                    />
+                    <LabeledInput
+                      label="Stiffness"
+                      value={motorDraft.stiffness}
+                      onChange={(value) => setMotorDraft((draft) => (draft ? { ...draft, stiffness: value } : draft))}
+                    />
+                    <LabeledInput
+                      label="Damping"
+                      value={motorDraft.damping}
+                      onChange={(value) => setMotorDraft((draft) => (draft ? { ...draft, damping: value } : draft))}
+                    />
+                    <LabeledInput
+                      label="Max Force"
+                      value={motorDraft.maxForce}
+                      placeholder="Use catalog default"
+                      onChange={(value) => setMotorDraft((draft) => (draft ? { ...draft, maxForce: value } : draft))}
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+                    <button onClick={applyMotorDraft} style={{ ...primaryButtonStyle, width: "100%" }}>
+                      Apply Motor
+                    </button>
+                    <button onClick={resetMotorDraft} style={{ ...secondaryButtonStyle, width: "100%" }}>
+                      Reset Draft
+                    </button>
+                  </div>
+                  <button
+                    onClick={clearMotorOverrides}
+                    style={{ ...secondaryButtonStyle, width: "100%", marginTop: 8 }}
+                  >
+                    Use Catalog Defaults
+                  </button>
+
+                  {motorDraftError && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: "8px 10px",
+                        borderRadius: 10,
+                        background: "rgba(220,38,38,0.14)",
+                        border: "1px solid rgba(248,113,113,0.22)",
+                        color: "#fecaca",
+                        fontSize: 12,
+                      }}
+                    >
+                      {motorDraftError}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ marginTop: 14, fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
                 Anchors: {selectedDefinition?.anchors.length ?? 0}
                 <br />
                 Connections: {selectedConnections.length}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
+                <button onClick={duplicateSelectedBlocks} style={{ ...secondaryButtonStyle, width: "100%" }}>
+                  Duplicate
+                </button>
+                <button onClick={mirrorSelectedBlocks} style={{ ...secondaryButtonStyle, width: "100%" }}>
+                  Mirror
+                </button>
               </div>
 
               {selectedNode.id !== "origin" && (
@@ -1303,6 +2032,16 @@ export function App() {
               Connections touching selection: {selectedConnections.length}
               <br />
               Rotation uses the selection centroid as the pivot, and the gizmo stays in world space for multi-select.
+              <br />
+              Mirror plane: <strong>{mirrorPlaneAxis.toUpperCase()} = {mirrorPlaneOffset.toFixed(2)}</strong>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
+                <button onClick={duplicateSelectedBlocks} style={{ ...secondaryButtonStyle, width: "100%" }}>
+                  Duplicate
+                </button>
+                <button onClick={mirrorSelectedBlocks} style={{ ...secondaryButtonStyle, width: "100%" }}>
+                  Mirror
+                </button>
+              </div>
               <button
                 onClick={deleteSelectedBlock}
                 style={{ ...secondaryButtonStyle, width: "100%", marginTop: 14, color: "#fecaca", borderColor: "rgba(248,113,113,0.2)" }}
@@ -1335,9 +2074,9 @@ export function App() {
                   <br />
                   X/Y/Z quick rotate buttons change placement orientation
                   <br />
-                  [ / ] twist placement around Z
+                  [ / ] twist placement around Z, Tab cycles source anchors, , / . cycle targets
                   <br />
-                  Cmd/Ctrl+Z undo, Shift+Cmd/Ctrl+Z redo
+                  Cmd/Ctrl+Z undo, Shift+Cmd/Ctrl+Z redo, Cmd/Ctrl+D duplicate
                   <br />
                   Delete removes the current selection
                 </>
@@ -1413,9 +2152,14 @@ export function App() {
             </div>
           )}
           <div style={{ padding: "8px 16px 12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-            <button onClick={handleApplyJson} style={{ ...primaryButtonStyle, width: "100%" }}>
-              Apply Changes
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleExportMachine} style={{ ...secondaryButtonStyle, flex: 1 }}>
+                Export Machine
+              </button>
+              <button onClick={handleApplyJson} style={{ ...primaryButtonStyle, flex: 1 }}>
+                Apply Changes
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1464,9 +2208,17 @@ export function App() {
         </div>
       )}
 
+      <div
+        ref={canvasWrapRef}
+        onPointerDownCapture={handleCanvasPointerDownCapture}
+        style={{ position: "absolute", inset: 0 }}
+      >
       <Canvas
         camera={{ position: cameraPos, fov: 50 }}
         shadows
+        onCreated={(state) => {
+          cameraRef.current = state.camera;
+        }}
         style={{ background: "linear-gradient(180deg, #152238 0%, #0b1020 100%)" }}
       >
         <ambientLight intensity={0.5} />
@@ -1487,6 +2239,10 @@ export function App() {
         )}
 
         {mode === "build" && (
+          <MirrorPlane axis={mirrorPlaneAxis} offset={mirrorPlaneOffset} />
+        )}
+
+        {mode === "build" && (
           <>
             <SnapScene
               graph={graph}
@@ -1495,10 +2251,20 @@ export function App() {
               selectedNodeId={selectedNodeId}
               selectedNodeIds={selectedNodeIds}
               toolMode={toolMode}
+              placementMode={placementMode}
+              activeSourceAnchorId={placementMode === "manual" ? activeSourceAnchorId : null}
+              activeSnapCandidateIndex={activeSnapCandidateIndex}
               previewRotation={placementRotation}
+              previewJointAnglesByNodeId={buildPreviewJointAngles}
+              controlMap={controlMap ?? undefined}
+              keysDownRef={keysDown}
+              highlightBlockId={hoveredEntry?.blockId}
+              highlightJointId={hoveredEntry?.id}
               onGraphChange={(nextGraph) => applyBuildGraph(nextGraph)}
               onSelectionChange={handleSceneSelectionChange}
               onSnapChange={setSnapResult}
+              onSnapCandidateCountChange={setSnapCandidateCount}
+              onActiveSourceAnchorChange={setActiveSourceAnchorId}
             />
 
             {selectionHandleTransform && (toolMode === "move" || toolMode === "rotate") && (
@@ -1525,9 +2291,11 @@ export function App() {
 
                 <TransformControls
                   key={`${selectedNodeIds.join(",")}:${toolMode}:${effectiveTransformSpace}`}
-                  object={transformHandleRef}
+                  object={transformHandleRef.current ?? undefined}
                   mode={toolMode === "move" ? "translate" : "rotate"}
                   space={effectiveTransformSpace}
+                  translationSnap={toolMode === "move" && translationSnap > 0 ? translationSnap : undefined}
+                  rotationSnap={toolMode === "rotate" && rotationSnapDeg > 0 ? degToRad(rotationSnapDeg) : undefined}
                   onMouseDown={beginTransformDrag}
                   onMouseUp={endTransformDrag}
                   onChange={handleTransformObjectChange}
@@ -1554,7 +2322,51 @@ export function App() {
           />
         )}
       </Canvas>
+      {mode === "build" && toolMode === "select" && marqueeRect && (
+        <div
+          style={{
+            position: "absolute",
+            left: marqueeRect.left,
+            top: marqueeRect.top,
+            width: marqueeRect.width,
+            height: marqueeRect.height,
+            border: "1px solid rgba(125,211,252,0.9)",
+            background: "rgba(56,189,248,0.14)",
+            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      </div>
     </div>
+  );
+}
+
+function MirrorPlane({ axis, offset }: { axis: MirrorPlaneAxis; offset: number }) {
+  const rotation: [number, number, number] =
+    axis === "x"
+      ? [0, Math.PI / 2, 0]
+      : axis === "y"
+        ? [-Math.PI / 2, 0, 0]
+        : [0, 0, 0];
+  const position: [number, number, number] =
+    axis === "x"
+      ? [offset, 0, 0]
+      : axis === "y"
+        ? [0, offset, 0]
+        : [0, 0, offset];
+
+  return (
+    <mesh position={position} rotation={rotation} renderOrder={1}>
+      <planeGeometry args={[40, 40]} />
+      <meshBasicMaterial
+        color="#f472b6"
+        transparent
+        opacity={0.08}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
   );
 }
 
@@ -1592,6 +2404,39 @@ function TransformFieldRow({
         </label>
       ))}
     </div>
+  );
+}
+
+function LabeledInput({
+  label,
+  value,
+  onChange,
+  suffix,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  suffix?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label style={{ fontSize: 11, opacity: 0.86 }}>
+      <div style={{ marginBottom: 4 }}>{label}</div>
+      <div style={{ position: "relative" }}>
+        <input
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          style={transformInputStyle}
+        />
+        {suffix && (
+          <span style={{ position: "absolute", right: 8, top: 9, fontSize: 11, opacity: 0.46 }}>
+            {suffix}
+          </span>
+        )}
+      </div>
+    </label>
   );
 }
 
@@ -1665,6 +2510,86 @@ function normalizeAngle(value: number): number {
   let normalized = value % 360;
   if (normalized < 0) normalized += 360;
   return normalized;
+}
+
+function actuatorToMotorDraft(entry: ActuatorEntry): MotorDraft {
+  return {
+    targetPositionDeg: radToDeg(entry.targetPosition ?? entry.defaultTarget ?? 0).toFixed(1),
+    targetVelocityDeg: radToDeg(entry.targetVelocity ?? 0).toFixed(1),
+    stiffness: (entry.stiffness ?? 0).toFixed(2),
+    damping: (entry.damping ?? 0).toFixed(2),
+    maxForce: entry.maxForce == null ? "" : entry.maxForce.toFixed(2),
+  };
+}
+
+function parseMotorDraft(
+  draft: MotorDraft,
+): { ok: true; overrides: BuilderJointMotorOverrides } | { ok: false; error: string } {
+  const targetPositionDeg = Number(draft.targetPositionDeg);
+  const targetVelocityDeg = Number(draft.targetVelocityDeg);
+  const stiffness = Number(draft.stiffness);
+  const damping = Number(draft.damping);
+
+  if ([targetPositionDeg, targetVelocityDeg, stiffness, damping].some((value) => Number.isNaN(value) || !Number.isFinite(value))) {
+    return { ok: false, error: "Motor fields must be valid finite numbers." };
+  }
+
+  if (stiffness < 0 || damping < 0) {
+    return { ok: false, error: "Stiffness and damping must be non-negative." };
+  }
+
+  let maxForce: number | undefined;
+  const trimmedForce = draft.maxForce.trim();
+  if (trimmedForce !== "") {
+    maxForce = Number(trimmedForce);
+    if (Number.isNaN(maxForce) || !Number.isFinite(maxForce) || maxForce < 0) {
+      return { ok: false, error: "Max force must be blank or a non-negative finite number." };
+    }
+  }
+
+  return {
+    ok: true,
+    overrides: {
+      targetPosition: degToRad(targetPositionDeg),
+      targetVelocity: degToRad(targetVelocityDeg),
+      stiffness,
+      damping,
+      ...(maxForce !== undefined ? { maxForce } : null),
+    },
+  };
+}
+
+function withBuilderMotorOverrides(
+  metadata: Record<string, unknown> | undefined,
+  overrides: BuilderJointMotorOverrides | null,
+): Record<string, unknown> | undefined {
+  const nextMetadata = metadata ? { ...metadata } : {};
+  const builder = isRecord(nextMetadata.builder) ? { ...nextMetadata.builder } : {};
+
+  if (!overrides) {
+    delete builder.motor;
+  } else {
+    const nextMotor = Object.fromEntries(
+      Object.entries(overrides).filter(([, value]) => value !== undefined),
+    );
+    if (Object.keys(nextMotor).length > 0) {
+      builder.motor = nextMotor;
+    } else {
+      delete builder.motor;
+    }
+  }
+
+  if (Object.keys(builder).length > 0) {
+    nextMetadata.builder = builder;
+  } else {
+    delete nextMetadata.builder;
+  }
+
+  return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const primaryButtonStyle: CSSProperties = {

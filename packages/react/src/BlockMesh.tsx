@@ -2,6 +2,9 @@ import { memo, useRef, useEffect, useMemo } from "react";
 import * as THREE from "three";
 import {
   BlockCatalog,
+  composeTransforms,
+  getBlockPreviewPartTransforms,
+  TRANSFORM_IDENTITY,
   Transform,
 } from "@snap-machines/core";
 import { GeometryMesh } from "./GeometryMesh.js";
@@ -14,6 +17,7 @@ export interface BlockMeshProps {
   catalog: BlockCatalog;
   colorMap?: Record<string, string>;
   highlight?: boolean;
+  previewJointAngleRad?: number;
 }
 
 export const BlockMesh = memo(function BlockMesh({
@@ -23,11 +27,23 @@ export const BlockMesh = memo(function BlockMesh({
   catalog,
   colorMap,
   highlight,
+  previewJointAngleRad,
 }: BlockMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const block = useMemo(() => catalog.get(typeId), [catalog, typeId]);
   const colors = colorMap ?? DEFAULT_BLOCK_COLORS;
   const color = colors[typeId] ?? "#999";
+  const partPreviewTransforms = useMemo(
+    () => getBlockPreviewPartTransforms(block, previewJointAngleRad ?? 0),
+    [block, previewJointAngleRad],
+  );
+  const previewedGeometry = useMemo(
+    () => block.geometry.map((geo) => ({
+      ...geo,
+      transform: composeTransforms(partPreviewTransforms[geo.partId] ?? TRANSFORM_IDENTITY, geo.transform),
+    })),
+    [block.geometry, partPreviewTransforms],
+  );
 
   useEffect(() => {
     if (groupRef.current) {
@@ -44,15 +60,16 @@ export const BlockMesh = memo(function BlockMesh({
       position={[pos.x, pos.y, pos.z]}
       quaternion={[rot.x, rot.y, rot.z, rot.w]}
     >
-      {block.geometry.map((geo) => (
+      {previewedGeometry.map((geo) => (
         <GeometryMesh key={geo.id} geometry={geo} color={color} highlight={highlight} />
       ))}
       {/* Fallback: if no geometry, render from colliders */}
       {block.geometry.length === 0 &&
         block.colliders.map((col) => {
+          const posed = composeTransforms(partPreviewTransforms[col.partId] ?? TRANSFORM_IDENTITY, col.transform);
           if (col.kind === "box") {
             const he = col.halfExtents!;
-            const ct = col.transform;
+            const ct = posed;
             return (
               <mesh
                 key={col.id}
@@ -71,7 +88,7 @@ export const BlockMesh = memo(function BlockMesh({
             );
           }
           if (col.kind === "sphere") {
-            const ct = col.transform;
+            const ct = posed;
             return (
               <mesh
                 key={col.id}

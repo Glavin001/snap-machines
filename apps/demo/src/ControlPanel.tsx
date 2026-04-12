@@ -112,7 +112,7 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
       updated[index] = {
         ...entry,
         enabled: !entry.enabled,
-        currentTarget: entry.enabled ? 0 : entry.currentTarget,
+        currentTarget: entry.enabled ? (entry.defaultTarget ?? 0) : entry.currentTarget,
       };
       onControlMapChange(updated);
     },

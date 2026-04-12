@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "Headless Rust + Rapier runtime for serialized snap-machines."
+readme = "README.md"
+repository = "https://github.com/glavin001/snap-machines"
+homepage = "https://github.com/glavin001/snap-machines"
+documentation = "https://docs.rs/snap-machines-rapier"
+keywords = ["physics", "rapier", "gamedev", "simulation", "machine"]
+categories = ["game-development", "simulation"]
 
 [dependencies]
 nalgebra = { version = "0.33", features = ["serde-serialize"] }

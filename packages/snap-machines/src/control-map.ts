@@ -8,7 +8,7 @@
  */
 import type { BlockCatalog } from "./schema.js";
 import type { BlockGraph } from "./graph.js";
-import type { MachinePlan } from "./compile/plan.js";
+import type { MachinePlan, PlannedJointMotor } from "./compile/plan.js";
 import type { RuntimeInputState } from "./adapters/rapier.js";
 
 // ---------------------------------------------------------------------------
@@ -53,10 +53,21 @@ export interface ActuatorEntry {
 
   /** Position-mode: accumulated position target (mutated each frame) */
   currentTarget: number;
+  /** Position-mode default target restored on reset/disable */
+  defaultTarget?: number;
   /** Actual joint position (mutated each frame by the physics scene) */
   actualPosition: number;
   /** Joint limits used to clamp the position accumulator */
   limits?: { min: number; max: number };
+
+  /** Motor defaults copied from the compiled plan for build-time editing/inspection */
+  motorMode?: PlannedJointMotor["mode"];
+  targetPosition?: number;
+  targetVelocity?: number;
+  stiffness?: number;
+  damping?: number;
+  maxForce?: number;
+  inputTarget?: PlannedJointMotor["inputTarget"];
 
   /** Original action name from the block definition */
   originalAction: string;
@@ -177,6 +188,14 @@ export function generateControlMap(
     let blockId = "";
     let actuatorType: ActuatorEntry["actuatorType"] = "velocity";
     let limits: { min: number; max: number } | undefined;
+    let defaultTarget = 0;
+    let motorMode: ActuatorEntry["motorMode"];
+    let targetPosition: number | undefined;
+    let targetVelocity: number | undefined;
+    let stiffness: number | undefined;
+    let damping: number | undefined;
+    let maxForce: number | undefined;
+    let inputTarget: ActuatorEntry["inputTarget"];
 
     if (actionName.startsWith("ctrl:joint:")) {
       const jointId = actionName.slice("ctrl:joint:".length);
@@ -186,6 +205,14 @@ export function generateControlMap(
         blockId = joint.blockId;
         limits = joint.limits;
         actuatorType = resolveActuatorType(joint.motor?.inputTarget, originalAction);
+        defaultTarget = joint.motor?.targetPosition ?? 0;
+        motorMode = joint.motor?.mode;
+        targetPosition = joint.motor?.targetPosition;
+        targetVelocity = joint.motor?.targetVelocity;
+        stiffness = joint.motor?.stiffness;
+        damping = joint.motor?.damping;
+        maxForce = joint.motor?.maxForce;
+        inputTarget = joint.motor?.inputTarget;
       }
     } else if (actionName.startsWith("ctrl:behavior:")) {
       const behaviorId = actionName.slice("ctrl:behavior:".length);
@@ -221,9 +248,17 @@ export function generateControlMap(
       negativeKey: defaults.neg,
       enabled: true,
       scale: originalScale,
-      currentTarget: 0,
+      currentTarget: actuatorType === "position" ? defaultTarget : 0,
+      defaultTarget,
       actualPosition: 0,
       limits,
+      motorMode,
+      targetPosition,
+      targetVelocity,
+      stiffness,
+      damping,
+      maxForce,
+      inputTarget,
       originalAction,
       originalScale,
     });
@@ -250,10 +285,15 @@ export function updateControlMapInput(
   for (const entry of controlMap) {
     if (!entry.enabled) {
       if (entry.actuatorType === "position") {
-        entry.currentTarget = 0;
-        input[entry.actionName + ":vff"] = 0;
+        entry.currentTarget = entry.defaultTarget ?? 0;
+        input[entry.actionName] = entry.currentTarget;
+        const posError = entry.currentTarget - entry.actualPosition;
+        const KV = 3.0;
+        const MAX_VEL = 5.0;
+        input[entry.actionName + ":vff"] = Math.max(-MAX_VEL, Math.min(MAX_VEL, KV * posError));
+      } else {
+        input[entry.actionName] = 0;
       }
-      input[entry.actionName] = 0;
       continue;
     }
 
@@ -303,7 +343,7 @@ export function updateControlMapInput(
  */
 export function resetControlMapState(controlMap: ControlMap): void {
   for (const entry of controlMap) {
-    entry.currentTarget = 0;
+    entry.currentTarget = entry.defaultTarget ?? 0;
     entry.actualPosition = 0;
   }
 }

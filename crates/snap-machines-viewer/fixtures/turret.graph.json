@@ -1,0 +1,865 @@
+{
+"version": 1,
+"nodes": [
+    {
+    "id": "origin",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+        },
+        "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "w": 1
+        }
+    }
+    },
+    {
+    "id": "block:21",
+    "typeId": "compound.arm.yaw",
+    "transform": {
+        "position": {
+        "x": 1.8369701987210297e-17,
+        "y": 0.65,
+        "z": 5.551115123125783e-17
+        },
+        "rotation": {
+        "x": -2.220446049250313e-16,
+        "y": 0,
+        "z": 6.123233995736766e-17,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:2b",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 4.978996250514798e-17,
+        "y": 0,
+        "z": 1
+        },
+        "rotation": {
+        "x": 0,
+        "y": 0.7071067811865476,
+        "z": 0,
+        "w": 0.7071067811865475
+        }
+    }
+    },
+    {
+    "id": "block:2d",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 1,
+        "y": 0,
+        "z": 0.9999999999999997
+        },
+        "rotation": {
+        "x": 0,
+        "y": 1,
+        "z": 0,
+        "w": -2.220446049250313e-16
+        }
+    }
+    },
+    {
+    "id": "block:2f",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 0.9999999999999996,
+        "y": 0,
+        "z": -3.3306690738754696e-16
+        },
+        "rotation": {
+        "x": 0,
+        "y": 0.7071067811865474,
+        "z": 0,
+        "w": -0.7071067811865477
+        }
+    }
+    },
+    {
+    "id": "block:2h",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -4.9789962505147994e-17,
+        "y": 0,
+        "z": -1
+        },
+        "rotation": {
+        "x": 0,
+        "y": 0.7071067811865475,
+        "z": 0,
+        "w": -0.7071067811865476
+        }
+    }
+    },
+    {
+    "id": "block:2j",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 0.999999999999999,
+        "y": 0,
+        "z": -1.0000000000000004
+        },
+        "rotation": {
+        "x": 0,
+        "y": 0.7071067811865474,
+        "z": 0,
+        "w": -0.7071067811865477
+        }
+    }
+    },
+    {
+    "id": "block:2l",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -1,
+        "y": 0,
+        "z": -0.9999999999999997
+        },
+        "rotation": {
+        "x": 0,
+        "y": -2.220446049250313e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:2n",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -1,
+        "y": 0,
+        "z": 1.0000000000000002
+        },
+        "rotation": {
+        "x": 0,
+        "y": -2.220446049250313e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:2p",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -1,
+        "y": 0,
+        "z": 2.220446049250313e-16
+        },
+        "rotation": {
+        "x": 0,
+        "y": 2.220446049250313e-16,
+        "z": 0,
+        "w": 1
+        }
+    }
+    },
+    {
+    "id": "block:2r",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -2,
+        "y": 0,
+        "z": -0.9999999999999991
+        },
+        "rotation": {
+        "x": 0,
+        "y": -2.7755575615628914e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:2t",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -1.9999999999999996,
+        "y": 0,
+        "z": 8.881784197001252e-16
+        },
+        "rotation": {
+        "x": 0,
+        "y": -0.7071067811865477,
+        "z": 0,
+        "w": -0.7071067811865474
+        }
+    }
+    },
+    {
+    "id": "block:2v",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -2,
+        "y": 0,
+        "z": 1.0000000000000009
+        },
+        "rotation": {
+        "x": 0,
+        "y": -2.7755575615628914e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:2x",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -3,
+        "y": 0,
+        "z": -0.9999999999999984
+        },
+        "rotation": {
+        "x": 0,
+        "y": -4.440892098500626e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:2z",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -2.999999999999999,
+        "y": 0,
+        "z": 1.5543122344752192e-15
+        },
+        "rotation": {
+        "x": 0,
+        "y": -0.7071067811865478,
+        "z": 0,
+        "w": -0.7071067811865472
+        }
+    }
+    },
+    {
+    "id": "block:31",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -3,
+        "y": 0,
+        "z": 1.0000000000000016
+        },
+        "rotation": {
+        "x": 0,
+        "y": -4.440892098500626e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:3b",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 8.492118540106086e-17,
+        "y": 1.6,
+        "z": 4.773959005888173e-16
+        },
+        "rotation": {
+        "x": 0.5,
+        "y": -0.4999999999999999,
+        "z": -0.5000000000000002,
+        "w": 0.49999999999999983
+        }
+    }
+    },
+    {
+    "id": "block:3d",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 2.246581482926173e-16,
+        "y": 2.6,
+        "z": 9.49240686054509e-16
+        },
+        "rotation": {
+        "x": 0.5,
+        "y": -0.4999999999999999,
+        "z": -0.5000000000000002,
+        "w": 0.49999999999999983
+        }
+    }
+    },
+    {
+    "id": "block:3f",
+    "typeId": "compound.arm.yaw",
+    "transform": {
+        "position": {
+        "x": -0.6499999999999998,
+        "y": 2.6,
+        "z": 1.1712852909795402e-15
+        },
+        "rotation": {
+        "x": 2.775557561562891e-16,
+        "y": -5.5511151231257815e-17,
+        "z": 0.7071067811865474,
+        "w": 0.7071067811865476
+        }
+    }
+    },
+    {
+    "id": "block:3h",
+    "typeId": "frame.beam.5x1",
+    "transform": {
+        "position": {
+        "x": -1.5999999999999996,
+        "y": 2.600000000000001,
+        "z": 1.6456605196486269e-15
+        },
+        "rotation": {
+        "x": 0.5000000000000004,
+        "y": 0.49999999999999983,
+        "z": 0.4999999999999999,
+        "w": -0.4999999999999999
+        }
+    }
+    },
+    {
+    "id": "block:3j",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -3.000000000000001,
+        "y": 0,
+        "z": -1.9999999999999984
+        },
+        "rotation": {
+        "x": 0,
+        "y": -0.7071067811865472,
+        "z": 0,
+        "w": 0.7071067811865478
+        }
+    }
+    },
+    {
+    "id": "block:3l",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -4,
+        "y": 0,
+        "z": -0.9999999999999973
+        },
+        "rotation": {
+        "x": 0,
+        "y": -6.661338147750939e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:3n",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -2.999999999999999,
+        "y": 0,
+        "z": 2.0000000000000018
+        },
+        "rotation": {
+        "x": 0,
+        "y": -0.7071067811865478,
+        "z": 0,
+        "w": -0.7071067811865472
+        }
+    }
+    },
+    {
+    "id": "block:3p",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": -4,
+        "y": 0,
+        "z": 1.0000000000000027
+        },
+        "rotation": {
+        "x": 0,
+        "y": -6.661338147750939e-16,
+        "z": 0,
+        "w": -1
+        }
+    }
+    },
+    {
+    "id": "block:3r",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 2,
+        "y": 0,
+        "z": 0.9999999999999991
+        },
+        "rotation": {
+        "x": 0,
+        "y": 1,
+        "z": 0,
+        "w": -2.7755575615628914e-16
+        }
+    }
+    },
+    {
+    "id": "block:3t",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 1.9999999999999996,
+        "y": 0,
+        "z": -8.881784197001252e-16
+        },
+        "rotation": {
+        "x": 0,
+        "y": -1,
+        "z": 0,
+        "w": 2.7755575615628914e-16
+        }
+    }
+    },
+    {
+    "id": "block:3v",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 1.9999999999999991,
+        "y": 0,
+        "z": -1.0000000000000009
+        },
+        "rotation": {
+        "x": 0,
+        "y": -1,
+        "z": 0,
+        "w": 2.7755575615628914e-16
+        }
+    }
+    },
+    {
+    "id": "block:3x",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 1.9999999999999987,
+        "y": 0,
+        "z": -2.000000000000001
+        },
+        "rotation": {
+        "x": 0,
+        "y": -0.7071067811865474,
+        "z": 0,
+        "w": 0.7071067811865477
+        }
+    }
+    },
+    {
+    "id": "block:3z",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 2.999999999999999,
+        "y": 0,
+        "z": -1.0000000000000016
+        },
+        "rotation": {
+        "x": 0,
+        "y": -1,
+        "z": 0,
+        "w": 4.440892098500626e-16
+        }
+    }
+    },
+    {
+    "id": "block:41",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 3,
+        "y": 0,
+        "z": 0.9999999999999984
+        },
+        "rotation": {
+        "x": 0,
+        "y": 1,
+        "z": 0,
+        "w": -4.440892098500626e-16
+        }
+    }
+    },
+    {
+    "id": "block:45",
+    "typeId": "frame.cube.1",
+    "transform": {
+        "position": {
+        "x": 2.000000000000001,
+        "y": 0,
+        "z": 1.9999999999999991
+        },
+        "rotation": {
+        "x": 0,
+        "y": -0.7071067811865477,
+        "z": 0,
+        "w": -0.7071067811865474
+        }
+    }
+    }
+],
+"connections": [
+    {
+    "id": "conn:22",
+    "a": {
+        "blockId": "origin",
+        "anchorId": "yp"
+    },
+    "b": {
+        "blockId": "block:21",
+        "anchorId": "base.attach"
+    }
+    },
+    {
+    "id": "conn:2c",
+    "a": {
+        "blockId": "origin",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:2b",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2e",
+    "a": {
+        "blockId": "block:2b",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:2d",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2g",
+    "a": {
+        "blockId": "block:2d",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:2f",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2i",
+    "a": {
+        "blockId": "origin",
+        "anchorId": "zn"
+    },
+    "b": {
+        "blockId": "block:2h",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2k",
+    "a": {
+        "blockId": "block:2f",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:2j",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2m",
+    "a": {
+        "blockId": "block:2h",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:2l",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2o",
+    "a": {
+        "blockId": "block:2b",
+        "anchorId": "zn"
+    },
+    "b": {
+        "blockId": "block:2n",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2q",
+    "a": {
+        "blockId": "origin",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:2p",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2s",
+    "a": {
+        "blockId": "block:2l",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:2r",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2u",
+    "a": {
+        "blockId": "block:2r",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:2t",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2w",
+    "a": {
+        "blockId": "block:2n",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:2v",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:2y",
+    "a": {
+        "blockId": "block:2r",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:2x",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:30",
+    "a": {
+        "blockId": "block:2x",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:2z",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:32",
+    "a": {
+        "blockId": "block:2v",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:31",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3c",
+    "a": {
+        "blockId": "block:21",
+        "anchorId": "turret.top"
+    },
+    "b": {
+        "blockId": "block:3b",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3e",
+    "a": {
+        "blockId": "block:3b",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:3d",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3g",
+    "a": {
+        "blockId": "block:3d",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:3f",
+        "anchorId": "base.attach"
+    }
+    },
+    {
+    "id": "conn:3i",
+    "a": {
+        "blockId": "block:3f",
+        "anchorId": "turret.top"
+    },
+    "b": {
+        "blockId": "block:3h",
+        "anchorId": "yp"
+    }
+    },
+    {
+    "id": "conn:3k",
+    "a": {
+        "blockId": "block:2x",
+        "anchorId": "zn"
+    },
+    "b": {
+        "blockId": "block:3j",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3m",
+    "a": {
+        "blockId": "block:2x",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:3l",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3o",
+    "a": {
+        "blockId": "block:31",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:3n",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3q",
+    "a": {
+        "blockId": "block:31",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:3p",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3s",
+    "a": {
+        "blockId": "block:2d",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:3r",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3u",
+    "a": {
+        "blockId": "block:2f",
+        "anchorId": "zn"
+    },
+    "b": {
+        "blockId": "block:3t",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3w",
+    "a": {
+        "blockId": "block:2j",
+        "anchorId": "zn"
+    },
+    "b": {
+        "blockId": "block:3v",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:3y",
+    "a": {
+        "blockId": "block:3v",
+        "anchorId": "zp"
+    },
+    "b": {
+        "blockId": "block:3x",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:40",
+    "a": {
+        "blockId": "block:3v",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:3z",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:42",
+    "a": {
+        "blockId": "block:3r",
+        "anchorId": "xn"
+    },
+    "b": {
+        "blockId": "block:41",
+        "anchorId": "xp"
+    }
+    },
+    {
+    "id": "conn:46",
+    "a": {
+        "blockId": "block:3r",
+        "anchorId": "zn"
+    },
+    "b": {
+        "blockId": "block:45",
+        "anchorId": "xp"
+    }
+    }
+],
+"metadata": {}
+}

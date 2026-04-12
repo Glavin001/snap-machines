@@ -1,12 +1,17 @@
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo, type RefObject } from "react";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   BlockCatalog,
   BlockGraph,
+  ControlMap,
+  getAnchorLocalTransform,
+  composeTransforms,
   SnapResult,
   addSnappedBlockToGraph,
   findSnapCandidates,
+  getBlockPreviewAnchorWorldTransform,
+  getBlockPreviewJointIndicator,
   getWorldAnchorTransform,
   transform,
   Transform,
@@ -15,6 +20,7 @@ import { BlockMesh } from "./BlockMesh.js";
 import { GhostPreview } from "./GhostPreview.js";
 
 export type SnapSceneToolMode = "place" | "select" | "move" | "rotate";
+export type SnapScenePlacementMode = "manual" | "auto_orient";
 
 export interface SnapSceneProps {
   graph: BlockGraph;
@@ -23,11 +29,21 @@ export interface SnapSceneProps {
   selectedNodeId?: string | null;
   selectedNodeIds?: string[];
   toolMode?: SnapSceneToolMode;
+  placementMode?: SnapScenePlacementMode;
+  activeSourceAnchorId?: string | null;
+  activeSnapCandidateIndex?: number;
   previewRotation?: { x: number; y: number; z: number };
+  previewJointAnglesByNodeId?: Record<string, number>;
+  controlMap?: ControlMap;
+  keysDownRef?: RefObject<Set<string>>;
+  highlightBlockId?: string | null;
+  highlightJointId?: string | null;
   colorMap?: Record<string, string>;
   onGraphChange?: (graph: BlockGraph) => void;
   onSelectionChange?: (nodeId: string | null, options?: { toggle?: boolean }) => void;
   onSnapChange?: (snap: SnapResult | null) => void;
+  onSnapCandidateCountChange?: (count: number) => void;
+  onActiveSourceAnchorChange?: (anchorId: string | null) => void;
   onBlockPlaced?: () => void;
   onBlockRemoved?: () => void;
 }
@@ -51,11 +67,21 @@ export function SnapScene({
   selectedNodeId,
   selectedNodeIds = [],
   toolMode = "place",
+  placementMode = "manual",
+  activeSourceAnchorId = null,
+  activeSnapCandidateIndex = 0,
   previewRotation = { x: 0, y: 0, z: 0 },
+  previewJointAnglesByNodeId,
+  controlMap,
+  keysDownRef,
+  highlightBlockId,
+  highlightJointId,
   colorMap,
   onGraphChange,
   onSelectionChange,
   onSnapChange,
+  onSnapCandidateCountChange,
+  onActiveSourceAnchorChange,
   onBlockPlaced,
   onBlockRemoved,
 }: SnapSceneProps) {
@@ -67,12 +93,33 @@ export function SnapScene({
   const ghostGroupRef = useRef<THREE.Group>(null);
   const snapTransformRef = useRef<Transform | null>(null);
   const lastHitRef = useRef<HitInfo | null>(null);
-  const preferredSourceAnchorIdRef = useRef<string | null>(null);
+  const axisIndicatorRef = useRef<THREE.Group>(null);
+  const axisIndicatorOrbitRef = useRef<THREE.Group>(null);
+  const axisIndicatorPhaseRef = useRef(0);
 
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
   const [activeSnap, setActiveSnap] = useState<SnapResult | null>(null);
+  const highlightedJointEntry = useMemo(
+    () => highlightJointId ? controlMap?.find((entry) => entry.id === highlightJointId) ?? null : null,
+    [controlMap, highlightJointId],
+  );
+  const highlightedJointIndicator = useMemo(() => {
+    if (!highlightedJointEntry || !highlightedJointEntry.id.startsWith("joint:")) {
+      return null;
+    }
+    const node = graph.getNode(highlightedJointEntry.blockId);
+    if (!node) {
+      return null;
+    }
+    const definition = catalog.get(node.typeId);
+    return getBlockPreviewJointIndicator(
+      definition,
+      node.transform,
+      previewJointAnglesByNodeId?.[node.id] ?? 0,
+    );
+  }, [catalog, graph, highlightedJointEntry, previewJointAnglesByNodeId]);
 
-  useFrame(() => {
+  useFrame((_state, delta) => {
     const group = ghostGroupRef.current;
     if (!group) return;
     const t = snapTransformRef.current;
@@ -82,6 +129,42 @@ export function SnapScene({
       group.visible = true;
     } else {
       group.visible = false;
+    }
+
+    const indicator = axisIndicatorRef.current;
+    if (indicator) {
+      if (highlightedJointIndicator && highlightedJointEntry) {
+        indicator.visible = true;
+        indicator.position.set(
+          highlightedJointIndicator.position.x,
+          highlightedJointIndicator.position.y,
+          highlightedJointIndicator.position.z,
+        );
+        const worldAxis = new THREE.Vector3(
+          highlightedJointIndicator.axis.x,
+          highlightedJointIndicator.axis.y,
+          highlightedJointIndicator.axis.z,
+        ).normalize();
+        const ringNormal = new THREE.Vector3(0, 0, 1);
+        indicator.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(ringNormal, worldAxis));
+
+        const orbit = axisIndicatorOrbitRef.current;
+        if (orbit) {
+          let direction = highlightedJointEntry.scale < 0 ? -1 : 1;
+          if (keysDownRef?.current) {
+            const posDown = highlightedJointEntry.positiveKey !== "" && keysDownRef.current.has(highlightedJointEntry.positiveKey);
+            const negDown = highlightedJointEntry.negativeKey !== "" && keysDownRef.current.has(highlightedJointEntry.negativeKey);
+            const keyDirection = (posDown ? 1 : 0) - (negDown ? 1 : 0);
+            if (keyDirection !== 0) {
+              direction = Math.sign(keyDirection * highlightedJointEntry.scale) || direction;
+            }
+          }
+          axisIndicatorPhaseRef.current += delta * 2.8 * direction;
+          orbit.rotation.z = axisIndicatorPhaseRef.current;
+        }
+      } else {
+        indicator.visible = false;
+      }
     }
   });
 
@@ -117,10 +200,13 @@ export function SnapScene({
         hit: { blockId: hit.blockId, point: hit.point },
         previewTransform: preview,
       });
-      const preferred = preferredSourceAnchorIdRef.current
-        ? candidates.find((candidate) => candidate.sourceAnchor.id === preferredSourceAnchorIdRef.current)
-        : undefined;
-      const best = preferred ?? candidates[0];
+      const filteredCandidates = placementMode === "manual" && activeSourceAnchorId
+        ? candidates.filter((candidate) => candidate.sourceAnchor.id === activeSourceAnchorId)
+        : candidates;
+      onSnapCandidateCountChange?.(filteredCandidates.length);
+      const best = filteredCandidates.length > 0
+        ? filteredCandidates[((activeSnapCandidateIndex % filteredCandidates.length) + filteredCandidates.length) % filteredCandidates.length]!
+        : null;
       const snap = best
         ? {
             ...best,
@@ -130,18 +216,16 @@ export function SnapScene({
             },
           }
         : null;
-      preferredSourceAnchorIdRef.current = snap?.sourceAnchor.id ?? null;
+      if (placementMode === "manual" && !activeSourceAnchorId && snap) {
+        onActiveSourceAnchorChange?.(snap.sourceAnchor.id);
+      }
       snapTransformRef.current = snap ? snap.placement : null;
       setActiveSnap(snap);
       onSnapChange?.(snap);
       return snap ?? null;
     },
-    [catalog, graph, onSnapChange, previewRotation, selectedType, toolMode],
+    [activeSourceAnchorId, activeSnapCandidateIndex, catalog, graph, onActiveSourceAnchorChange, onSnapCandidateCountChange, onSnapChange, placementMode, previewRotation, selectedType, toolMode],
   );
-
-  useEffect(() => {
-    preferredSourceAnchorIdRef.current = null;
-  }, [selectedType]);
 
   useEffect(() => {
     if (toolMode === "place" && lastHitRef.current) {
@@ -150,9 +234,9 @@ export function SnapScene({
     }
     snapTransformRef.current = null;
     setActiveSnap(null);
-    preferredSourceAnchorIdRef.current = null;
+    onSnapCandidateCountChange?.(0);
     onSnapChange?.(null);
-  }, [computeSnap, onSnapChange, toolMode]);
+  }, [computeSnap, onSnapCandidateCountChange, onSnapChange, placementMode, toolMode]);
 
   const handlePointerMove = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
@@ -194,9 +278,9 @@ export function SnapScene({
       onGraphChange?.(nextGraph);
       onSelectionChange?.(nodeId);
       onBlockPlaced?.();
-      preferredSourceAnchorIdRef.current = null;
+      onActiveSourceAnchorChange?.(null);
     },
-    [computeSnap, graph, onBlockPlaced, onGraphChange, onSelectionChange, selectedType, toolMode],
+    [computeSnap, graph, onActiveSourceAnchorChange, onBlockPlaced, onGraphChange, onSelectionChange, selectedType, toolMode],
   );
 
   const handlePointerLeave = useCallback(() => {
@@ -204,9 +288,9 @@ export function SnapScene({
     setHoveredBlockId(null);
     snapTransformRef.current = null;
     setActiveSnap(null);
-    preferredSourceAnchorIdRef.current = null;
+    onSnapCandidateCountChange?.(0);
     onSnapChange?.(null);
-  }, [onSnapChange]);
+  }, [onSnapCandidateCountChange, onSnapChange]);
 
   const handleContextMenu = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
@@ -226,12 +310,12 @@ export function SnapScene({
       setHoveredBlockId(null);
       snapTransformRef.current = null;
       setActiveSnap(null);
-      preferredSourceAnchorIdRef.current = null;
+      onSnapCandidateCountChange?.(0);
       onSnapChange?.(null);
 
       onBlockRemoved?.();
     },
-    [graph, onBlockRemoved, onGraphChange, onSelectionChange, onSnapChange, selectedNodeIds],
+    [graph, onBlockRemoved, onGraphChange, onSelectionChange, onSnapCandidateCountChange, onSnapChange, selectedNodeIds],
   );
 
   return (
@@ -249,7 +333,12 @@ export function SnapScene({
           blockTransform={block.transform}
           catalog={catalog}
           colorMap={colorMap}
-          highlight={selectedNodeIds.includes(block.nodeId) || block.nodeId === hoveredBlockId}
+          highlight={
+            selectedNodeIds.includes(block.nodeId) ||
+            block.nodeId === hoveredBlockId ||
+            block.nodeId === highlightBlockId
+          }
+          previewJointAngleRad={previewJointAnglesByNodeId?.[block.nodeId]}
         />
       ))}
 
@@ -259,6 +348,7 @@ export function SnapScene({
           graph={graph}
           catalog={catalog}
           nodeId={nodeId}
+          previewJointAngleRad={previewJointAnglesByNodeId?.[nodeId]}
           getColor={(anchorId, occupied) => {
             if (activeSnap?.target.blockId === nodeId && activeSnap.target.anchor.id === anchorId) {
               return ANCHOR_COLORS.compatible;
@@ -273,6 +363,7 @@ export function SnapScene({
           graph={graph}
           catalog={catalog}
           nodeId={hoveredBlockId}
+          previewJointAngleRad={previewJointAnglesByNodeId?.[hoveredBlockId]}
           getColor={(anchorId, occupied) => {
             if (activeSnap?.target.blockId === hoveredBlockId && activeSnap.target.anchor.id === anchorId) {
               return ANCHOR_COLORS.compatible;
@@ -287,6 +378,52 @@ export function SnapScene({
         typeId={selectedType}
         catalog={catalog}
       />
+      {activeSnap && (
+        <GhostAnchorMarkers
+          catalog={catalog}
+          typeId={selectedType}
+          placement={activeSnap.placement}
+          activeSourceAnchorId={activeSnap.sourceAnchor.id}
+        />
+      )}
+
+      <group ref={axisIndicatorRef} visible={false}>
+        <mesh>
+          <torusGeometry args={[0.95, 0.075, 18, 72]} />
+          <meshStandardMaterial
+            color="#33f0ff"
+            emissive="#33f0ff"
+            emissiveIntensity={2.1}
+            transparent
+            opacity={0.96}
+            depthWrite={false}
+          />
+        </mesh>
+        <group ref={axisIndicatorOrbitRef}>
+          <mesh position={[0.95, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+            <coneGeometry args={[0.14, 0.34, 12]} />
+            <meshStandardMaterial
+              color="#33f0ff"
+              emissive="#33f0ff"
+              emissiveIntensity={2.4}
+              transparent
+              opacity={1}
+              depthWrite={false}
+            />
+          </mesh>
+          <mesh position={[0.62, 0, 0]}>
+            <sphereGeometry args={[0.06, 16, 16]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#7df9ff"
+              emissiveIntensity={1.2}
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
+      </group>
     </group>
   );
 }
@@ -295,10 +432,11 @@ interface AnchorMarkersProps {
   graph: BlockGraph;
   catalog: BlockCatalog;
   nodeId: string;
+  previewJointAngleRad?: number;
   getColor: (anchorId: string, occupied: boolean) => string;
 }
 
-function AnchorMarkers({ graph, catalog, nodeId, getColor }: AnchorMarkersProps) {
+function AnchorMarkers({ graph, catalog, nodeId, previewJointAngleRad, getColor }: AnchorMarkersProps) {
   const node = graph.getNode(nodeId);
   const block = node ? catalog.get(node.typeId) : null;
 
@@ -309,7 +447,9 @@ function AnchorMarkers({ graph, catalog, nodeId, getColor }: AnchorMarkersProps)
   return (
     <group>
       {block.anchors.map((anchor) => {
-        const world = getWorldAnchorTransform(node.transform, anchor);
+        const world = previewJointAngleRad !== undefined
+          ? getBlockPreviewAnchorWorldTransform(block, node.transform, anchor.id, previewJointAngleRad)
+          : getWorldAnchorTransform(node.transform, anchor);
         const occupied = graph.isAnchorOccupied({ blockId: nodeId, anchorId: anchor.id });
         const color = getColor(anchor.id, occupied);
         return (
@@ -336,4 +476,58 @@ function findBlockId(object: THREE.Object3D): string | undefined {
     current = current.parent;
   }
   return undefined;
+}
+
+function GhostAnchorMarkers({
+  catalog,
+  typeId,
+  placement,
+  activeSourceAnchorId,
+}: {
+  catalog: BlockCatalog;
+  typeId: string;
+  placement: Transform;
+  activeSourceAnchorId: string;
+}) {
+  const block = catalog.get(typeId);
+
+  return (
+    <group>
+      {block.anchors.map((anchor) => {
+        const world = composeTransforms(placement, getAnchorLocalTransform(anchor));
+        const isActive = anchor.id === activeSourceAnchorId;
+        return (
+          <group
+            key={`ghost-anchor:${anchor.id}`}
+            position={[world.position.x, world.position.y, world.position.z]}
+          >
+            <mesh renderOrder={4}>
+              <sphereGeometry args={[isActive ? 0.13 : 0.08, 18, 18]} />
+              <meshStandardMaterial
+                color={isActive ? "#ff7cf2" : "#9ce7ff"}
+                emissive={isActive ? "#ff7cf2" : "#9ce7ff"}
+                emissiveIntensity={isActive ? 1.4 : 0.55}
+                depthWrite={false}
+                transparent
+                opacity={isActive ? 0.95 : 0.72}
+              />
+            </mesh>
+            {isActive && (
+              <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={4}>
+                <torusGeometry args={[0.18, 0.022, 10, 36]} />
+                <meshStandardMaterial
+                  color="#ff7cf2"
+                  emissive="#ff7cf2"
+                  emissiveIntensity={1.2}
+                  depthWrite={false}
+                  transparent
+                  opacity={0.9}
+                />
+              </mesh>
+            )}
+          </group>
+        );
+      })}
+    </group>
+  );
 }

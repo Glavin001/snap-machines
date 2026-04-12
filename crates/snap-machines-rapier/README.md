@@ -2,6 +2,24 @@
 
 Headless Rust + Rapier runtime for machine payloads emitted by the web `snap-machines` builder.
 
+## Installation
+
+Install directly from Git while the crate is still being validated in downstream projects:
+
+```toml
+[dependencies]
+snap-machines-rapier = { git = "https://github.com/glavin001/snap-machines", package = "snap-machines-rapier" }
+```
+
+To lock to a specific revision or tag:
+
+```toml
+[dependencies]
+snap-machines-rapier = { git = "https://github.com/glavin001/snap-machines", package = "snap-machines-rapier", rev = "<commit-sha>" }
+```
+
+In Rust code, the crate is imported as `snap_machines_rapier`.
+
 ## What it does
 
 - deserializes the serialized machine envelope produced by `compileMachineEnvelope(...)`
@@ -25,6 +43,16 @@ input.insert("throttle".into(), RuntimeInputValue::Scalar(1.0));
 
 runtime.update(&mut simulation, &input, 1.0 / 60.0);
 simulation.step();
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+If you want to validate exported JSON before constructing a runtime:
+
+```rust
+use snap_machines_rapier::{SerializedMachineEnvelope, validate_machine_envelope};
+
+let envelope: SerializedMachineEnvelope = serde_json::from_str(&std::fs::read_to_string("machine.envelope.json")?)?;
+validate_machine_envelope(&envelope)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
