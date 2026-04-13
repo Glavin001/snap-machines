@@ -1,28 +1,38 @@
 import { Canvas } from "@react-three/fiber";
 import { Environment, Grid, OrbitControls, TransformControls } from "@react-three/drei";
-import { useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { startTransition, useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import * as THREE from "three";
 import {
   ActuatorEntry,
   applyMachineControls,
   BlockCatalog,
   BlockGraph,
+  buildControllerActuatorIndex,
+  buildControllerReadback,
+  buildControllerScriptGlobals,
+  buildDirectRuntimeInput,
+  buildRuntimeInputFromActuatorValues,
   BuilderJointMotorOverrides,
   compileMachineEnvelope,
   compileMachinePlan,
   ControlMap,
+  createMachineBindingsFromControlMap,
+  createMachineControllerSeedFromControlMap,
   createMachineControlsFromControlMap,
   degToRad,
+  ensureControllerSchemeFromBindings,
   generateControlMap,
   makeId,
   MachinePlan,
   MachineControls,
+  readControllerCommands,
   radToDeg,
   resetControlMapState,
   rewritePlanActions,
   RuntimeInputState,
   SerializedBlockGraph,
   SnapResult,
+  synchronizeMachineControls,
   TRANSFORM_IDENTITY,
   Transform,
   vec3,
@@ -30,6 +40,8 @@ import {
 import { PhysicsScene, SnapScene } from "@snap-machines/react";
 import { demoCatalog } from "./catalog.js";
 import { ControlPanel } from "./ControlPanel.js";
+import { ControllerPanel } from "./ControllerPanel.js";
+import { ControllerRuntimePanel } from "./ControllerRuntimePanel.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
 
 type Mode = "gallery" | "build" | "play";
@@ -73,6 +85,12 @@ interface DragSelectionSnapshot {
   }>;
 }
 
+interface ControllerRuntimeTelemetry {
+  commands: Record<string, number>;
+  outputs: Record<string, number>;
+  readback: Record<string, { position: number; velocity: number; lastOutput: number }>;
+}
+
 interface MarqueeRect {
   left: number;
   top: number;
@@ -81,7 +99,7 @@ interface MarqueeRect {
 }
 
 interface PersistedBuilderDraft {
-  version: 1;
+  version: 2;
   graph: SerializedBlockGraph;
   controls?: MachineControls;
   activePresetName: string | null;
@@ -101,7 +119,7 @@ interface PersistedBuilderDraft {
 }
 
 const BUILDER_DRAFT_STORAGE_KEY = "snap-machines-demo:builder-draft";
-const BUILDER_DRAFT_VERSION = 1 as const;
+const BUILDER_DRAFT_VERSION = 2 as const;
 
 const TOOL_OPTIONS: Array<{ id: BuilderTool; label: string }> = [
   { id: "place", label: "Place" },
@@ -179,7 +197,14 @@ export function App() {
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [controlMap, setControlMap] = useState<ControlMap | null>(null);
   const [savedControls, setSavedControls] = useState<MachineControls | null>(null);
+  const [controllerError, setControllerError] = useState<string | null>(null);
+  const [controllerTelemetry, setControllerTelemetry] = useState<ControllerRuntimeTelemetry>({
+    commands: {},
+    outputs: {},
+    readback: {},
+  });
   const [showControls, setShowControls] = useState(true);
+  const [showMirrorSettings, setShowMirrorSettings] = useState(false);
   const [hoveredEntry, setHoveredEntry] = useState<{ blockId: string; id: string } | null>(null);
   const [undoStack, setUndoStack] = useState<SerializedBlockGraph[]>([]);
   const [redoStack, setRedoStack] = useState<SerializedBlockGraph[]>([]);
@@ -225,6 +250,11 @@ export function App() {
   selectedNodeIdsRef.current = selectedNodeIds;
 
   const [playGraph, setPlayGraph] = useState<BlockGraph | null>(null);
+  const savedControlsRef = useRef(savedControls);
+  savedControlsRef.current = savedControls;
+  const controllerWorkerRef = useRef<Worker | null>(null);
+  const controllerOutputsRef = useRef<Record<string, number>>({});
+  const controllerPreviousCommandsRef = useRef<Record<string, number>>({});
   const transformHandleRef = useRef<THREE.Group>(null);
   const dragStartSnapshotRef = useRef<SerializedBlockGraph | null>(null);
   const dragSelectionSnapshotRef = useRef<DragSelectionSnapshot | null>(null);
@@ -258,6 +288,67 @@ export function App() {
     () => selectedActuatorEntries.find((entry) => entry.id.startsWith("joint:")) ?? null,
     [selectedActuatorEntries],
   );
+  const activeControls = useMemo(
+    () => savedControls ?? (controlMap ? createMachineControlsFromControlMap(controlMap) : null),
+    [controlMap, savedControls],
+  );
+  const snapshotInputDevices = useCallback(() => ({
+    keysDown: keysDown.current,
+    gamepads: typeof navigator !== "undefined" && typeof navigator.getGamepads === "function"
+      ? Array.from(navigator.getGamepads())
+      : [],
+  }), []);
+
+  const handleControlMapChange = useCallback((nextMap: ControlMap) => {
+    setControlMap(nextMap);
+    setSavedControls((previous) => {
+      const base = synchronizeMachineControls(nextMap, previous);
+      return {
+        ...base,
+        bindings: createMachineBindingsFromControlMap(nextMap, { profileId: base.bindings.defaultProfileId }),
+      };
+    });
+  }, []);
+
+  const handleControllerChange = useCallback((nextController: NonNullable<MachineControls["controller"]>) => {
+    setSavedControls((previous) => {
+      if (!controlMap) return previous;
+      const base = synchronizeMachineControls(controlMap, previous);
+      return {
+        ...base,
+        controller: nextController,
+      };
+    });
+  }, [controlMap]);
+
+  const handleControllerRegenerate = useCallback(() => {
+    if (!controlMap) return;
+    setSavedControls((previous) => {
+      const base = synchronizeMachineControls(controlMap, previous);
+      return {
+        ...base,
+        controller: createMachineControllerSeedFromControlMap(controlMap, {
+          profileId: base.controller.defaultProfileId,
+        }),
+      };
+    });
+    setControllerError(null);
+  }, [controlMap]);
+
+  const handleControlSchemeChange = useCallback((nextScheme: "bindings" | "controller") => {
+    setSavedControls((previous) => {
+      if (!controlMap) return previous;
+      const base = synchronizeMachineControls(controlMap, previous);
+      const nextControls = nextScheme === "controller"
+        ? ensureControllerSchemeFromBindings(controlMap, base)
+        : base;
+      return {
+        ...nextControls,
+        activeScheme: nextScheme,
+      };
+    });
+    setControllerError(null);
+  }, [controlMap]);
   const buildPreviewJointAngles = useMemo(() => {
     if (mode !== "build" || toolMode === "place" || !controlMap) {
       return {};
@@ -359,6 +450,7 @@ export function App() {
       setInputsEnabled(true);
       setControlMap(null);
       setSavedControls(normalizePersistedMachineControls(draft.controls) ?? null);
+      setControllerError(null);
       setShowControls(true);
       setHoveredEntry(null);
       setJsonError(null);
@@ -435,7 +527,7 @@ export function App() {
     const draft: PersistedBuilderDraft = {
       version: BUILDER_DRAFT_VERSION,
       graph: graph.toJSON(),
-      controls: controlMap ? createMachineControlsFromControlMap(controlMap) : (savedControls ?? undefined),
+      controls: activeControls ?? undefined,
       activePresetName: activePreset?.name ?? null,
       selectedType,
       toolMode,
@@ -462,7 +554,7 @@ export function App() {
     activePreset?.name,
     activeSnapCandidateIndex,
     activeSourceAnchorId,
-    controlMap,
+    activeControls,
     graph,
     mirrorPlaneAxis,
     mirrorPlaneOffset,
@@ -471,18 +563,12 @@ export function App() {
     placementRotation,
     placementStepDeg,
     rotationSnapDeg,
-    savedControls,
     selectedNodeIds,
     selectedType,
     toolMode,
     transformSpace,
     translationSnap,
   ]);
-
-  useEffect(() => {
-    if (!controlMap) return;
-    setSavedControls(createMachineControlsFromControlMap(controlMap));
-  }, [controlMap]);
 
   useEffect(() => {
     if (!showJson) return;
@@ -504,9 +590,11 @@ export function App() {
     const originals = rewritePlanActions(plan);
     const nextMap = generateControlMap(plan, originals, catalog, graph);
     resetControlMapState(nextMap);
-    const withSavedControls = savedControls ? applyMachineControls(nextMap, savedControls) : nextMap;
+    const syncedControls = synchronizeMachineControls(nextMap, savedControlsRef.current);
+    const withSavedControls = applyMachineControls(nextMap, syncedControls);
+    setSavedControls((previous) => JSON.stringify(previous) === JSON.stringify(syncedControls) ? previous : syncedControls);
     setControlMap((previous) => mergeControlMapSettings(withSavedControls, previous));
-  }, [catalog, graph, mode, savedControls]);
+  }, [catalog, graph, mode]);
 
   useEffect(() => {
     if (!selectedNode) {
@@ -644,6 +732,8 @@ export function App() {
       setFirstPerson(false);
       setInputsEnabled(true);
       setControlMap(null);
+      setSavedControls(null);
+      setControllerError(null);
       setShowControls(true);
       setJsonError(null);
       setMode("build");
@@ -668,6 +758,7 @@ export function App() {
     setFirstPerson(false);
     setInputsEnabled(true);
     setControlMap(null);
+    setControllerError(null);
     setShowControls(true);
     setMode("play");
   }, [graph]);
@@ -686,6 +777,7 @@ export function App() {
     setFirstPerson(false);
     setInputsEnabled(true);
     setControlMap(null);
+    setControllerError(null);
     setShowControls(true);
     setMode("build");
   }, []);
@@ -700,6 +792,8 @@ export function App() {
     setSelectedNodeIds([]);
     setSnapResult(null);
     setControlMap(null);
+    setSavedControls(null);
+    setControllerError(null);
     setShowControls(true);
     setHoveredEntry(null);
     setShowJson(false);
@@ -1015,7 +1109,7 @@ export function App() {
       }
 
       const envelope = compileMachineEnvelope(nextGraph, catalog, {
-        controls: controlMap ? createMachineControlsFromControlMap(controlMap) : undefined,
+        controls: activeControls ?? undefined,
         metadata: {
           builder: "snap-machines-demo",
           mode,
@@ -1038,7 +1132,7 @@ export function App() {
     } catch (err) {
       setJsonError(err instanceof Error ? err.message : String(err));
     }
-  }, [activePreset?.name, catalog, controlMap, jsonText, mode]);
+  }, [activeControls, activePreset?.name, catalog, jsonText, mode]);
 
   const handlePlanReady = useCallback(
     (plan: MachinePlan) => {
@@ -1046,11 +1140,13 @@ export function App() {
       const originals = rewritePlanActions(plan);
       const nextMap = generateControlMap(plan, originals, catalog, sourceGraph);
       resetControlMapState(nextMap);
-      const withSavedControls = savedControls ? applyMachineControls(nextMap, savedControls) : nextMap;
+      const syncedControls = synchronizeMachineControls(nextMap, savedControlsRef.current);
+      const withSavedControls = applyMachineControls(nextMap, syncedControls);
+      setSavedControls((previous) => JSON.stringify(previous) === JSON.stringify(syncedControls) ? previous : syncedControls);
       setControlMap((previous) => mergeControlMapSettings(withSavedControls, previous));
       setShowControls(true);
     },
-    [catalog, playGraph, savedControls],
+    [catalog, playGraph],
   );
 
   const beginTransformDrag = useCallback(() => {
@@ -1150,7 +1246,6 @@ export function App() {
     }
   }, []);
 
-  const [inputState, setInputState] = useState<RuntimeInputState>({});
   const keysDown = useRef(new Set<string>());
 
   useEffect(() => {
@@ -1159,19 +1254,9 @@ export function App() {
         return;
       }
       keysDown.current.add(e.code);
-      setInputState({
-        hingeSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
-        throttle: keysDown.current.has("Space") ? 1 : 0,
-        motorSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
-      });
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysDown.current.delete(e.code);
-      setInputState({
-        hingeSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
-        throttle: keysDown.current.has("Space") ? 1 : 0,
-        motorSpin: (keysDown.current.has("KeyE") ? 1 : 0) - (keysDown.current.has("KeyQ") ? 1 : 0),
-      });
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -1271,6 +1356,111 @@ export function App() {
       }
     };
   }, [activePreset, controlMap, inputsEnabled, mode]);
+
+  useEffect(() => {
+    controllerOutputsRef.current = {};
+    controllerPreviousCommandsRef.current = {};
+    setControllerError(null);
+    setControllerTelemetry({
+      commands: {},
+      outputs: {},
+      readback: {},
+    });
+
+    if (
+      mode !== "play" ||
+      !inputsEnabled ||
+      !controlMap ||
+      !activeControls ||
+      activeControls.activeScheme !== "controller"
+    ) {
+      controllerWorkerRef.current?.terminate();
+      controllerWorkerRef.current = null;
+      return;
+    }
+
+    const worker = new Worker(new URL("./controllerWorker.ts", import.meta.url), { type: "module" });
+    controllerWorkerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent<{ type: string; outputs?: Record<string, number>; message?: string }>) => {
+      if (event.data.type === "result") {
+        controllerOutputsRef.current = event.data.outputs ?? {};
+        setControllerError(null);
+        startTransition(() => {
+          setControllerTelemetry((previous) => ({
+            ...previous,
+            outputs: event.data.outputs ?? {},
+          }));
+        });
+        return;
+      }
+      if (event.data.type === "error") {
+        controllerOutputsRef.current = {};
+        setControllerError(event.data.message ?? "Unknown controller error");
+        startTransition(() => {
+          setControllerTelemetry((previous) => ({
+            ...previous,
+            outputs: {},
+          }));
+        });
+      }
+    };
+
+    worker.postMessage({
+      type: "configure",
+      source: activeControls.controller.script?.source ?? "",
+      globals: buildControllerScriptGlobals(controlMap, activeControls.controller),
+    });
+
+    let rafId = 0;
+    let lastTime = 0;
+    const tick = (timeMs: number) => {
+      const dt = lastTime === 0 ? 1 / 60 : Math.min((timeMs - lastTime) / 1000, 1 / 20);
+      lastTime = timeMs;
+      const commands = readControllerCommands(activeControls, snapshotInputDevices());
+      const readback = buildControllerReadback(controlMap);
+      startTransition(() => {
+        setControllerTelemetry((previous) => ({
+          commands,
+          outputs: previous.outputs,
+          readback,
+        }));
+      });
+      worker.postMessage({
+        type: "step",
+        frame: {
+          time: timeMs / 1000,
+          dt,
+          commands,
+          previousCommands: controllerPreviousCommandsRef.current,
+          readback,
+          actuators: buildControllerActuatorIndex(controlMap, activeControls.controller),
+        },
+      });
+      controllerPreviousCommandsRef.current = commands;
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      worker.terminate();
+      if (controllerWorkerRef.current === worker) {
+        controllerWorkerRef.current = null;
+      }
+    };
+  }, [activeControls, controlMap, inputsEnabled, mode, snapshotInputDevices]);
+
+  const buildPlayInputState = useCallback((dt: number): RuntimeInputState => {
+    if (!inputsEnabled || !controlMap || !activeControls) {
+      return {};
+    }
+    if (activeControls.activeScheme === "controller") {
+      return buildRuntimeInputFromActuatorValues(controlMap, controllerOutputsRef.current);
+    }
+    return buildDirectRuntimeInput(controlMap, activeControls, snapshotInputDevices(), dt);
+  }, [activeControls, controlMap, inputsEnabled, snapshotInputDevices]);
 
   const handleSceneSelectionChange = useCallback((nodeId: string | null, options?: { toggle?: boolean }) => {
     if (Date.now() < suppressSceneSelectionUntilRef.current) {
@@ -1401,11 +1591,6 @@ export function App() {
     window.addEventListener("pointerup", handlePointerUp);
   }, [mode, pickNodeIdAtClientPoint, toolMode]);
 
-  const effectiveInput = inputsEnabled
-    ? activePreset && mode === "play"
-      ? activePreset.autoInput
-      : inputState
-    : {};
   const cameraPos: [number, number, number] = activePreset?.cameraPosition ?? [8, 6, 10];
   const jsonPanelVisible = showJson && (mode === "build" || mode === "play");
 
@@ -1414,29 +1599,33 @@ export function App() {
       <div
         style={{
           position: "absolute",
-          top: 16,
-          left: 16,
+          top: 12,
+          left: 12,
           zIndex: 10,
           color: "#eef2ff",
           background: "rgba(8, 12, 20, 0.88)",
-          padding: "16px 18px",
-          borderRadius: 16,
-          minWidth: 320,
-          maxWidth: 340,
+          padding: "12px 14px",
+          borderRadius: 14,
+          minWidth: 296,
+          maxWidth: 320,
           backdropFilter: "blur(16px)",
           border: "1px solid rgba(125, 211, 252, 0.18)",
-          maxHeight: "calc(100vh - 32px)",
+          maxHeight: "calc(100vh - 24px)",
           overflow: "hidden",
           boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <h2 style={{ margin: "0 0 8px", fontSize: 20, color: "#ffffff", letterSpacing: 0.2 }}>
-          Snap Machines
-        </h2>
-        <div style={{ fontSize: 12, opacity: 0.72, marginBottom: 14 }}>
-          Builder-first editor with visible anchors, explicit snap state, and direct transform editing.
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+          <h2 style={{ margin: 0, fontSize: mode === "gallery" ? 18 : 15, color: "#ffffff", letterSpacing: 0.2 }}>
+            {mode === "gallery" ? "Snap Machines" : "Builder"}
+          </h2>
+          {mode === "build" && (
+            <div style={{ fontSize: 11, opacity: 0.7, whiteSpace: "nowrap" }}>
+              {blockCount} blocks · {connectionCount} links
+            </div>
+          )}
         </div>
 
         {mode === "gallery" && (
@@ -1470,30 +1659,31 @@ export function App() {
             {activePreset && (
               <div
                 style={{
-                  marginBottom: 12,
-                  padding: "8px 10px",
+                  marginBottom: 8,
+                  padding: "6px 8px",
                   borderRadius: 10,
                   background: "rgba(56, 189, 248, 0.12)",
                   border: "1px solid rgba(56, 189, 248, 0.25)",
                   color: "#c7f0ff",
-                  fontSize: 12,
+                  fontSize: 11,
                 }}
               >
                 Editing preset: <strong>{activePreset.name}</strong>
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 8 }}>
               {TOOL_OPTIONS.map((tool) => (
                 <button
                   key={tool.id}
                   onClick={() => setToolMode(tool.id)}
                   style={{
                     ...secondaryButtonStyle,
-                    padding: "9px 0",
+                    padding: "7px 0",
                     background: toolMode === tool.id ? "rgba(14, 165, 233, 0.28)" : "rgba(255,255,255,0.06)",
                     borderColor: toolMode === tool.id ? "rgba(56,189,248,0.45)" : "rgba(255,255,255,0.08)",
                     color: toolMode === tool.id ? "#e0f7ff" : "#d7def2",
+                    fontSize: 12,
                   }}
                 >
                   {tool.label}
@@ -1501,15 +1691,43 @@ export function App() {
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-              <button onClick={handleUndo} disabled={undoStack.length === 0} style={smallActionButton(undoStack.length > 0)}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+              <button onClick={handleUndo} disabled={undoStack.length === 0} style={toolbarActionButton(undoStack.length > 0)}>
                 Undo
+              </button>
+              <button onClick={handleRedo} disabled={redoStack.length === 0} style={toolbarActionButton(redoStack.length > 0)}>
+                Redo
+              </button>
+              <button
+                onClick={duplicateSelectedBlocks}
+                disabled={selectedNodes.length === 0}
+                style={toolbarActionButton(selectedNodes.length > 0)}
+              >
+                Dup
+              </button>
+              <button
+                onClick={mirrorSelectedBlocks}
+                disabled={selectedNodes.length === 0}
+                style={toolbarActionButton(selectedNodes.length > 0)}
+              >
+                Mirror
+              </button>
+              <button
+                onClick={() => setShowMirrorSettings((value) => !value)}
+                style={{
+                  ...toolbarActionButton(true),
+                  background: showMirrorSettings ? "rgba(244,114,182,0.18)" : "rgba(255,255,255,0.05)",
+                  borderColor: showMirrorSettings ? "rgba(244,114,182,0.34)" : "rgba(255,255,255,0.08)",
+                  color: showMirrorSettings ? "#fbcfe8" : "#d7def2",
+                }}
+              >
+                Plane
               </button>
               <button
                 onClick={handleClearPersistedDraft}
                 disabled={!hasPersistedDraft}
                 style={{
-                  ...smallActionButton(hasPersistedDraft),
+                  ...toolbarActionButton(hasPersistedDraft),
                   background: hasPersistedDraft ? "rgba(248,113,113,0.14)" : "rgba(255,255,255,0.04)",
                   borderColor: hasPersistedDraft ? "rgba(248,113,113,0.28)" : "rgba(255,255,255,0.08)",
                   color: hasPersistedDraft ? "#fecaca" : "#6b7280",
@@ -1517,36 +1735,19 @@ export function App() {
               >
                 Clear
               </button>
-              <button onClick={handleRedo} disabled={redoStack.length === 0} style={smallActionButton(redoStack.length > 0)}>
-                Redo
-              </button>
-              <button
-                onClick={duplicateSelectedBlocks}
-                disabled={selectedNodes.length === 0}
-                style={smallActionButton(selectedNodes.length > 0)}
-              >
-                Duplicate
-              </button>
-              <button
-                onClick={mirrorSelectedBlocks}
-                disabled={selectedNodes.length === 0}
-                style={smallActionButton(selectedNodes.length > 0)}
-              >
-                Mirror
-              </button>
               <button
                 onClick={() => setShowJson((value) => !value)}
-                style={smallActionButton(true)}
+                style={toolbarActionButton(true)}
               >
                 {showJson ? "Hide JSON" : "JSON"}
               </button>
             </div>
 
-            {(toolMode === "select" || toolMode === "move" || toolMode === "rotate") && (
+            {showMirrorSettings && (
               <div
                 style={{
-                  marginBottom: 10,
-                  padding: "10px 12px",
+                  marginBottom: 8,
+                  padding: "8px 10px",
                   borderRadius: 12,
                   background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -1588,20 +1789,7 @@ export function App() {
               </div>
             )}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 8,
-                marginBottom: 12,
-                fontSize: 12,
-              }}
-            >
-              <StatCard label="Blocks" value={String(blockCount)} />
-              <StatCard label="Connections" value={String(connectionCount)} />
-            </div>
-
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
               {([
                 { id: "placement", label: "Placement" },
                 { id: "controls", label: "Controls" },
@@ -1613,7 +1801,7 @@ export function App() {
                   style={{
                     ...chipButtonStyle,
                     flex: 1,
-                    padding: "9px 0",
+                    padding: "7px 0",
                     background: buildSidebarTab === tab.id ? "rgba(14,165,233,0.22)" : "rgba(255,255,255,0.05)",
                     borderColor: buildSidebarTab === tab.id ? "rgba(56,189,248,0.34)" : "rgba(255,255,255,0.08)",
                     color: buildSidebarTab === tab.id ? "#e0f7ff" : "#d7def2",
@@ -1813,49 +2001,6 @@ export function App() {
                         {toolMode === "move" && "Click a block, then drag the gizmo to reposition it. Shift-click builds a multi-selection and dragging moves everything together."}
                         {toolMode === "rotate" && "Click a block, then drag the gizmo to rotate it. Multi-selection rotates around the shared centroid so the layout stays intact."}
                       </div>
-                      {(toolMode === "select" || toolMode === "move" || toolMode === "rotate") && (
-                        <div
-                          style={{
-                            marginTop: 10,
-                            paddingTop: 10,
-                            borderTop: "1px solid rgba(255,255,255,0.08)",
-                          }}
-                        >
-                          <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, letterSpacing: 0.7 }}>
-                            Mirror Plane
-                          </div>
-                          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                            {(["x", "y", "z"] as const).map((axis) => (
-                              <button
-                                key={`mirror-axis:${axis}`}
-                                onClick={() => setMirrorPlaneAxis(axis)}
-                                style={{
-                                  ...chipButtonStyle,
-                                  flex: 1,
-                                  background: mirrorPlaneAxis === axis ? "rgba(244,114,182,0.18)" : "rgba(255,255,255,0.06)",
-                                  borderColor: mirrorPlaneAxis === axis ? "rgba(244,114,182,0.34)" : "rgba(255,255,255,0.08)",
-                                }}
-                              >
-                                {axis.toUpperCase()}
-                              </button>
-                            ))}
-                          </div>
-                          <div style={{ marginTop: 8, fontSize: 12 }}>
-                            Offset: <strong>{mirrorPlaneOffset.toFixed(2)}</strong>
-                          </div>
-                          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                            <button onClick={() => setMirrorPlaneOffset((value) => value - 0.5)} style={smallActionButton(true)}>
-                              -0.5
-                            </button>
-                            <button onClick={() => setMirrorPlaneOffset((value) => value + 0.5)} style={smallActionButton(true)}>
-                              +0.5
-                            </button>
-                            <button onClick={centerMirrorPlaneToSelection} style={smallActionButton(selectedNodes.length > 0)} disabled={selectedNodes.length === 0}>
-                              Center To Selection
-                            </button>
-                          </div>
-                        </div>
-                      )}
                       {(toolMode === "move" || toolMode === "rotate") && (
                         <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {toolMode === "move"
@@ -1902,12 +2047,38 @@ export function App() {
                       border: "1px solid rgba(255,255,255,0.08)",
                     }}
                   >
-                    <ControlPanel
-                      controlMap={controlMap}
-                      onControlMapChange={setControlMap}
-                      keysDownRef={keysDown}
-                      onHoverEntry={setHoveredEntry}
-                    />
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                      {(["bindings", "controller"] as const).map((scheme) => (
+                        <button
+                          key={scheme}
+                          onClick={() => handleControlSchemeChange(scheme)}
+                          style={{
+                            ...chipButtonStyle,
+                            flex: 1,
+                            background: activeControls?.activeScheme === scheme ? "rgba(14,165,233,0.18)" : "rgba(255,255,255,0.06)",
+                            borderColor: activeControls?.activeScheme === scheme ? "rgba(56,189,248,0.35)" : "rgba(255,255,255,0.08)",
+                            color: activeControls?.activeScheme === scheme ? "#e0f2fe" : "#d7def2",
+                          }}
+                        >
+                          {scheme === "bindings" ? "Bindings" : "Controller Script"}
+                        </button>
+                      ))}
+                    </div>
+                    {activeControls?.activeScheme === "controller" ? (
+                      <ControllerPanel
+                        controlMap={controlMap}
+                        controller={activeControls.controller}
+                        onControllerChange={handleControllerChange}
+                        onRegenerateFromBindings={handleControllerRegenerate}
+                      />
+                    ) : (
+                      <ControlPanel
+                        controlMap={controlMap}
+                        onControlMapChange={handleControlMapChange}
+                        keysDownRef={keysDown}
+                        onHoverEntry={setHoveredEntry}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div
@@ -1992,10 +2163,28 @@ export function App() {
               <br />
               {!inputsEnabled
                 ? "Runtime inputs are disabled. The machine should stay idle unless physics moves it."
-                : !activePreset
-                  ? "Q / E spin hinges and motors. Space fires thrusters."
-                  : "Preset auto-input is active."}
+                : activeControls?.activeScheme === "controller"
+                  ? "Controller Script mode is active. Device bindings feed commands, and the worker returns actuator outputs."
+                  : !activePreset
+                    ? "Bindings mode is active. Keyboard and gamepad bindings drive actuators directly."
+                    : "Preset auto-input is active."}
             </div>
+            {controllerError && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "rgba(127, 29, 29, 0.32)",
+                  border: "1px solid rgba(248,113,113,0.25)",
+                  color: "#fecaca",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                Controller error: {controllerError}
+              </div>
+            )}
             <button
               onClick={() => setInputsEnabled((value) => !value)}
               style={{
@@ -2027,12 +2216,23 @@ export function App() {
                       border: "1px solid rgba(255,255,255,0.08)",
                     }}
                   >
-                    <ControlPanel
-                      controlMap={controlMap}
-                      onControlMapChange={setControlMap}
-                      keysDownRef={keysDown}
-                      onHoverEntry={setHoveredEntry}
-                    />
+                    {activeControls?.activeScheme === "controller" ? (
+                      <ControllerRuntimePanel
+                        controlMap={controlMap}
+                        controller={activeControls.controller}
+                        commands={controllerTelemetry.commands}
+                        outputs={controllerTelemetry.outputs}
+                        onControllerChange={handleControllerChange}
+                        controllerError={controllerError}
+                      />
+                    ) : (
+                      <ControlPanel
+                        controlMap={controlMap}
+                        onControlMapChange={handleControlMapChange}
+                        keysDownRef={keysDown}
+                        onHoverEntry={setHoveredEntry}
+                      />
+                    )}
                   </div>
                 )}
               </>
@@ -2626,9 +2826,9 @@ export function App() {
           <PhysicsScene
             graph={playGraph}
             catalog={catalog}
-            inputState={effectiveInput}
             controlMap={inputsEnabled ? controlMap ?? undefined : undefined}
             keysDownRef={inputsEnabled ? keysDown : undefined}
+            buildInputState={buildPlayInputState}
             firstPerson={firstPerson}
             gravity={activePreset?.gravity}
             onReady={() => setPhysicsReady(true)}
@@ -2768,22 +2968,6 @@ function LabeledInput({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        padding: "10px 12px",
-        borderRadius: 12,
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.08)",
-      }}
-    >
-      <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, letterSpacing: 0.7 }}>{label}</div>
-      <div style={{ marginTop: 2, fontSize: 18, fontWeight: 700, color: "#fff" }}>{value}</div>
-    </div>
-  );
-}
-
 function transformToDraft(transformValue: Transform): TransformDraft {
   const rotation = quatToEulerDegrees(transformValue.rotation);
   return {
@@ -2920,63 +3104,126 @@ function normalizePersistedMachineControls(value: unknown): MachineControls | un
   if (!isRecord(value)) {
     return undefined;
   }
-
-  const defaultProfileId = typeof value.defaultProfileId === "string" ? value.defaultProfileId : null;
-  const rawProfiles = Array.isArray(value.profiles) ? value.profiles : null;
-  if (!defaultProfileId || !rawProfiles) {
+  if (value.activeScheme !== "bindings" && value.activeScheme !== "controller") {
+    return undefined;
+  }
+  if (!isRecord(value.bindings) || !isRecord(value.controller)) {
     return undefined;
   }
 
-  const profiles = rawProfiles.flatMap((profile) => {
-    if (!isRecord(profile) || profile.kind !== "keyboard" || typeof profile.id !== "string" || !Array.isArray(profile.bindings)) {
-      return [];
-    }
-
-    const bindings = profile.bindings.flatMap((binding) => {
-      if (!isRecord(binding) || !isRecord(binding.target) || !isRecord(binding.positive)) {
+  const normalizeInputProfiles = (scheme: Record<string, unknown>) => {
+    const defaultProfileId = typeof scheme.defaultProfileId === "string" ? scheme.defaultProfileId : "";
+    const rawProfiles = Array.isArray(scheme.profiles) ? scheme.profiles : [];
+    const profiles = rawProfiles.flatMap((profile) => {
+      if (!isRecord(profile) || typeof profile.id !== "string" || (profile.kind !== "keyboard" && profile.kind !== "gamepad") || !Array.isArray(profile.bindings)) {
         return [];
       }
-      if (
-        (binding.target.kind !== "joint" && binding.target.kind !== "behavior") ||
-        typeof binding.target.id !== "string" ||
-        typeof binding.positive.code !== "string" ||
-        typeof binding.enabled !== "boolean" ||
-        typeof binding.scale !== "number" ||
-        !Number.isFinite(binding.scale)
-      ) {
+      const bindings = profile.bindings.flatMap((binding) => {
+        if (!isRecord(binding) || typeof binding.targetId !== "string" || typeof binding.enabled !== "boolean" || typeof binding.scale !== "number") {
+          return [];
+        }
+        if (binding.kind === "buttonPair" && isRecord(binding.positive) && typeof binding.positive.device === "string" && typeof binding.positive.code === "string") {
+          return [{
+            kind: "buttonPair" as const,
+            targetId: binding.targetId,
+            positive: {
+              device: binding.positive.device === "gamepadButton" ? "gamepadButton" as const : "keyboard" as const,
+              code: binding.positive.code,
+              gamepadIndex: typeof binding.positive.gamepadIndex === "number" ? binding.positive.gamepadIndex : undefined,
+            },
+            negative: isRecord(binding.negative) && typeof binding.negative.device === "string" && typeof binding.negative.code === "string"
+              ? {
+                  device: binding.negative.device === "gamepadButton" ? "gamepadButton" as const : "keyboard" as const,
+                  code: binding.negative.code,
+                  gamepadIndex: typeof binding.negative.gamepadIndex === "number" ? binding.negative.gamepadIndex : undefined,
+                }
+              : undefined,
+            enabled: binding.enabled,
+            scale: binding.scale,
+          }];
+        }
+        if (binding.kind === "axis" && isRecord(binding.source) && binding.source.device === "gamepadAxis" && typeof binding.source.axis === "number") {
+          return [{
+            kind: "axis" as const,
+            targetId: binding.targetId,
+            source: {
+              device: "gamepadAxis" as const,
+              axis: binding.source.axis,
+              gamepadIndex: typeof binding.source.gamepadIndex === "number" ? binding.source.gamepadIndex : undefined,
+            },
+            enabled: binding.enabled,
+            scale: binding.scale,
+            invert: binding.invert === true,
+            deadzone: typeof binding.deadzone === "number" ? binding.deadzone : undefined,
+          }];
+        }
         return [];
-      }
-
-      const negative = isRecord(binding.negative) && typeof binding.negative.code === "string"
-        ? { code: binding.negative.code }
-        : undefined;
+      });
 
       return [{
-        target: {
-          kind: binding.target.kind,
-          id: binding.target.id,
-        },
-        positive: { code: binding.positive.code },
-        negative,
-        enabled: binding.enabled,
-        scale: binding.scale,
+        id: profile.id,
+        kind: profile.kind,
+        bindings,
       }];
     });
 
-    return [{
-      id: profile.id,
-      kind: "keyboard" as const,
-      bindings,
-    }];
-  });
+    return {
+      defaultProfileId,
+      profiles,
+    };
+  };
 
-  if (profiles.length === 0) {
-    return undefined;
-  }
+  const bindings = normalizeInputProfiles(value.bindings);
+  const controllerProfiles = normalizeInputProfiles(value.controller);
+  const commands = Array.isArray(value.controller.commands)
+    ? value.controller.commands.flatMap((command) => (
+      isRecord(command) &&
+      typeof command.id === "string" &&
+      typeof command.label === "string" &&
+      isRecord(command.range) &&
+      typeof command.range.min === "number" &&
+      typeof command.range.max === "number" &&
+      typeof command.defaultValue === "number"
+        ? [{
+            id: command.id,
+            label: command.label,
+            range: { min: command.range.min, max: command.range.max },
+            defaultValue: command.defaultValue,
+          }]
+        : []
+    ))
+    : [];
+  const actuatorRoles = Array.isArray(value.controller.actuatorRoles)
+    ? value.controller.actuatorRoles.flatMap((assignment) => (
+      isRecord(assignment) &&
+      typeof assignment.actuatorId === "string" &&
+      Array.isArray(assignment.roles)
+        ? [{
+            actuatorId: assignment.actuatorId,
+            roles: assignment.roles.filter((role): role is string => typeof role === "string"),
+          }]
+        : []
+    ))
+    : [];
+  const script = isRecord(value.controller.script) &&
+    value.controller.script.language === "javascript" &&
+    typeof value.controller.script.source === "string"
+    ? {
+        language: "javascript" as const,
+        source: value.controller.script.source,
+      }
+    : undefined;
 
   return {
-    defaultProfileId,
-    profiles,
+    activeScheme: value.activeScheme,
+    bindings,
+    controller: {
+      defaultProfileId: controllerProfiles.defaultProfileId,
+      profiles: controllerProfiles.profiles,
+      commands,
+      actuatorRoles,
+      script,
+    },
   };
 }
 
@@ -3056,6 +3303,17 @@ function smallActionButton(enabled: boolean): CSSProperties {
     ...secondaryButtonStyle,
     padding: "8px 10px",
     fontSize: 12,
+    opacity: enabled ? 1 : 0.45,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
+
+function toolbarActionButton(enabled: boolean): CSSProperties {
+  return {
+    ...secondaryButtonStyle,
+    padding: "6px 8px",
+    fontSize: 11,
+    borderRadius: 10,
     opacity: enabled ? 1 : 0.45,
     cursor: enabled ? "pointer" : "not-allowed",
   };

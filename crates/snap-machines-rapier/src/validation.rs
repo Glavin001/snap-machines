@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 use crate::types::{
-    ColliderKind, JointKind, MachineControlProfileKind, MachineControlTargetKind, MachinePlan,
+    ColliderKind, JointKind, MachineControlProfileKind, MachineInputBinding, MachinePlan,
     PlannedCollider, SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope,
 };
 
@@ -236,57 +236,166 @@ fn validate_machine_controls(
     let joint_ids = plan
         .joints
         .iter()
-        .map(|joint| joint.id.as_str())
+        .map(|joint| format!("joint:{}", joint.id))
         .collect::<HashSet<_>>();
     let behavior_ids = plan
         .behaviors
         .iter()
-        .map(|behavior| behavior.id.as_str())
+        .map(|behavior| format!("behavior:{}", behavior.id))
+        .collect::<HashSet<_>>();
+    let actuator_ids = joint_ids
+        .iter()
+        .cloned()
+        .chain(behavior_ids.iter().cloned())
+        .collect::<HashSet<_>>();
+    let command_ids = controls
+        .controller
+        .commands
+        .iter()
+        .map(|command| command.id.as_str())
         .collect::<HashSet<_>>();
 
     if !controls
+        .bindings
         .profiles
         .iter()
-        .any(|profile| profile.id == controls.default_profile_id)
+        .any(|profile| profile.id == controls.bindings.default_profile_id)
     {
         return Err(MachineValidationError::UnknownDefaultControlProfile(
-            controls.default_profile_id.clone(),
+            controls.bindings.default_profile_id.clone(),
         ));
     }
 
-    for profile in &controls.profiles {
-        if !matches!(profile.kind, MachineControlProfileKind::Keyboard) {
+    if !controls
+        .controller
+        .profiles
+        .iter()
+        .any(|profile| profile.id == controls.controller.default_profile_id)
+    {
+        return Err(MachineValidationError::UnknownDefaultControlProfile(
+            controls.controller.default_profile_id.clone(),
+        ));
+    }
+
+    for profile in &controls.bindings.profiles {
+        if !matches!(
+            profile.kind,
+            MachineControlProfileKind::Keyboard | MachineControlProfileKind::Gamepad
+        ) {
             return Err(MachineValidationError::UnsupportedControlProfileKind(
                 profile.id.clone(),
             ));
         }
 
         for binding in &profile.bindings {
-            match binding.target.kind {
-                MachineControlTargetKind::Joint => {
-                    if !joint_ids.contains(binding.target.id.as_str()) {
+            match binding {
+                MachineInputBinding::ButtonPair(button_pair) => {
+                    if !actuator_ids.contains(button_pair.target_id.as_str()) {
+                        if button_pair.target_id.starts_with("behavior:") {
+                            return Err(MachineValidationError::UnknownControlBehavior(
+                                button_pair.target_id.clone(),
+                            ));
+                        }
+                        if button_pair.target_id.starts_with("joint:") {
+                            return Err(MachineValidationError::UnknownControlJoint(
+                                button_pair.target_id.clone(),
+                            ));
+                        }
                         return Err(MachineValidationError::UnknownControlJoint(
-                            binding.target.id.clone(),
+                            button_pair.target_id.clone(),
+                        ));
+                    }
+                    validate_button_source(&button_pair.positive)?;
+                    if let Some(negative) = &button_pair.negative {
+                        validate_button_source(negative)?;
+                    }
+                }
+                MachineInputBinding::Axis(axis_binding) => {
+                    if !actuator_ids.contains(axis_binding.target_id.as_str()) {
+                        if axis_binding.target_id.starts_with("behavior:") {
+                            return Err(MachineValidationError::UnknownControlBehavior(
+                                axis_binding.target_id.clone(),
+                            ));
+                        }
+                        return Err(MachineValidationError::UnknownControlJoint(
+                            axis_binding.target_id.clone(),
+                        ));
+                    }
+                    let crate::types::MachineAxisSource::GamepadAxis { axis, .. } =
+                        &axis_binding.source;
+                    if *axis > 64 {
+                        return Err(MachineValidationError::InvalidKeyboardCode(
+                            format!("gamepadAxis:{axis}"),
                         ));
                     }
                 }
-                MachineControlTargetKind::Behavior => {
-                    if !behavior_ids.contains(binding.target.id.as_str()) {
-                        return Err(MachineValidationError::UnknownControlBehavior(
-                            binding.target.id.clone(),
-                        ));
-                    }
-                }
-            }
-
-            validate_keyboard_code(&binding.positive.code)?;
-            if let Some(negative) = &binding.negative {
-                validate_keyboard_code(&negative.code)?;
             }
         }
     }
 
+    for profile in &controls.controller.profiles {
+        if !matches!(
+            profile.kind,
+            MachineControlProfileKind::Keyboard | MachineControlProfileKind::Gamepad
+        ) {
+            return Err(MachineValidationError::UnsupportedControlProfileKind(
+                profile.id.clone(),
+            ));
+        }
+
+        for binding in &profile.bindings {
+            match binding {
+                MachineInputBinding::ButtonPair(button_pair) => {
+                    if !command_ids.contains(button_pair.target_id.as_str()) {
+                        return Err(MachineValidationError::UnknownControlJoint(
+                            button_pair.target_id.clone(),
+                        ));
+                    }
+                    validate_button_source(&button_pair.positive)?;
+                    if let Some(negative) = &button_pair.negative {
+                        validate_button_source(negative)?;
+                    }
+                }
+                MachineInputBinding::Axis(axis_binding) => {
+                    if !command_ids.contains(axis_binding.target_id.as_str()) {
+                        return Err(MachineValidationError::UnknownControlJoint(
+                            axis_binding.target_id.clone(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    for assignment in &controls.controller.actuator_roles {
+        if !actuator_ids.contains(assignment.actuator_id.as_str()) {
+            return Err(MachineValidationError::UnknownControlJoint(
+                assignment.actuator_id.clone(),
+            ));
+        }
+    }
+
+    if let Some(script) = &controls.controller.script {
+        if script.language != "javascript" {
+            return Err(MachineValidationError::UnsupportedControlProfileKind(
+                script.language.clone(),
+            ));
+        }
+    }
+
     Ok(())
+}
+
+fn validate_button_source(source: &crate::types::MachineButtonSource) -> Result<(), MachineValidationError> {
+    match source {
+        crate::types::MachineButtonSource::Keyboard { code } => validate_keyboard_code(code),
+        crate::types::MachineButtonSource::GamepadButton { code, .. } => {
+            if code.parse::<u32>().is_err() {
+                return Err(MachineValidationError::InvalidKeyboardCode(code.clone()));
+            }
+            Ok(())
+        }
+    }
 }
 
 fn validate_keyboard_code(code: &str) -> Result<(), MachineValidationError> {
@@ -404,11 +513,11 @@ fn ensure_quat_finite(
 mod tests {
     use super::*;
     use crate::types::{
-        ColliderKind, MachineBehaviorPlan, MachineBodyPlan, MachineControlProfile,
-        MachineControlProfileKind, MachineControlTarget, MachineControlTargetKind, MachineControls,
-        MachineKeyboardBinding, MachineKeyboardKey, MachinePlan, PlannedCollider, Quat,
-        RigidBodyKind, SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope, SourcePart,
-        Transform, Vec3,
+        ColliderKind, MachineBehaviorPlan, MachineBindingScheme, MachineBodyPlan,
+        MachineButtonPairBinding, MachineButtonSource, MachineControlProfileKind,
+        MachineControlScheme, MachineControllerScheme, MachineControls, MachineInputBinding,
+        MachineInputProfile, MachinePlan, PlannedCollider, Quat, RigidBodyKind,
+        SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope, SourcePart, Transform, Vec3,
     };
 
     fn identity_transform() -> Transform {
@@ -472,6 +581,20 @@ mod tests {
         }
     }
 
+    fn empty_controller_scheme() -> MachineControllerScheme {
+        MachineControllerScheme {
+            default_profile_id: "controller.keyboard.default".into(),
+            commands: vec![],
+            profiles: vec![MachineInputProfile {
+                id: "controller.keyboard.default".into(),
+                kind: MachineControlProfileKind::Keyboard,
+                bindings: vec![],
+            }],
+            actuator_roles: vec![],
+            script: None,
+        }
+    }
+
     #[test]
     fn rejects_wrong_schema_version() {
         let envelope = SerializedMachineEnvelope {
@@ -528,25 +651,26 @@ mod tests {
             catalog_version: "smcat1-test".into(),
             plan: minimal_plan(),
             controls: Some(MachineControls {
-                default_profile_id: "keyboard.default".into(),
-                profiles: vec![MachineControlProfile {
-                    id: "keyboard.default".into(),
-                    kind: MachineControlProfileKind::Keyboard,
-                    bindings: vec![MachineKeyboardBinding {
-                        target: MachineControlTarget {
-                            kind: MachineControlTargetKind::Joint,
-                            id: "missing-joint".into(),
-                        },
-                        positive: MachineKeyboardKey {
-                            code: "KeyE".into(),
-                        },
-                        negative: Some(MachineKeyboardKey {
-                            code: "KeyQ".into(),
-                        }),
-                        enabled: true,
-                        scale: 1.0,
+                active_scheme: MachineControlScheme::Bindings,
+                bindings: MachineBindingScheme {
+                    default_profile_id: "keyboard.default".into(),
+                    profiles: vec![MachineInputProfile {
+                        id: "keyboard.default".into(),
+                        kind: MachineControlProfileKind::Keyboard,
+                        bindings: vec![MachineInputBinding::ButtonPair(MachineButtonPairBinding {
+                            target_id: "joint:missing-joint".into(),
+                            positive: MachineButtonSource::Keyboard {
+                                code: "KeyE".into(),
+                            },
+                            negative: Some(MachineButtonSource::Keyboard {
+                                code: "KeyQ".into(),
+                            }),
+                            enabled: true,
+                            scale: 1.0,
+                        })],
                     }],
-                }],
+                },
+                controller: empty_controller_scheme(),
             }),
             metadata: None,
         };
@@ -554,7 +678,7 @@ mod tests {
         let error = validate_machine_envelope(&envelope).unwrap_err();
         assert_eq!(
             error,
-            MachineValidationError::UnknownControlJoint("missing-joint".into())
+            MachineValidationError::UnknownControlJoint("joint:missing-joint".into())
         );
     }
 
@@ -577,23 +701,24 @@ mod tests {
             catalog_version: "smcat1-test".into(),
             plan,
             controls: Some(MachineControls {
-                default_profile_id: "keyboard.default".into(),
-                profiles: vec![MachineControlProfile {
-                    id: "keyboard.default".into(),
-                    kind: MachineControlProfileKind::Keyboard,
-                    bindings: vec![MachineKeyboardBinding {
-                        target: MachineControlTarget {
-                            kind: MachineControlTargetKind::Behavior,
-                            id: "behavior:0".into(),
-                        },
-                        positive: MachineKeyboardKey {
-                            code: "BadKey".into(),
-                        },
-                        negative: None,
-                        enabled: true,
-                        scale: 1.0,
+                active_scheme: MachineControlScheme::Bindings,
+                bindings: MachineBindingScheme {
+                    default_profile_id: "keyboard.default".into(),
+                    profiles: vec![MachineInputProfile {
+                        id: "keyboard.default".into(),
+                        kind: MachineControlProfileKind::Keyboard,
+                        bindings: vec![MachineInputBinding::ButtonPair(MachineButtonPairBinding {
+                            target_id: "behavior:behavior:0".into(),
+                            positive: MachineButtonSource::Keyboard {
+                                code: "BadKey".into(),
+                            },
+                            negative: None,
+                            enabled: true,
+                            scale: 1.0,
+                        })],
                     }],
-                }],
+                },
+                controller: empty_controller_scheme(),
             }),
             metadata: None,
         };

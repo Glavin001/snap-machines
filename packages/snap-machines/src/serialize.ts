@@ -4,7 +4,7 @@ import type { CompileMachineOptions, MachinePlan } from "./compile/plan.js";
 import { MachineControls, generateMachineControls } from "./control-map.js";
 import { BlockCatalog, BlockDefinition, JsonObject, JsonValue, NormalizedBlockDefinition } from "./schema.js";
 
-export const SERIALIZED_MACHINE_SCHEMA_VERSION = 2 as const;
+export const SERIALIZED_MACHINE_SCHEMA_VERSION = 3 as const;
 export const SERIALIZED_CATALOG_SCHEMA_VERSION = 1 as const;
 
 export interface SerializedMachineEnvelope {

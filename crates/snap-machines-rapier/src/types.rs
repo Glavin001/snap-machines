@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const SERIALIZED_MACHINE_SCHEMA_VERSION: u32 = 2;
+pub const SERIALIZED_MACHINE_SCHEMA_VERSION: u32 = 3;
 pub const SERIALIZED_CATALOG_SCHEMA_VERSION: u32 = 1;
 
 pub type JsonValue = Value;
@@ -44,39 +44,123 @@ pub struct SerializedMachineEnvelope {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineControls {
-    pub default_profile_id: String,
-    pub profiles: Vec<MachineControlProfile>,
+    pub active_scheme: MachineControlScheme,
+    pub bindings: MachineBindingScheme,
+    pub controller: MachineControllerScheme,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MachineControlProfile {
+pub struct MachineBindingScheme {
+    pub default_profile_id: String,
+    pub profiles: Vec<MachineInputProfile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineControllerScheme {
+    pub default_profile_id: String,
+    pub commands: Vec<MachineCommandDefinition>,
+    pub profiles: Vec<MachineInputProfile>,
+    pub actuator_roles: Vec<MachineActuatorRoleAssignment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub script: Option<MachineControllerScript>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineInputProfile {
     pub id: String,
     pub kind: MachineControlProfileKind,
-    pub bindings: Vec<MachineKeyboardBinding>,
+    pub bindings: Vec<MachineInputBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MachineKeyboardBinding {
-    pub target: MachineControlTarget,
-    pub positive: MachineKeyboardKey,
+#[serde(tag = "kind")]
+pub enum MachineInputBinding {
+    #[serde(rename = "buttonPair")]
+    ButtonPair(MachineButtonPairBinding),
+    #[serde(rename = "axis")]
+    Axis(MachineAxisBinding),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineButtonPairBinding {
+    pub target_id: String,
+    pub positive: MachineButtonSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub negative: Option<MachineKeyboardKey>,
+    pub negative: Option<MachineButtonSource>,
     pub enabled: bool,
     pub scale: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MachineControlTarget {
-    pub kind: MachineControlTargetKind,
-    pub id: String,
+pub struct MachineAxisBinding {
+    pub target_id: String,
+    pub source: MachineAxisSource,
+    pub enabled: bool,
+    pub scale: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invert: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadzone: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MachineKeyboardKey {
-    pub code: String,
+#[serde(tag = "device")]
+pub enum MachineButtonSource {
+    #[serde(rename = "keyboard")]
+    Keyboard {
+        code: String,
+    },
+    #[serde(rename = "gamepadButton")]
+    GamepadButton {
+        code: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        gamepad_index: Option<u32>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "device")]
+pub enum MachineAxisSource {
+    #[serde(rename = "gamepadAxis")]
+    GamepadAxis {
+        axis: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        gamepad_index: Option<u32>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineCommandDefinition {
+    pub id: String,
+    pub label: String,
+    pub range: MachineSignalRange,
+    pub default_value: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MachineSignalRange {
+    pub min: f32,
+    pub max: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineActuatorRoleAssignment {
+    pub actuator_id: String,
+    pub roles: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MachineControllerScript {
+    pub language: String,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -460,8 +544,16 @@ pub enum MotorInputTarget {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+pub enum MachineControlScheme {
+    Bindings,
+    Controller,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum MachineControlProfileKind {
     Keyboard,
+    Gamepad,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

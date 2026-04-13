@@ -5,6 +5,7 @@ import { TRANSFORM_IDENTITY, vec3, transform, QUAT_IDENTITY } from "../math.js";
 import { compileMachinePlan } from "../compile/plan.js";
 import {
   applyMachineControls,
+  createMachineControllerSeedFromControlMap,
   createMachineControlsFromControlMap,
   generateMachineControls,
   rewritePlanActions,
@@ -490,6 +491,8 @@ describe("portable machine controls", () => {
     const controlMap: ControlMap = [
       {
         id: "joint:arm",
+        targetId: "arm",
+        targetKind: "joint",
         label: "Arm",
         blockId: "a1",
         blockName: "Arm",
@@ -507,22 +510,27 @@ describe("portable machine controls", () => {
     ];
 
     const controls = createMachineControlsFromControlMap(controlMap);
-    expect(controls.defaultProfileId).toBe("keyboard.default");
-    expect(controls.profiles[0]!.bindings).toEqual([
+    expect(controls.activeScheme).toBe("bindings");
+    expect(controls.bindings.defaultProfileId).toBe("keyboard.default");
+    expect(controls.bindings.profiles[0]!.bindings).toEqual([
       {
-        target: { kind: "joint", id: "joint:arm" },
-        positive: { code: "ArrowUp" },
-        negative: { code: "ArrowDown" },
+        kind: "buttonPair",
+        targetId: "joint:arm",
+        positive: { device: "keyboard", code: "ArrowUp" },
+        negative: { device: "keyboard", code: "ArrowDown" },
         enabled: false,
         scale: 3,
       },
     ]);
+    expect(controls.controller.commands).toEqual([]);
   });
 
   it("overlays exported bindings onto a generated control map", () => {
     const controlMap: ControlMap = [
       {
         id: "joint:arm",
+        targetId: "arm",
+        targetKind: "joint",
         label: "Arm",
         blockId: "a1",
         blockName: "Arm",
@@ -540,18 +548,28 @@ describe("portable machine controls", () => {
     ];
 
     const updated = applyMachineControls(controlMap, {
-      defaultProfileId: "custom",
-      profiles: [{
-        id: "custom",
-        kind: "keyboard",
-        bindings: [{
-          target: { kind: "joint", id: "joint:arm" },
-          positive: { code: "ArrowUp" },
-          negative: { code: "ArrowDown" },
-          enabled: false,
-          scale: 3,
+      activeScheme: "bindings",
+      bindings: {
+        defaultProfileId: "custom",
+        profiles: [{
+          id: "custom",
+          kind: "keyboard",
+          bindings: [{
+            kind: "buttonPair",
+            targetId: "joint:arm",
+            positive: { device: "keyboard", code: "ArrowUp" },
+            negative: { device: "keyboard", code: "ArrowDown" },
+            enabled: false,
+            scale: 3,
+          }],
         }],
-      }],
+      },
+      controller: {
+        defaultProfileId: "controller.keyboard.default",
+        profiles: [{ id: "controller.keyboard.default", kind: "keyboard", bindings: [] }],
+        commands: [],
+        actuatorRoles: [],
+      },
     });
 
     expect(updated[0]!.positiveKey).toBe("ArrowUp");
@@ -568,13 +586,87 @@ describe("portable machine controls", () => {
     });
 
     const controls = generateMachineControls(plan, catalog, graph);
-    expect(controls.profiles[0]!.bindings[0]).toEqual({
-      target: { kind: "joint", id: plan.joints[0]!.id },
-      positive: { code: "KeyE" },
-      negative: { code: "KeyQ" },
+    expect(controls.bindings.profiles[0]!.bindings[0]).toEqual({
+      kind: "buttonPair",
+      targetId: `joint:${plan.joints[0]!.id}`,
+      positive: { device: "keyboard", code: "KeyE" },
+      negative: { device: "keyboard", code: "KeyQ" },
       enabled: true,
       scale: 5,
     });
+  });
+
+  it("generates a controller seed that preserves actuator scaling semantics", () => {
+    const controlMap: ControlMap = [
+      {
+        id: "joint:wheel",
+        targetId: "wheel",
+        targetKind: "joint",
+        label: "Wheel",
+        blockId: "wheel-1",
+        blockName: "Motor Wheel",
+        actuatorType: "velocity",
+        actionName: "ctrl:joint:wheel",
+        positiveKey: "ArrowUp",
+        negativeKey: "ArrowDown",
+        enabled: true,
+        scale: 5,
+        currentTarget: 0,
+        actualPosition: 0,
+        originalAction: "motorSpin",
+        originalScale: 5,
+      },
+      {
+        id: "joint:steer",
+        targetId: "steer",
+        targetKind: "joint",
+        label: "Steer",
+        blockId: "steer-1",
+        blockName: "Steering Hinge",
+        actuatorType: "position",
+        actionName: "ctrl:joint:steer",
+        positiveKey: "ArrowRight",
+        negativeKey: "ArrowLeft",
+        enabled: true,
+        scale: Math.PI / 2,
+        currentTarget: 0,
+        defaultTarget: 0.25,
+        actualPosition: 0,
+        limits: { min: -0.5, max: 0.5 },
+        originalAction: "armYaw",
+        originalScale: Math.PI / 2,
+      },
+    ];
+
+    const controller = createMachineControllerSeedFromControlMap(controlMap);
+
+    expect(controller.commands.map((command) => command.range)).toEqual([
+      { min: -1, max: 1 },
+      { min: -1, max: 1 },
+    ]);
+    expect(controller.profiles[0]!.bindings).toEqual([
+      {
+        kind: "buttonPair",
+        targetId: controller.commands[0]!.id,
+        positive: { device: "keyboard", code: "ArrowUp" },
+        negative: { device: "keyboard", code: "ArrowDown" },
+        enabled: true,
+        scale: 1,
+      },
+      {
+        kind: "buttonPair",
+        targetId: controller.commands[1]!.id,
+        positive: { device: "keyboard", code: "ArrowRight" },
+        negative: { device: "keyboard", code: "ArrowLeft" },
+        enabled: true,
+        scale: 1,
+      },
+    ]);
+    expect(controller.script?.source).toContain('const actuator = config.actuators.joint_wheel;');
+    expect(controller.script?.source).toContain('outputs[actuators.joint_wheel] = command * actuator.scale;');
+    expect(controller.script?.source).toContain('const command = ctx.commands.wheel_1_motorSpin ?? 0;');
+    expect(controller.script?.source).toContain('target = previousTarget + command * actuator.scale * ctx.dt;');
+    expect(controller.script?.source).toContain('target = clamp(target, actuator.min, actuator.max);');
   });
 });
 

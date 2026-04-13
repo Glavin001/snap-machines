@@ -11,10 +11,10 @@ use bevy::{
     window::PrimaryWindow,
 };
 use snap_machines_rapier::{
-    ColliderKind, InputBinding, MachineControlTargetKind, MachineControls, MachinePlan,
-    MachineRuntime, MotorInputTarget, PlannedCollider, Quat as SnapQuat, RapierSimulation,
-    RuntimeBuildError, RuntimeInputState, RuntimeInputValue, SerializedMachineEnvelope,
-    Transform as SnapTransform, Vec3 as SnapVec3, validate_machine_envelope,
+    ColliderKind, InputBinding, MachineControls, MachineInputBinding, MachinePlan, MachineRuntime,
+    MotorInputTarget, PlannedCollider, Quat as SnapQuat, RapierSimulation, RuntimeBuildError,
+    RuntimeInputState, RuntimeInputValue, SerializedMachineEnvelope, Transform as SnapTransform,
+    Vec3 as SnapVec3, validate_machine_envelope,
 };
 
 const DEFAULT_FIXED_DT: f32 = 1.0 / 60.0;
@@ -122,10 +122,7 @@ impl ViewerControls {
                 &mut fallback_index,
                 binding,
                 originals.get(&binding.action),
-                exported_bindings.get(&viewer_binding_key(
-                    MachineControlTargetKind::Joint,
-                    &joint.id,
-                )),
+                exported_bindings.get(&format!("joint:{}", joint.id)),
                 actuator_type,
                 motor.target_position,
                 joint.limits.as_ref().map(|limits| (limits.min, limits.max)),
@@ -140,10 +137,7 @@ impl ViewerControls {
                 &mut fallback_index,
                 binding,
                 originals.get(&binding.action),
-                exported_bindings.get(&viewer_binding_key(
-                    MachineControlTargetKind::Behavior,
-                    &behavior.id,
-                )),
+                exported_bindings.get(&format!("behavior:{}", behavior.id)),
                 ViewerActuatorType::Trigger,
                 0.0,
                 None,
@@ -857,11 +851,15 @@ fn exported_viewer_bindings(
     let Some(controls) = controls else {
         return HashMap::new();
     };
+    if controls.active_scheme != snap_machines_rapier::MachineControlScheme::Bindings {
+        return HashMap::new();
+    }
     let Some(profile) = controls
+        .bindings
         .profiles
         .iter()
-        .find(|profile| profile.id == controls.default_profile_id)
-        .or_else(|| controls.profiles.first())
+        .find(|profile| profile.id == controls.bindings.default_profile_id)
+        .or_else(|| controls.bindings.profiles.first())
     else {
         return HashMap::new();
     };
@@ -870,25 +868,21 @@ fn exported_viewer_bindings(
         .bindings
         .iter()
         .filter_map(|binding| {
-            viewer_key_binding_from_codes(
-                &binding.positive.code,
-                binding.negative.as_ref().map(|key| key.code.as_str()),
-            )
-            .map(|viewer_binding| {
-                (
-                    viewer_binding_key(binding.target.kind, &binding.target.id),
-                    viewer_binding,
-                )
-            })
+            let MachineInputBinding::ButtonPair(button_pair) = binding else {
+                return None;
+            };
+            let positive_code = match &button_pair.positive {
+                snap_machines_rapier::MachineButtonSource::Keyboard { code }
+                | snap_machines_rapier::MachineButtonSource::GamepadButton { code, .. } => code,
+            };
+            let negative_code = button_pair.negative.as_ref().map(|source| match source {
+                snap_machines_rapier::MachineButtonSource::Keyboard { code }
+                | snap_machines_rapier::MachineButtonSource::GamepadButton { code, .. } => code.as_str(),
+            });
+            viewer_key_binding_from_codes(positive_code, negative_code)
+                .map(|viewer_binding| (button_pair.target_id.clone(), viewer_binding))
         })
         .collect()
-}
-
-fn viewer_binding_key(kind: MachineControlTargetKind, id: &str) -> String {
-    match kind {
-        MachineControlTargetKind::Joint => format!("joint:{id}"),
-        MachineControlTargetKind::Behavior => format!("behavior:{id}"),
-    }
 }
 
 fn build_control_entry(
@@ -1456,11 +1450,26 @@ fn viewer_source_path_from_args(
 mod tests {
     use super::*;
     use snap_machines_rapier::{
-        MachineControlProfile, MachineControlProfileKind, MachineControlTarget,
-        MachineControlTargetKind, MachineControls, MachineKeyboardBinding, MachineKeyboardKey,
+        MachineBindingScheme, MachineButtonPairBinding, MachineButtonSource,
+        MachineControlProfileKind, MachineControlScheme, MachineControllerScheme,
+        MachineControls, MachineInputBinding, MachineInputProfile,
         SERIALIZED_MACHINE_SCHEMA_VERSION,
     };
     use tempfile::NamedTempFile;
+
+    fn empty_controller_scheme() -> MachineControllerScheme {
+        MachineControllerScheme {
+            default_profile_id: "controller.keyboard.default".into(),
+            commands: vec![],
+            profiles: vec![MachineInputProfile {
+                id: "controller.keyboard.default".into(),
+                kind: MachineControlProfileKind::Keyboard,
+                bindings: vec![],
+            }],
+            actuator_roles: vec![],
+            script: None,
+        }
+    }
 
     #[test]
     fn default_fixture_path_exists() {
@@ -1541,25 +1550,26 @@ mod tests {
             catalog_version: original_envelope.catalog_version,
             plan: original_envelope.plan,
             controls: Some(MachineControls {
-                default_profile_id: "keyboard.custom".into(),
-                profiles: vec![MachineControlProfile {
-                    id: "keyboard.custom".into(),
-                    kind: MachineControlProfileKind::Keyboard,
-                    bindings: vec![MachineKeyboardBinding {
-                        target: MachineControlTarget {
-                            kind: MachineControlTargetKind::Joint,
-                            id: yaw_joint_id.into(),
-                        },
-                        positive: MachineKeyboardKey {
-                            code: "ArrowRight".into(),
-                        },
-                        negative: Some(MachineKeyboardKey {
-                            code: "ArrowLeft".into(),
-                        }),
-                        enabled: true,
-                        scale: 1.0,
+                active_scheme: MachineControlScheme::Bindings,
+                bindings: MachineBindingScheme {
+                    default_profile_id: "keyboard.custom".into(),
+                    profiles: vec![MachineInputProfile {
+                        id: "keyboard.custom".into(),
+                        kind: MachineControlProfileKind::Keyboard,
+                        bindings: vec![MachineInputBinding::ButtonPair(MachineButtonPairBinding {
+                            target_id: format!("joint:{yaw_joint_id}"),
+                            positive: MachineButtonSource::Keyboard {
+                                code: "ArrowRight".into(),
+                            },
+                            negative: Some(MachineButtonSource::Keyboard {
+                                code: "ArrowLeft".into(),
+                            }),
+                            enabled: true,
+                            scale: 1.0,
+                        })],
                     }],
-                }],
+                },
+                controller: empty_controller_scheme(),
             }),
             metadata: None,
         };

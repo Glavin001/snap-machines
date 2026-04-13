@@ -89,8 +89,17 @@ describe("serializeMachineEnvelope", () => {
     expect(envelope.plan.mounts).toHaveLength(1);
     expect(envelope.plan.joints).toHaveLength(0);
     expect(envelope.controls).toEqual({
-      defaultProfileId: "keyboard.default",
-      profiles: [{ id: "keyboard.default", kind: "keyboard", bindings: [] }],
+      activeScheme: "bindings",
+      bindings: {
+        defaultProfileId: "keyboard.default",
+        profiles: [{ id: "keyboard.default", kind: "keyboard", bindings: [] }],
+      },
+      controller: {
+        defaultProfileId: "controller.keyboard.default",
+        profiles: [{ id: "controller.keyboard.default", kind: "keyboard", bindings: [] }],
+        commands: [],
+        actuatorRoles: [],
+      },
     });
   });
 
@@ -101,18 +110,36 @@ describe("serializeMachineEnvelope", () => {
 
     const envelope = compileMachineEnvelope(graph, catalog, {
       controls: {
-        defaultProfileId: "custom",
-        profiles: [{
-          id: "custom",
-          kind: "keyboard",
-          bindings: [],
-        }],
+        activeScheme: "bindings",
+        bindings: {
+          defaultProfileId: "custom",
+          profiles: [{
+            id: "custom",
+            kind: "keyboard",
+            bindings: [],
+          }],
+        },
+        controller: {
+          defaultProfileId: "controller.keyboard.default",
+          profiles: [{ id: "controller.keyboard.default", kind: "keyboard", bindings: [] }],
+          commands: [],
+          actuatorRoles: [],
+        },
       },
     });
 
     expect(envelope.controls).toEqual({
-      defaultProfileId: "custom",
-      profiles: [{ id: "custom", kind: "keyboard", bindings: [] }],
+      activeScheme: "bindings",
+      bindings: {
+        defaultProfileId: "custom",
+        profiles: [{ id: "custom", kind: "keyboard", bindings: [] }],
+      },
+      controller: {
+        defaultProfileId: "controller.keyboard.default",
+        profiles: [{ id: "controller.keyboard.default", kind: "keyboard", bindings: [] }],
+        commands: [],
+        actuatorRoles: [],
+      },
     });
   });
 });

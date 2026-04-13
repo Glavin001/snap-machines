@@ -54,6 +54,8 @@ export interface PhysicsSceneProps {
   catalog: BlockCatalog;
   /** Legacy direct input state (used when controlMap is not provided) */
   inputState?: RuntimeInputState;
+  /** Preferred callback for producing the runtime input payload each frame. */
+  buildInputState?: (dt: number) => RuntimeInputState;
   /** Per-motor control map — when provided, updateControlMapInput is called each frame */
   controlMap?: ControlMap;
   /** Ref to the set of currently pressed keys (used with controlMap) */
@@ -70,7 +72,7 @@ export interface PhysicsSceneProps {
   highlightJointId?: string | null;
 }
 
-export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownRef, colorMap, firstPerson, gravity = 9.81, onReady, onPlanReady, highlightBlockId, highlightJointId }: PhysicsSceneProps) {
+export function PhysicsScene({ graph, catalog, inputState, buildInputState, controlMap, keysDownRef, colorMap, firstPerson, gravity = 9.81, onReady, onPlanReady, highlightBlockId, highlightJointId }: PhysicsSceneProps) {
   const worldRef = useRef<RAPIER.World | null>(null);
   const runtimeRef = useRef<RapierMachineRuntime | null>(null);
   const [plan, setPlan] = useState<MachinePlan | null>(null);
@@ -149,9 +151,11 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
     const dt = Math.min(delta, 1 / 30);
 
     // Use ControlMap if available, otherwise fall back to direct inputState
-    const effectiveInput = controlMapRef.current && keysDownRef?.current
-      ? updateControlMapInput(controlMapRef.current, keysDownRef.current, dt)
-      : inputRef.current;
+    const effectiveInput = buildInputState
+      ? buildInputState(dt)
+      : controlMapRef.current && keysDownRef?.current
+        ? updateControlMapInput(controlMapRef.current, keysDownRef.current, dt)
+        : inputRef.current;
 
     runtimeRef.current.update(effectiveInput, dt);
     worldRef.current.step();
@@ -174,7 +178,9 @@ export function PhysicsScene({ graph, catalog, inputState, controlMap, keysDownR
         const jointId = entry.actionName.slice("ctrl:joint:".length);
         try {
           const rapierJoint = runtime.getJoint(jointId) as unknown as RAPIER.ImpulseJoint;
+          const previousPosition = entry.actualPosition;
           entry.actualPosition = computeJointAngle(rapierJoint);
+          entry.actualVelocity = dt > 0 ? (entry.actualPosition - previousPosition) / dt : 0;
         } catch {
           // Joint not found or angle computation failed
         }
