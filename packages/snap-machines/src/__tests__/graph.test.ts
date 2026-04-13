@@ -183,6 +183,23 @@ describe("BlockGraph serialization", () => {
     expect(graph.listNodes()).toHaveLength(2);
     expect(graph.listConnections()).toHaveLength(1);
   });
+
+  it("advances generated ids past restored explicit ids", () => {
+    const graph = new BlockGraph({
+      version: 1,
+      nodes: [
+        { id: "block:zzz", typeId: "cube", transform: TRANSFORM_IDENTITY },
+        { id: "block:zz1", typeId: "cube", transform: TRANSFORM_IDENTITY },
+      ],
+      connections: [
+        { id: "conn:zz2", a: { blockId: "block:zzz", anchorId: "xp" }, b: { blockId: "block:zz1", anchorId: "xn" } },
+      ],
+    });
+
+    const node = graph.addNode({ typeId: "cube", transform: TRANSFORM_IDENTITY });
+    expect(["block:zzz", "block:zz1"]).not.toContain(node.id);
+    expect(Number.parseInt(node.id.split(":")[1]!, 36)).toBeGreaterThan(Number.parseInt("zz2", 36));
+  });
 });
 
 describe("BlockGraph.validateAgainstCatalog", () => {

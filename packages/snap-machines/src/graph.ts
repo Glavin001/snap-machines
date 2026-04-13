@@ -40,6 +40,20 @@ export function makeId(prefix: string): string {
   return `${prefix}:${globalIdCounter.toString(36)}`;
 }
 
+function syncIdCounter(id: string): void {
+  const match = /:([0-9a-z]+)$/i.exec(id);
+  if (!match) {
+    return;
+  }
+
+  const parsed = Number.parseInt(match[1]!, 36);
+  if (!Number.isFinite(parsed) || parsed <= globalIdCounter) {
+    return;
+  }
+
+  globalIdCounter = parsed;
+}
+
 function anchorKey(ref: AnchorRef): string {
   return `${ref.blockId}::${ref.anchorId}`;
 }
@@ -88,6 +102,7 @@ export class BlockGraph {
     if (this.nodes.has(id)) {
       throw new Error(`Graph already contains a node with id '${id}'.`);
     }
+    syncIdCounter(id);
     const next: BlockNode = {
       id,
       typeId: node.typeId,
@@ -147,6 +162,7 @@ export class BlockGraph {
     if (this.connections.has(id)) {
       throw new Error(`Graph already contains a connection with id '${id}'.`);
     }
+    syncIdCounter(id);
 
     const next: BlockConnection = {
       id,
