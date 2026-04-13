@@ -106,6 +106,26 @@ export const motorWheelBlock: BlockDefinition = {
       axis: "z",
       transform: { position: vec3(0, 0, 0.3), rotation: QUAT_IDENTITY },
     },
+    {
+      kind: "cylinder",
+      partId: "wheel",
+      radius: 0.2,
+      halfHeight: 0.03,
+      axis: "z",
+      transform: { position: vec3(0, 0, 0.47), rotation: QUAT_IDENTITY },
+    },
+    {
+      kind: "box",
+      partId: "wheel",
+      size: vec3(1.05, 0.08, 0.04),
+      transform: { position: vec3(0, 0, 0.47), rotation: QUAT_IDENTITY },
+    },
+    {
+      kind: "box",
+      partId: "wheel",
+      size: vec3(0.08, 1.05, 0.04),
+      transform: { position: vec3(0, 0, 0.47), rotation: QUAT_IDENTITY },
+    },
   ],
   colliders: [
     {
@@ -160,10 +180,10 @@ export const motorWheelBlock: BlockDefinition = {
     axis: vec3(0, 0, 1),
     motor: {
       mode: "velocity",
-      targetVelocity: 5,
+      targetVelocity: 0,
       damping: 10,
       stiffness: 0,
-      maxForce: 100,
+      maxForce: 300,
       input: { action: "motorSpin", scale: 5 },
       inputTarget: "velocity",
     },

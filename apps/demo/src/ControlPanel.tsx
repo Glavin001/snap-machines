@@ -22,6 +22,8 @@ const TYPE_COLORS: Record<ActuatorEntry["actuatorType"], string> = {
   trigger: "#ffb74d",
 };
 
+const STRENGTH_PRESETS = [0.5, 1, 2, 4, 8, 10] as const;
+
 /**
  * Poll keysDown ref + position data at ~20fps for live UI updates.
  * Returns pressed keys and a tick counter that increments to trigger re-renders
@@ -107,6 +109,20 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
         enabled: !entry.enabled,
         currentTarget: entry.enabled ? (entry.defaultTarget ?? 0) : entry.currentTarget,
       };
+      onControlMapChange(updated);
+    },
+    [controlMap, onControlMapChange],
+  );
+
+  const handleSetStrength = useCallback(
+    (index: number, multiplier: number) => {
+      const updated = [...controlMap];
+      const entry = updated[index]!;
+      const baseMagnitude = Math.abs(entry.originalScale) > 0 ? Math.abs(entry.originalScale) : 1;
+      const nextMagnitude = baseMagnitude * multiplier;
+      const signSource = entry.scale !== 0 ? entry.scale : entry.originalScale;
+      const sign = signSource < 0 ? -1 : 1;
+      updated[index] = { ...entry, scale: sign * nextMagnitude };
       onControlMapChange(updated);
     },
     [controlMap, onControlMapChange],
@@ -252,6 +268,39 @@ export function ControlPanel({ controlMap, onControlMapChange, keysDownRef, onHo
                   >
                     Flip
                   </button>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, opacity: 0.5, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Strength
+                  </span>
+                  {STRENGTH_PRESETS.map((preset) => {
+                    const baseMagnitude = Math.abs(entry.originalScale) > 0 ? Math.abs(entry.originalScale) : 1;
+                    const currentMultiplier = Math.abs(entry.scale) / baseMagnitude;
+                    const selected = Math.abs(currentMultiplier - preset) < 0.001;
+                    return (
+                      <button
+                        key={`${entry.id}:strength:${preset}`}
+                        onClick={() => handleSetStrength(index, preset)}
+                        title={`Set strength to ${preset}x the default`}
+                        style={{
+                          padding: "2px 6px",
+                          border: selected ? "1px solid rgba(56,189,248,0.45)" : "1px solid rgba(255,255,255,0.15)",
+                          borderRadius: 999,
+                          background: selected ? "rgba(14,165,233,0.18)" : "transparent",
+                          color: selected ? "#7dd3fc" : "#aaa",
+                          cursor: "pointer",
+                          fontSize: 10,
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {preset}x
+                      </button>
+                    );
+                  })}
+                  <span style={{ fontSize: 10, opacity: 0.42, fontFamily: "monospace" }}>
+                    default {Math.abs(entry.originalScale).toFixed(1)}
+                  </span>
                 </div>
 
                 {/* Position bar: target vs actual */}

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, type CSSProperties }
 import * as THREE from "three";
 import {
   ActuatorEntry,
+  applyMachineControls,
   BlockCatalog,
   BlockGraph,
   BuilderJointMotorOverrides,
@@ -15,6 +16,7 @@ import {
   generateControlMap,
   makeId,
   MachinePlan,
+  MachineControls,
   radToDeg,
   resetControlMapState,
   rewritePlanActions,
@@ -32,6 +34,7 @@ import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
 
 type Mode = "gallery" | "build" | "play";
 type BuilderTool = "place" | "select" | "move" | "rotate";
+type BuildSidebarTab = "placement" | "controls" | "parts";
 type TransformSpace = "local" | "world";
 type PlacementMode = "manual" | "auto_orient";
 type MirrorPlaneAxis = "x" | "y" | "z";
@@ -77,6 +80,29 @@ interface MarqueeRect {
   height: number;
 }
 
+interface PersistedBuilderDraft {
+  version: 1;
+  graph: SerializedBlockGraph;
+  controls?: MachineControls;
+  activePresetName: string | null;
+  selectedType: string;
+  toolMode: BuilderTool;
+  transformSpace: TransformSpace;
+  placementRotation: PlacementRotation;
+  placementStepDeg: number;
+  placementMode: PlacementMode;
+  activeSourceAnchorId: string | null;
+  activeSnapCandidateIndex: number;
+  translationSnap: number;
+  rotationSnapDeg: number;
+  mirrorPlaneAxis: MirrorPlaneAxis;
+  mirrorPlaneOffset: number;
+  selectedNodeIds: string[];
+}
+
+const BUILDER_DRAFT_STORAGE_KEY = "snap-machines-demo:builder-draft";
+const BUILDER_DRAFT_VERSION = 1 as const;
+
 const TOOL_OPTIONS: Array<{ id: BuilderTool; label: string }> = [
   { id: "place", label: "Place" },
   { id: "select", label: "Select" },
@@ -114,10 +140,21 @@ function createFreshGraph(): BlockGraph {
   return g;
 }
 
+function clearPersistedBuilderDraft() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(BUILDER_DRAFT_STORAGE_KEY);
+}
+
+function getPresetByName(name: string | null): MachinePreset | null {
+  if (!name) return null;
+  return MACHINE_PRESETS.find((preset) => preset.name === name) ?? null;
+}
+
 export function App() {
   const [selectedType, setSelectedType] = useState("frame.cube.1");
   const [mode, setMode] = useState<Mode>("gallery");
   const [toolMode, setToolMode] = useState<BuilderTool>("place");
+  const [buildSidebarTab, setBuildSidebarTab] = useState<BuildSidebarTab>("parts");
   const [transformSpace, setTransformSpace] = useState<TransformSpace>("local");
   const [placementRotation, setPlacementRotation] = useState<PlacementRotation>({ x: 0, y: 0, z: 0 });
   const [placementStepDeg, setPlacementStepDeg] = useState<number>(15);
@@ -141,6 +178,7 @@ export function App() {
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [controlMap, setControlMap] = useState<ControlMap | null>(null);
+  const [savedControls, setSavedControls] = useState<MachineControls | null>(null);
   const [showControls, setShowControls] = useState(true);
   const [hoveredEntry, setHoveredEntry] = useState<{ blockId: string; id: string } | null>(null);
   const [undoStack, setUndoStack] = useState<SerializedBlockGraph[]>([]);
@@ -150,6 +188,8 @@ export function App() {
   const [motorDraft, setMotorDraft] = useState<MotorDraft | null>(null);
   const [motorDraftError, setMotorDraftError] = useState<string | null>(null);
   const [isTransformDragging, setIsTransformDragging] = useState(false);
+  const [isMarqueeGestureActive, setIsMarqueeGestureActive] = useState(false);
+  const [hasPersistedDraft, setHasPersistedDraft] = useState(false);
 
   const catalog = useMemo(() => {
     const c = new BlockCatalog();
@@ -172,7 +212,11 @@ export function App() {
   graphRef.current = graph;
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.Camera | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
   const suppressSceneSelectionUntilRef = useRef(0);
+  const marqueeRaycasterRef = useRef(new THREE.Raycaster());
+  const marqueePointerRef = useRef(new THREE.Vector2());
+  const builderDraftHydratedRef = useRef(false);
 
   const selectedNodeId = selectedNodeIds[0] ?? null;
   const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
@@ -288,6 +332,158 @@ export function App() {
 
   const graphToJsonText = useCallback((g: BlockGraph) => JSON.stringify(g.toJSON(), null, 2), []);
 
+  const restoreBuildState = useCallback(
+    (nextGraph: BlockGraph, preset: MachinePreset | null, draft: PersistedBuilderDraft) => {
+      const nextSelectedNodeIds = draft.selectedNodeIds.filter((id) => nextGraph.getNode(id));
+      setGraph(nextGraph);
+      setActivePreset(preset);
+      setSelectedType(demoCatalog.some((definition) => definition.id === draft.selectedType) ? draft.selectedType : "frame.cube.1");
+      setToolMode(draft.toolMode);
+      setTransformSpace(draft.transformSpace);
+      setPlacementRotation(draft.placementRotation);
+      setPlacementStepDeg(draft.placementStepDeg);
+      setPlacementMode(draft.placementMode);
+      setActiveSourceAnchorId(draft.activeSourceAnchorId);
+      setActiveSnapCandidateIndex(draft.activeSnapCandidateIndex);
+      setTranslationSnap(draft.translationSnap);
+      setRotationSnapDeg(draft.rotationSnapDeg);
+      setMirrorPlaneAxis(draft.mirrorPlaneAxis);
+      setMirrorPlaneOffset(draft.mirrorPlaneOffset);
+      setSelectedNodeIds(nextSelectedNodeIds);
+      setSnapResult(null);
+      setUndoStack([]);
+      setRedoStack([]);
+      setPlayGraph(null);
+      setPhysicsReady(false);
+      setFirstPerson(false);
+      setInputsEnabled(true);
+      setControlMap(null);
+      setSavedControls(normalizePersistedMachineControls(draft.controls) ?? null);
+      setShowControls(true);
+      setHoveredEntry(null);
+      setJsonError(null);
+      setShowJson(false);
+      setMode("build");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (builderDraftHydratedRef.current) return;
+
+    try {
+      const raw = window.localStorage.getItem(BUILDER_DRAFT_STORAGE_KEY);
+      if (!raw) {
+        setHasPersistedDraft(false);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as PersistedBuilderDraft;
+      if (!isRecord(parsed) || parsed.version !== BUILDER_DRAFT_VERSION || !("graph" in parsed)) {
+        clearPersistedBuilderDraft();
+        setHasPersistedDraft(false);
+        return;
+      }
+
+      const nextGraph = BlockGraph.fromJSON(parsed.graph);
+      const validation = nextGraph.validateAgainstCatalog(catalog);
+      if (!validation.ok) {
+        clearPersistedBuilderDraft();
+        setHasPersistedDraft(false);
+        return;
+      }
+
+      restoreBuildState(nextGraph, getPresetByName(typeof parsed.activePresetName === "string" ? parsed.activePresetName : null), {
+        version: BUILDER_DRAFT_VERSION,
+        graph: parsed.graph,
+        controls: normalizePersistedMachineControls(parsed.controls),
+        activePresetName: typeof parsed.activePresetName === "string" ? parsed.activePresetName : null,
+        selectedType: typeof parsed.selectedType === "string" ? parsed.selectedType : "frame.cube.1",
+        toolMode: parsed.toolMode === "select" || parsed.toolMode === "move" || parsed.toolMode === "rotate" ? parsed.toolMode : "place",
+        transformSpace: parsed.transformSpace === "world" ? "world" : "local",
+        placementRotation: isRecord(parsed.placementRotation)
+          ? {
+              x: typeof parsed.placementRotation.x === "number" ? parsed.placementRotation.x : 0,
+              y: typeof parsed.placementRotation.y === "number" ? parsed.placementRotation.y : 0,
+              z: typeof parsed.placementRotation.z === "number" ? parsed.placementRotation.z : 0,
+            }
+          : { x: 0, y: 0, z: 0 },
+        placementStepDeg: typeof parsed.placementStepDeg === "number" ? parsed.placementStepDeg : 15,
+        placementMode: parsed.placementMode === "auto_orient" ? "auto_orient" : "manual",
+        activeSourceAnchorId: typeof parsed.activeSourceAnchorId === "string" ? parsed.activeSourceAnchorId : null,
+        activeSnapCandidateIndex: typeof parsed.activeSnapCandidateIndex === "number" ? parsed.activeSnapCandidateIndex : 0,
+        translationSnap: typeof parsed.translationSnap === "number" ? parsed.translationSnap : 0.25,
+        rotationSnapDeg: typeof parsed.rotationSnapDeg === "number" ? parsed.rotationSnapDeg : 15,
+        mirrorPlaneAxis: parsed.mirrorPlaneAxis === "y" || parsed.mirrorPlaneAxis === "z" ? parsed.mirrorPlaneAxis : "x",
+        mirrorPlaneOffset: typeof parsed.mirrorPlaneOffset === "number" ? parsed.mirrorPlaneOffset : 0,
+        selectedNodeIds: Array.isArray(parsed.selectedNodeIds)
+          ? parsed.selectedNodeIds.filter((id): id is string => typeof id === "string")
+          : [],
+      });
+      setHasPersistedDraft(true);
+    } catch {
+      clearPersistedBuilderDraft();
+      setHasPersistedDraft(false);
+    } finally {
+      builderDraftHydratedRef.current = true;
+    }
+  }, [catalog, restoreBuildState]);
+
+  useEffect(() => {
+    if (!builderDraftHydratedRef.current || mode === "gallery") return;
+
+    const draft: PersistedBuilderDraft = {
+      version: BUILDER_DRAFT_VERSION,
+      graph: graph.toJSON(),
+      controls: controlMap ? createMachineControlsFromControlMap(controlMap) : (savedControls ?? undefined),
+      activePresetName: activePreset?.name ?? null,
+      selectedType,
+      toolMode,
+      transformSpace,
+      placementRotation,
+      placementStepDeg,
+      placementMode,
+      activeSourceAnchorId,
+      activeSnapCandidateIndex,
+      translationSnap,
+      rotationSnapDeg,
+      mirrorPlaneAxis,
+      mirrorPlaneOffset,
+      selectedNodeIds,
+    };
+
+    const saveHandle = window.setTimeout(() => {
+      window.localStorage.setItem(BUILDER_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      setHasPersistedDraft(true);
+    }, 150);
+
+    return () => window.clearTimeout(saveHandle);
+  }, [
+    activePreset?.name,
+    activeSnapCandidateIndex,
+    activeSourceAnchorId,
+    controlMap,
+    graph,
+    mirrorPlaneAxis,
+    mirrorPlaneOffset,
+    mode,
+    placementMode,
+    placementRotation,
+    placementStepDeg,
+    rotationSnapDeg,
+    savedControls,
+    selectedNodeIds,
+    selectedType,
+    toolMode,
+    transformSpace,
+    translationSnap,
+  ]);
+
+  useEffect(() => {
+    if (!controlMap) return;
+    setSavedControls(createMachineControlsFromControlMap(controlMap));
+  }, [controlMap]);
+
   useEffect(() => {
     if (!showJson) return;
     const source = mode === "play" ? (playGraph ?? graph) : graph;
@@ -308,8 +504,9 @@ export function App() {
     const originals = rewritePlanActions(plan);
     const nextMap = generateControlMap(plan, originals, catalog, graph);
     resetControlMapState(nextMap);
-    setControlMap((previous) => mergeControlMapSettings(nextMap, previous));
-  }, [catalog, graph, mode]);
+    const withSavedControls = savedControls ? applyMachineControls(nextMap, savedControls) : nextMap;
+    setControlMap((previous) => mergeControlMapSettings(withSavedControls, previous));
+  }, [catalog, graph, mode, savedControls]);
 
   useEffect(() => {
     if (!selectedNode) {
@@ -440,6 +637,7 @@ export function App() {
       setActiveSnapCandidateIndex(0);
       setSnapCandidateCount(0);
       setToolMode("place");
+      setBuildSidebarTab("parts");
       setTransformSpace("local");
       setPlayGraph(null);
       setPhysicsReady(false);
@@ -464,7 +662,7 @@ export function App() {
     resetBuildState(createFreshGraph(), null);
   }, [resetBuildState]);
 
-  const handlePlay = useCallback(() => {
+  const startPlaySession = useCallback(() => {
     setPlayGraph(graph.clone());
     setPhysicsReady(false);
     setFirstPerson(false);
@@ -473,6 +671,14 @@ export function App() {
     setShowControls(true);
     setMode("play");
   }, [graph]);
+
+  const handlePlay = useCallback(() => {
+    startPlaySession();
+  }, [startPlaySession]);
+
+  const handleResetPlay = useCallback(() => {
+    startPlaySession();
+  }, [startPlaySession]);
 
   const handleStop = useCallback(() => {
     setPlayGraph(null);
@@ -498,6 +704,15 @@ export function App() {
     setHoveredEntry(null);
     setShowJson(false);
   }, []);
+
+  const handleClearPersistedDraft = useCallback(() => {
+    const confirmed = window.confirm("Clear the locally saved draft and discard the current build session?");
+    if (!confirmed) return;
+    clearPersistedBuilderDraft();
+    setHasPersistedDraft(false);
+    setShowJson(false);
+    handleGallery();
+  }, [handleGallery]);
 
   const cycleActiveSourceAnchor = useCallback(() => {
     if (placementAnchors.length === 0) return;
@@ -831,10 +1046,11 @@ export function App() {
       const originals = rewritePlanActions(plan);
       const nextMap = generateControlMap(plan, originals, catalog, sourceGraph);
       resetControlMapState(nextMap);
-      setControlMap((previous) => mergeControlMapSettings(nextMap, previous));
+      const withSavedControls = savedControls ? applyMachineControls(nextMap, savedControls) : nextMap;
+      setControlMap((previous) => mergeControlMapSettings(withSavedControls, previous));
       setShowControls(true);
     },
-    [catalog, playGraph],
+    [catalog, playGraph, savedControls],
   );
 
   const beginTransformDrag = useCallback(() => {
@@ -1076,11 +1292,36 @@ export function App() {
     });
   }, []);
 
+  const pickNodeIdAtClientPoint = useCallback((clientX: number, clientY: number) => {
+    const canvasRect = canvasWrapRef.current?.getBoundingClientRect();
+    const camera = cameraRef.current;
+    const scene = sceneRef.current;
+    if (!canvasRect || !camera || !scene) return null;
+
+    const pointer = marqueePointerRef.current;
+    pointer.x = ((clientX - canvasRect.left) / canvasRect.width) * 2 - 1;
+    pointer.y = -((clientY - canvasRect.top) / canvasRect.height) * 2 + 1;
+
+    const raycaster = marqueeRaycasterRef.current;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    for (const hit of hits) {
+      const nodeId = findSnapBlockId(hit.object);
+      if (nodeId) return nodeId;
+    }
+
+    return null;
+  }, []);
+
   const handleCanvasPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "build" || toolMode !== "select" || !e.shiftKey || e.button !== 0) return;
     const canvasRect = canvasWrapRef.current?.getBoundingClientRect();
     const camera = cameraRef.current;
     if (!canvasRect || !camera) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    setIsMarqueeGestureActive(true);
 
     const startX = e.clientX - canvasRect.left;
     const startY = e.clientY - canvasRect.top;
@@ -1110,9 +1351,10 @@ export function App() {
       setMarqueeRect(latestBounds);
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (upEvent: PointerEvent) => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
+      setIsMarqueeGestureActive(false);
 
       if (dragged) {
         const rect = canvasWrapRef.current?.getBoundingClientRect();
@@ -1141,13 +1383,23 @@ export function App() {
           setSelectedNodeIds((previous) => [...new Set([...previous, ...nextIds])]);
           suppressSceneSelectionUntilRef.current = Date.now() + 150;
         }
+      } else {
+        const nodeId = pickNodeIdAtClientPoint(upEvent.clientX, upEvent.clientY);
+        if (nodeId) {
+          suppressSceneSelectionUntilRef.current = Date.now() + 150;
+          setSelectedNodeIds((previous) => (
+            previous.includes(nodeId)
+              ? previous.filter((id) => id !== nodeId)
+              : [...previous, nodeId]
+          ));
+        }
       }
       setMarqueeRect(null);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
-  }, [mode, toolMode]);
+  }, [mode, pickNodeIdAtClientPoint, toolMode]);
 
   const effectiveInput = inputsEnabled
     ? activePreset && mode === "play"
@@ -1249,9 +1501,21 @@ export function App() {
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               <button onClick={handleUndo} disabled={undoStack.length === 0} style={smallActionButton(undoStack.length > 0)}>
                 Undo
+              </button>
+              <button
+                onClick={handleClearPersistedDraft}
+                disabled={!hasPersistedDraft}
+                style={{
+                  ...smallActionButton(hasPersistedDraft),
+                  background: hasPersistedDraft ? "rgba(248,113,113,0.14)" : "rgba(255,255,255,0.04)",
+                  borderColor: hasPersistedDraft ? "rgba(248,113,113,0.28)" : "rgba(255,255,255,0.08)",
+                  color: hasPersistedDraft ? "#fecaca" : "#6b7280",
+                }}
+              >
+                Clear
               </button>
               <button onClick={handleRedo} disabled={redoStack.length === 0} style={smallActionButton(redoStack.length > 0)}>
                 Redo
@@ -1337,315 +1601,301 @@ export function App() {
               <StatCard label="Connections" value={String(connectionCount)} />
             </div>
 
-            {toolMode === "place" && (
-              <>
-                <div style={{ marginBottom: 10, fontSize: 12, opacity: 0.78 }}>
-                  Hover to preview anchors. Use the X/Y/Z quick rotate buttons for 90° turns, <code>[</code> and <code>]</code> to twist around Z, and <code>Tab</code> to cycle the source anchor when placement is locked manually.
-                </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {([
+                { id: "placement", label: "Placement" },
+                { id: "controls", label: "Controls" },
+                { id: "parts", label: "Parts" },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setBuildSidebarTab(tab.id)}
+                  style={{
+                    ...chipButtonStyle,
+                    flex: 1,
+                    padding: "9px 0",
+                    background: buildSidebarTab === tab.id ? "rgba(14,165,233,0.22)" : "rgba(255,255,255,0.05)",
+                    borderColor: buildSidebarTab === tab.id ? "rgba(56,189,248,0.34)" : "rgba(255,255,255,0.08)",
+                    color: buildSidebarTab === tab.id ? "#e0f7ff" : "#d7def2",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: "auto",
+                paddingRight: 4,
+              }}
+            >
+              {buildSidebarTab === "placement" && (
                 <div
                   style={{
-                    marginBottom: 10,
                     padding: "10px 12px",
                     borderRadius: 12,
                     background: "rgba(255,255,255,0.05)",
                     border: "1px solid rgba(255,255,255,0.08)",
+                    fontSize: 12,
                   }}
                 >
-                  <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, letterSpacing: 0.7 }}>
-                    Placement
-                  </div>
-                  <div style={{ marginTop: 4, fontWeight: 700, color: "#fff" }}>
-                    {paletteItems.find((item) => item.id === selectedType)?.label ?? selectedType}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button
-                      onClick={() => setPlacementMode("manual")}
-                      style={{
-                        ...chipButtonStyle,
-                        flex: 1,
-                        background: placementMode === "manual" ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.06)",
-                        borderColor: placementMode === "manual" ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      Manual Lock
-                    </button>
-                    <button
-                      onClick={() => setPlacementMode("auto_orient")}
-                      style={{
-                        ...chipButtonStyle,
-                        flex: 1,
-                        background: placementMode === "auto_orient" ? "rgba(251,191,36,0.18)" : "rgba(255,255,255,0.06)",
-                        borderColor: placementMode === "auto_orient" ? "rgba(251,191,36,0.32)" : "rgba(255,255,255,0.08)",
-                        color: placementMode === "auto_orient" ? "#fde68a" : "#d7def2",
-                      }}
-                    >
-                      Auto Orient
-                    </button>
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: "8px 10px",
-                      borderRadius: 10,
-                      background: placementMode === "manual" ? "rgba(56,189,248,0.08)" : "rgba(251,191,36,0.08)",
-                      border: placementMode === "manual" ? "1px solid rgba(56,189,248,0.16)" : "1px solid rgba(251,191,36,0.16)",
-                      fontSize: 11,
-                      lineHeight: 1.55,
-                    }}
-                  >
-                    <div>
-                      Source anchor:{" "}
-                      <strong>
-                        {placementMode === "manual"
-                          ? (activeSourceAnchorId ?? snapResult?.sourceAnchor.id ?? "Hover to choose")
-                          : (snapResult?.sourceAnchor.id ?? "Auto")}
-                      </strong>
-                    </div>
-                    <div>
-                      Target anchor: <strong>{snapResult ? `${snapResult.target.blockId}:${snapResult.target.anchor.id}` : "--"}</strong>
-                    </div>
-                    <div>
-                      Candidate: <strong>{snapCandidateCount > 0 ? `${activeSnapCandidateIndex + 1}/${snapCandidateCount}` : "--"}</strong>
-                    </div>
-                    <div>
-                      Mode:{" "}
-                      <strong>{placementMode === "manual" ? "Your chosen rotation and source anchor stay locked." : "Solver may choose the best source anchor and orientation assist."}</strong>
-                    </div>
-                  </div>
-                  {placementMode === "manual" && (
-                    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                      <button
-                        onClick={cycleActiveSourceAnchor}
-                        style={smallActionButton(placementAnchors.length > 0)}
-                        disabled={placementAnchors.length === 0}
-                      >
-                        Next Source Anchor
-                      </button>
-                      <button
-                        onClick={() => setActiveSourceAnchorId(null)}
-                        style={smallActionButton(true)}
-                      >
-                        Reset Source Anchor
-                      </button>
-                    </div>
-                  )}
-                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                    <button
-                      onClick={() => cycleSnapCandidate(-1)}
-                      style={smallActionButton(snapCandidateCount > 1)}
-                      disabled={snapCandidateCount <= 1}
-                    >
-                      Prev Target
-                    </button>
-                    <button
-                      onClick={() => cycleSnapCandidate(1)}
-                      style={smallActionButton(snapCandidateCount > 1)}
-                      disabled={snapCandidateCount <= 1}
-                    >
-                      Next Target
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: 12 }}>
-                    Rotation:{" "}
-                    <strong>
-                      X {normalizeAngle(placementRotation.x)}° · Y {normalizeAngle(placementRotation.y)}° · Z {normalizeAngle(placementRotation.z)}°
-                    </strong>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z - (placementStepDeg || 5) }))}
-                      style={smallActionButton(true)}
-                    >
-                      Z - Step
-                    </button>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z + (placementStepDeg || 5) }))}
-                      style={smallActionButton(true)}
-                    >
-                      Z + Step
-                    </button>
-                    <button
-                      onClick={() => setPlacementRotation({ x: 0, y: 0, z: 0 })}
-                      style={smallActionButton(true)}
-                    >
-                      Reset Rotation
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 10, fontSize: 11, opacity: 0.62 }}>
-                    Quick Rotate
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 6 }}>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, x: value.x - 90 }))}
-                      style={smallActionButton(true)}
-                    >
-                      X -90°
-                    </button>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, y: value.y - 90 }))}
-                      style={smallActionButton(true)}
-                    >
-                      Y -90°
-                    </button>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z - 90 }))}
-                      style={smallActionButton(true)}
-                    >
-                      Z -90°
-                    </button>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, x: value.x + 90 }))}
-                      style={smallActionButton(true)}
-                    >
-                      X +90°
-                    </button>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, y: value.y + 90 }))}
-                      style={smallActionButton(true)}
-                    >
-                      Y +90°
-                    </button>
-                    <button
-                      onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z + 90 }))}
-                      style={smallActionButton(true)}
-                    >
-                      Z +90°
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 10, fontSize: 11, opacity: 0.62 }}>
-                    Angle Snap
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                    {ROTATION_STEPS.map((step) => (
-                      <button
-                        key={step}
-                        onClick={() => setPlacementStepDeg(step)}
+                  {toolMode === "place" ? (
+                    <>
+                      <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, letterSpacing: 0.7 }}>
+                        Placement
+                      </div>
+                      <div style={{ marginTop: 4, fontWeight: 700, color: "#fff" }}>
+                        {paletteItems.find((item) => item.id === selectedType)?.label ?? selectedType}
+                      </div>
+                      <div style={{ marginTop: 6, opacity: 0.78, lineHeight: 1.5 }}>
+                        Hover to preview anchors. Use <code>[</code> and <code>]</code> to twist around Z, and <code>Tab</code> to cycle the source anchor when placement is locked manually.
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <button
+                          onClick={() => setPlacementMode("manual")}
+                          style={{
+                            ...chipButtonStyle,
+                            flex: 1,
+                            background: placementMode === "manual" ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.06)",
+                            borderColor: placementMode === "manual" ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          Manual Lock
+                        </button>
+                        <button
+                          onClick={() => setPlacementMode("auto_orient")}
+                          style={{
+                            ...chipButtonStyle,
+                            flex: 1,
+                            background: placementMode === "auto_orient" ? "rgba(251,191,36,0.18)" : "rgba(255,255,255,0.06)",
+                            borderColor: placementMode === "auto_orient" ? "rgba(251,191,36,0.32)" : "rgba(255,255,255,0.08)",
+                            color: placementMode === "auto_orient" ? "#fde68a" : "#d7def2",
+                          }}
+                        >
+                          Auto Orient
+                        </button>
+                      </div>
+                      <div
                         style={{
-                          ...chipButtonStyle,
-                          background: placementStepDeg === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
-                          borderColor: placementStepDeg === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
-                          color: placementStepDeg === step ? "#dff6ff" : "#d7def2",
+                          marginTop: 10,
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: placementMode === "manual" ? "rgba(56,189,248,0.08)" : "rgba(251,191,36,0.08)",
+                          border: placementMode === "manual" ? "1px solid rgba(56,189,248,0.16)" : "1px solid rgba(251,191,36,0.16)",
+                          fontSize: 11,
+                          lineHeight: 1.55,
                         }}
                       >
-                        {step === 0 ? "Free" : `${step}°`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <input
-                  value={partQuery}
-                  onChange={(e) => setPartQuery(e.target.value)}
-                  placeholder="Search parts, ids, categories..."
-                  style={searchInputStyle}
-                />
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
-                    marginTop: 10,
-                    overflowY: "auto",
-                    minHeight: 0,
-                    flex: 1,
-                    paddingRight: 4,
-                  }}
-                >
-                  {groupedPalette.map(([category, items]) => (
-                    <div key={category}>
-                      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, opacity: 0.56, marginBottom: 6 }}>
-                        {category}
+                        <div>
+                          Source anchor:{" "}
+                          <strong>
+                            {placementMode === "manual"
+                              ? (activeSourceAnchorId ?? snapResult?.sourceAnchor.id ?? "Hover to choose")
+                              : (snapResult?.sourceAnchor.id ?? "Auto")}
+                          </strong>
+                        </div>
+                        <div>
+                          Target anchor: <strong>{snapResult ? `${snapResult.target.blockId}:${snapResult.target.anchor.id}` : "--"}</strong>
+                        </div>
+                        <div>
+                          Candidate: <strong>{snapCandidateCount > 0 ? `${activeSnapCandidateIndex + 1}/${snapCandidateCount}` : "--"}</strong>
+                        </div>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {items.map((item) => (
+                      {placementMode === "manual" && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                           <button
-                            key={item.id}
-                            onClick={() => setSelectedType(item.id)}
-                            style={{
-                              ...cardButtonStyle,
-                              padding: "9px 10px",
-                              background: selectedType === item.id ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.05)",
-                              borderColor: selectedType === item.id ? "rgba(56,189,248,0.34)" : "rgba(255,255,255,0.08)",
-                            }}
+                            onClick={cycleActiveSourceAnchor}
+                            style={smallActionButton(placementAnchors.length > 0)}
+                            disabled={placementAnchors.length === 0}
                           >
-                            <div style={{ fontWeight: 600, color: "#fff" }}>{item.label}</div>
-                            <div style={{ fontSize: 11, opacity: 0.52 }}>{item.id}</div>
+                            Next Source Anchor
                           </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {toolMode !== "place" && (
-              <div
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                }}
-              >
-                {toolMode === "select" && "Click a block to inspect it. Shift-click adds or removes blocks from the selection."}
-                {toolMode === "move" && "Click a block, then drag the gizmo to reposition it. Shift-click builds a multi-selection and dragging moves everything together."}
-                {toolMode === "rotate" && "Click a block, then drag the gizmo to rotate it. Multi-selection rotates around the shared centroid so the layout stays intact."}
-                {(toolMode === "move" || toolMode === "rotate") && (
-                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {toolMode === "move" ? (
-                      <>
-                        {[0, 0.25, 0.5, 1].map((step) => (
                           <button
-                            key={`move-snap:${step}`}
-                            onClick={() => setTranslationSnap(step)}
+                            onClick={() => setActiveSourceAnchorId(null)}
+                            style={smallActionButton(true)}
+                          >
+                            Reset Source Anchor
+                          </button>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => cycleSnapCandidate(-1)}
+                          style={smallActionButton(snapCandidateCount > 1)}
+                          disabled={snapCandidateCount <= 1}
+                        >
+                          Prev Target
+                        </button>
+                        <button
+                          onClick={() => cycleSnapCandidate(1)}
+                          style={smallActionButton(snapCandidateCount > 1)}
+                          disabled={snapCandidateCount <= 1}
+                        >
+                          Next Target
+                        </button>
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 12 }}>
+                        Rotation:{" "}
+                        <strong>
+                          X {normalizeAngle(placementRotation.x)}° · Y {normalizeAngle(placementRotation.y)}° · Z {normalizeAngle(placementRotation.z)}°
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z - (placementStepDeg || 5) }))}
+                          style={smallActionButton(true)}
+                        >
+                          Z - Step
+                        </button>
+                        <button
+                          onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z + (placementStepDeg || 5) }))}
+                          style={smallActionButton(true)}
+                        >
+                          Z + Step
+                        </button>
+                        <button
+                          onClick={() => setPlacementRotation({ x: 0, y: 0, z: 0 })}
+                          style={smallActionButton(true)}
+                        >
+                          Reset Rotation
+                        </button>
+                      </div>
+                      <div style={{ marginTop: 10, fontSize: 11, opacity: 0.62 }}>
+                        Quick Rotate
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 6 }}>
+                        <button onClick={() => setPlacementRotation((value) => ({ ...value, x: value.x - 90 }))} style={smallActionButton(true)}>
+                          X -90°
+                        </button>
+                        <button onClick={() => setPlacementRotation((value) => ({ ...value, y: value.y - 90 }))} style={smallActionButton(true)}>
+                          Y -90°
+                        </button>
+                        <button onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z - 90 }))} style={smallActionButton(true)}>
+                          Z -90°
+                        </button>
+                        <button onClick={() => setPlacementRotation((value) => ({ ...value, x: value.x + 90 }))} style={smallActionButton(true)}>
+                          X +90°
+                        </button>
+                        <button onClick={() => setPlacementRotation((value) => ({ ...value, y: value.y + 90 }))} style={smallActionButton(true)}>
+                          Y +90°
+                        </button>
+                        <button onClick={() => setPlacementRotation((value) => ({ ...value, z: value.z + 90 }))} style={smallActionButton(true)}>
+                          Z +90°
+                        </button>
+                      </div>
+                      <div style={{ marginTop: 10, fontSize: 11, opacity: 0.62 }}>
+                        Angle Snap
+                      </div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                        {ROTATION_STEPS.map((step) => (
+                          <button
+                            key={step}
+                            onClick={() => setPlacementStepDeg(step)}
                             style={{
                               ...chipButtonStyle,
-                              background: translationSnap === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
-                              borderColor: translationSnap === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                              background: placementStepDeg === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
+                              borderColor: placementStepDeg === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                              color: placementStepDeg === step ? "#dff6ff" : "#d7def2",
                             }}
                           >
-                            {step === 0 ? "Move Free" : `Move ${step}`}
+                            {step === 0 ? "Free" : `${step}°`}
                           </button>
                         ))}
-                      </>
-                    ) : (
-                      <>
-                        {[0, 5, 15, 45].map((step) => (
-                          <button
-                            key={`rot-snap:${step}`}
-                            onClick={() => setRotationSnapDeg(step)}
-                            style={{
-                              ...chipButtonStyle,
-                              background: rotationSnapDeg === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
-                              borderColor: rotationSnapDeg === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
-                            }}
-                          >
-                            {step === 0 ? "Rotate Free" : `Rotate ${step}°`}
-                          </button>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ lineHeight: 1.6 }}>
+                        {toolMode === "select" && "Click a block to inspect it. Shift-click adds or removes blocks from the selection."}
+                        {toolMode === "move" && "Click a block, then drag the gizmo to reposition it. Shift-click builds a multi-selection and dragging moves everything together."}
+                        {toolMode === "rotate" && "Click a block, then drag the gizmo to rotate it. Multi-selection rotates around the shared centroid so the layout stays intact."}
+                      </div>
+                      {(toolMode === "select" || toolMode === "move" || toolMode === "rotate") && (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            paddingTop: 10,
+                            borderTop: "1px solid rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.56, letterSpacing: 0.7 }}>
+                            Mirror Plane
+                          </div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                            {(["x", "y", "z"] as const).map((axis) => (
+                              <button
+                                key={`mirror-axis:${axis}`}
+                                onClick={() => setMirrorPlaneAxis(axis)}
+                                style={{
+                                  ...chipButtonStyle,
+                                  flex: 1,
+                                  background: mirrorPlaneAxis === axis ? "rgba(244,114,182,0.18)" : "rgba(255,255,255,0.06)",
+                                  borderColor: mirrorPlaneAxis === axis ? "rgba(244,114,182,0.34)" : "rgba(255,255,255,0.08)",
+                                }}
+                              >
+                                {axis.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                          <div style={{ marginTop: 8, fontSize: 12 }}>
+                            Offset: <strong>{mirrorPlaneOffset.toFixed(2)}</strong>
+                          </div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                            <button onClick={() => setMirrorPlaneOffset((value) => value - 0.5)} style={smallActionButton(true)}>
+                              -0.5
+                            </button>
+                            <button onClick={() => setMirrorPlaneOffset((value) => value + 0.5)} style={smallActionButton(true)}>
+                              +0.5
+                            </button>
+                            <button onClick={centerMirrorPlaneToSelection} style={smallActionButton(selectedNodes.length > 0)} disabled={selectedNodes.length === 0}>
+                              Center To Selection
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {(toolMode === "move" || toolMode === "rotate") && (
+                        <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {toolMode === "move"
+                            ? [0, 0.25, 0.5, 1].map((step) => (
+                                <button
+                                  key={`move-snap:${step}`}
+                                  onClick={() => setTranslationSnap(step)}
+                                  style={{
+                                    ...chipButtonStyle,
+                                    background: translationSnap === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
+                                    borderColor: translationSnap === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                                  }}
+                                >
+                                  {step === 0 ? "Move Free" : `Move ${step}`}
+                                </button>
+                              ))
+                            : [0, 5, 15, 45].map((step) => (
+                                <button
+                                  key={`rot-snap:${step}`}
+                                  onClick={() => setRotationSnapDeg(step)}
+                                  style={{
+                                    ...chipButtonStyle,
+                                    background: rotationSnapDeg === step ? "rgba(56,189,248,0.24)" : "rgba(255,255,255,0.06)",
+                                    borderColor: rotationSnapDeg === step ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.08)",
+                                  }}
+                                >
+                                  {step === 0 ? "Rotate Free" : `Rotate ${step}°`}
+                                </button>
+                              ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
-            {controlMap && (
-              <>
-                <button
-                  onClick={() => setShowControls((value) => !value)}
-                  style={{ ...secondaryButtonStyle, width: "100%", marginTop: 12 }}
-                >
-                  {showControls ? "Hide Controls" : "Show Controls"}
-                </button>
-                {showControls && (
+              {buildSidebarTab === "controls" && (
+                controlMap ? (
                   <div
                     style={{
-                      marginTop: 10,
                       padding: "10px 12px",
                       borderRadius: 12,
                       background: "rgba(255,255,255,0.05)",
@@ -1659,9 +1909,67 @@ export function App() {
                       onHoverEntry={setHoveredEntry}
                     />
                   </div>
-                )}
-              </>
-            )}
+                ) : (
+                  <div
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      opacity: 0.78,
+                    }}
+                  >
+                    Controls appear here when the current build includes motors, hinges, or other mapped inputs.
+                  </div>
+                )
+              )}
+
+              {buildSidebarTab === "parts" && (
+                <>
+                  <input
+                    value={partQuery}
+                    onChange={(e) => setPartQuery(e.target.value)}
+                    placeholder="Search parts, ids, categories..."
+                    style={searchInputStyle}
+                  />
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                      marginTop: 10,
+                    }}
+                  >
+                    {groupedPalette.map(([category, items]) => (
+                      <div key={category}>
+                        <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, opacity: 0.56, marginBottom: 6 }}>
+                          {category}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {items.map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => setSelectedType(item.id)}
+                              style={{
+                                ...cardButtonStyle,
+                                padding: "9px 10px",
+                                background: selectedType === item.id ? "rgba(14, 165, 233, 0.22)" : "rgba(255,255,255,0.05)",
+                                borderColor: selectedType === item.id ? "rgba(56,189,248,0.34)" : "rgba(255,255,255,0.08)",
+                              }}
+                            >
+                              <div style={{ fontWeight: 600, color: "#fff" }}>{item.label}</div>
+                              <div style={{ fontSize: 11, opacity: 0.52 }}>{item.id}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <button onClick={handlePlay} style={{ ...primaryButtonStyle, flex: 1 }}>
@@ -1744,6 +2052,9 @@ export function App() {
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <button onClick={handleStop} style={{ ...primaryButtonStyle, flex: 1, background: "#dc2626" }}>
                 Stop
+              </button>
+              <button onClick={handleResetPlay} style={{ ...secondaryButtonStyle, flex: 1 }}>
+                Reset Scene
               </button>
               <button onClick={handleGallery} style={{ ...secondaryButtonStyle, flex: 1 }}>
                 Gallery
@@ -1904,6 +2215,8 @@ export function App() {
                     {selectedJointActuator.blockName} defaults persist on the block in build mode and carry into play mode.
                     <br />
                     The pose preview updates live here while you edit the values below.
+                    <br />
+                    Use max force here for torque. Use the Controls tab to scale command strength.
                   </div>
 
                   {(selectedJointActuator.inputTarget === "position" || selectedJointActuator.inputTarget === "both" || selectedJointActuator.actuatorType === "position") && (
@@ -2220,13 +2533,14 @@ export function App() {
         shadows
         onCreated={(state) => {
           cameraRef.current = state.camera;
+          sceneRef.current = state.scene;
         }}
         style={{ background: "linear-gradient(180deg, #152238 0%, #0b1020 100%)" }}
       >
         <ambientLight intensity={0.5} />
         <directionalLight position={[8, 12, 6]} intensity={1.1} castShadow />
         <Environment preset="city" />
-        {!(mode === "play" && firstPerson) && <OrbitControls makeDefault enabled={!isTransformDragging} />}
+        {!(mode === "play" && firstPerson) && <OrbitControls makeDefault enabled={!isTransformDragging && !isMarqueeGestureActive} />}
 
         {(mode === "gallery" || mode === "build") && (
           <Grid
@@ -2370,6 +2684,18 @@ function MirrorPlane({ axis, offset }: { axis: MirrorPlaneAxis; offset: number }
       />
     </mesh>
   );
+}
+
+function findSnapBlockId(object: THREE.Object3D): string | null {
+  let current: THREE.Object3D | null = object;
+  while (current) {
+    const nodeId = current.userData?.snapBlockId;
+    if (typeof nodeId === "string") {
+      return nodeId;
+    }
+    current = current.parent;
+  }
+  return null;
 }
 
 function TransformFieldRow({
@@ -2588,6 +2914,70 @@ function withBuilderMotorOverrides(
   }
 
   return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined;
+}
+
+function normalizePersistedMachineControls(value: unknown): MachineControls | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const defaultProfileId = typeof value.defaultProfileId === "string" ? value.defaultProfileId : null;
+  const rawProfiles = Array.isArray(value.profiles) ? value.profiles : null;
+  if (!defaultProfileId || !rawProfiles) {
+    return undefined;
+  }
+
+  const profiles = rawProfiles.flatMap((profile) => {
+    if (!isRecord(profile) || profile.kind !== "keyboard" || typeof profile.id !== "string" || !Array.isArray(profile.bindings)) {
+      return [];
+    }
+
+    const bindings = profile.bindings.flatMap((binding) => {
+      if (!isRecord(binding) || !isRecord(binding.target) || !isRecord(binding.positive)) {
+        return [];
+      }
+      if (
+        (binding.target.kind !== "joint" && binding.target.kind !== "behavior") ||
+        typeof binding.target.id !== "string" ||
+        typeof binding.positive.code !== "string" ||
+        typeof binding.enabled !== "boolean" ||
+        typeof binding.scale !== "number" ||
+        !Number.isFinite(binding.scale)
+      ) {
+        return [];
+      }
+
+      const negative = isRecord(binding.negative) && typeof binding.negative.code === "string"
+        ? { code: binding.negative.code }
+        : undefined;
+
+      return [{
+        target: {
+          kind: binding.target.kind,
+          id: binding.target.id,
+        },
+        positive: { code: binding.positive.code },
+        negative,
+        enabled: binding.enabled,
+        scale: binding.scale,
+      }];
+    });
+
+    return [{
+      id: profile.id,
+      kind: "keyboard" as const,
+      bindings,
+    }];
+  });
+
+  if (profiles.length === 0) {
+    return undefined;
+  }
+
+  return {
+    defaultProfileId,
+    profiles,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
