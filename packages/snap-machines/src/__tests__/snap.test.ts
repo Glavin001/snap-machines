@@ -25,6 +25,8 @@ import {
   lookRotation,
   quatFromAxisAngle,
 } from "../math.js";
+import { exampleCatalog } from "../examples/catalog.js";
+import { besiegeCompounds } from "../besiege/compounds.js";
 
 function cubeBlock(): BlockDefinition {
   return {
@@ -167,6 +169,24 @@ describe("findSnapCandidates / findBestSnap", () => {
     if (result) {
       expect(result.target.anchor.id).not.toBe("xp");
     }
+  });
+
+  it("prefers the partA structural mount for shock absorbers on a frame cube", () => {
+    const catalog = new BlockCatalog();
+    catalog.registerMany([...exampleCatalog, ...besiegeCompounds]);
+    const graph = new BlockGraph();
+    graph.addNode({ id: "origin", typeId: "frame.cube.1", transform: TRANSFORM_IDENTITY });
+
+    const result = findBestSnap({
+      graph,
+      catalog,
+      candidateTypeId: "compound.shock",
+      hit: { blockId: "origin", point: vec3(0, 0.5, 0) },
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.target.anchor.id).toBe("yp");
+    expect(result!.sourceAnchor.id).toBe("upper.attach");
   });
 });
 

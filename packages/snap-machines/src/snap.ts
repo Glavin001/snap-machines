@@ -265,7 +265,10 @@ export function findSnapCandidates(query: SnapQuery): SnapCandidate[] {
 
       const travelDistance = distanceVec3(preview.position, placement.position);
       const score =
-        hitDistance * rules.hitDistanceWeight + angleError * rules.angleWeight + travelDistance * rules.travelWeight;
+        hitDistance * rules.hitDistanceWeight +
+        angleError * rules.angleWeight +
+        travelDistance * rules.travelWeight +
+        getSourceAnchorPlacementBias(candidateBlock, sourceAnchor);
 
       candidates.push({
         score,
@@ -288,6 +291,24 @@ export function findSnapCandidates(query: SnapQuery): SnapCandidate[] {
   }
 
   return candidates.sort((a, b) => a.score - b.score);
+}
+
+function getSourceAnchorPlacementBias(
+  candidateBlock: NormalizedBlockDefinition,
+  sourceAnchor: NormalizedAnchorDefinition,
+): number {
+  const joint = candidateBlock.joint;
+  if (!joint || sourceAnchor.type !== "struct") {
+    return 0;
+  }
+
+  if (sourceAnchor.partId === joint.partA) {
+    return -0.001;
+  }
+  if (sourceAnchor.partId === joint.partB) {
+    return 0.001;
+  }
+  return 0;
 }
 
 export function findBestSnap(query: SnapQuery): SnapResult | null {

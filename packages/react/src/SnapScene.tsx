@@ -169,12 +169,21 @@ export function SnapScene({
   });
 
   const computeSnap = useCallback(
-    (hit: HitInfo) => {
-      setHoveredBlockId(hit.blockId);
+    (hits: HitInfo[]) => {
+      const primaryHit = hits[0] ?? null;
+      setHoveredBlockId(primaryHit?.blockId ?? null);
 
       if (toolMode !== "place") {
         snapTransformRef.current = null;
         setActiveSnap(null);
+        onSnapChange?.(null);
+        return null;
+      }
+
+      if (hits.length === 0) {
+        snapTransformRef.current = null;
+        setActiveSnap(null);
+        onSnapCandidateCountChange?.(0);
         onSnapChange?.(null);
         return null;
       }
@@ -187,19 +196,20 @@ export function SnapScene({
           "XYZ",
         ),
       );
-      const preview = transform(hit.point, {
+      const preview = transform(primaryHit.point, {
         x: previewQuat.x,
         y: previewQuat.y,
         z: previewQuat.z,
         w: previewQuat.w,
       });
-      const candidates = findSnapCandidates({
+      const candidates = hits.flatMap((hit) => findSnapCandidates({
         graph,
         catalog,
         candidateTypeId: selectedType,
         hit: { blockId: hit.blockId, point: hit.point },
         previewTransform: preview,
-      });
+      }));
+      candidates.sort((a, b) => a.score - b.score);
       const filteredCandidates = placementMode === "manual" && activeSourceAnchorId
         ? candidates.filter((candidate) => candidate.sourceAnchor.id === activeSourceAnchorId)
         : candidates;
@@ -211,7 +221,7 @@ export function SnapScene({
         ? {
             ...best,
             connection: {
-              a: { blockId: hit.blockId, anchorId: best.target.anchor.id },
+              a: { blockId: best.target.blockId, anchorId: best.target.anchor.id },
               b: { blockId: "__candidate__", anchorId: best.sourceAnchor.id },
             },
           }
@@ -229,7 +239,7 @@ export function SnapScene({
 
   useEffect(() => {
     if (toolMode === "place" && lastHitRef.current) {
-      computeSnap(lastHitRef.current);
+      computeSnap([lastHitRef.current]);
       return;
     }
     snapTransformRef.current = null;
@@ -241,13 +251,10 @@ export function SnapScene({
   const handlePointerMove = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation();
-      const blockId = findBlockId(e.object);
-      if (!blockId) return;
-
-      const point = e.point;
-      const hit: HitInfo = { blockId, point: { x: point.x, y: point.y, z: point.z } };
-      lastHitRef.current = hit;
-      computeSnap(hit);
+      const hits = extractHits(e);
+      if (hits.length === 0) return;
+      lastHitRef.current = hits[0] ?? null;
+      computeSnap(hits);
     },
     [computeSnap],
   );
@@ -263,9 +270,8 @@ export function SnapScene({
         return;
       }
 
-      const point = e.point;
-      const hit: HitInfo = { blockId, point: { x: point.x, y: point.y, z: point.z } };
-      const snap = computeSnap(hit);
+      const hits = extractHits(e);
+      const snap = computeSnap(hits);
       if (!snap) return;
 
       const nextGraph = graph.clone();
@@ -476,6 +482,29 @@ function findBlockId(object: THREE.Object3D): string | undefined {
     current = current.parent;
   }
   return undefined;
+}
+
+function extractHits(event: ThreeEvent<PointerEvent | MouseEvent>): HitInfo[] {
+  const hits: HitInfo[] = [];
+  const seen = new Set<string>();
+
+  for (const intersection of event.intersections) {
+    const blockId = findBlockId(intersection.object);
+    if (!blockId || seen.has(blockId)) {
+      continue;
+    }
+    seen.add(blockId);
+    hits.push({
+      blockId,
+      point: {
+        x: intersection.point.x,
+        y: intersection.point.y,
+        z: intersection.point.z,
+      },
+    });
+  }
+
+  return hits;
 }
 
 function GhostAnchorMarkers({
