@@ -45,8 +45,22 @@ snap-machines-rapier = { git = "https://github.com/glavin001/snap-machines", pac
 Then import it in code as:
 
 ```rust
-use snap_machines_rapier::{MachineRuntime, RapierSimulation};
+use snap_machines_rapier::{MachineRuntime, MachineWorldMut};
 ```
+
+Typical usage in another Rust project:
+
+1. Export a machine envelope JSON from the web builder, or generate one with `compileMachineEnvelope(...)` in `@snap-machines/core`.
+2. Create or reuse your existing Rapier world.
+3. Pass your `RigidBodySet`, `ColliderSet`, and `ImpulseJointSet` into `MachineWorldMut`.
+4. Construct `MachineRuntime::install_json_str(...)`.
+5. Each fixed-step tick, call `runtime.update_in_world(...)` and then step Rapier in your app.
+
+The crate-level onboarding and API examples live in [crates/snap-machines-rapier/README.md](/Users/glavin/Development/snap-machines/crates/snap-machines-rapier/README.md:1), including:
+
+- an end-to-end quick start with an app-owned Rapier world
+- installation, update, readback, and removal using raw Rapier sets
+- the legacy `RapierSimulation` convenience wrapper for standalone use
 
 Once the crate is published to crates.io, that dependency can be replaced with a normal version requirement.
 

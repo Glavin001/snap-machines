@@ -32,6 +32,24 @@ impl From<bool> for RuntimeInputValue {
 
 pub type RuntimeInputState = HashMap<String, RuntimeInputValue>;
 
+pub struct MachineWorldRef<'a> {
+    pub bodies: &'a RigidBodySet,
+}
+
+pub struct MachineWorldMut<'a> {
+    pub bodies: &'a mut RigidBodySet,
+    pub colliders: &'a mut ColliderSet,
+    pub impulse_joints: &'a mut ImpulseJointSet,
+}
+
+pub struct MachineWorldRemove<'a> {
+    pub islands: &'a mut IslandManager,
+    pub bodies: &'a mut RigidBodySet,
+    pub colliders: &'a mut ColliderSet,
+    pub impulse_joints: &'a mut ImpulseJointSet,
+    pub multibody_joints: &'a mut MultibodyJointSet,
+}
+
 pub struct RapierSimulation {
     pub gravity: Vector<Real>,
     pub integration_parameters: IntegrationParameters,
@@ -82,6 +100,14 @@ pub enum RuntimeBuildError {
     UnsupportedBehavior(String),
 }
 
+#[derive(Debug, Error)]
+pub enum RuntimeRemoveError {
+    #[error("missing joint {0} during runtime removal")]
+    MissingJoint(String),
+    #[error("missing body {0} during runtime removal")]
+    MissingBody(String),
+}
+
 impl Default for RapierSimulation {
     fn default() -> Self {
         Self {
@@ -101,6 +127,30 @@ impl Default for RapierSimulation {
 }
 
 impl RapierSimulation {
+    pub fn world_ref(&self) -> MachineWorldRef<'_> {
+        MachineWorldRef {
+            bodies: &self.bodies,
+        }
+    }
+
+    pub fn world_mut(&mut self) -> MachineWorldMut<'_> {
+        MachineWorldMut {
+            bodies: &mut self.bodies,
+            colliders: &mut self.colliders,
+            impulse_joints: &mut self.impulse_joints,
+        }
+    }
+
+    pub fn world_remove(&mut self) -> MachineWorldRemove<'_> {
+        MachineWorldRemove {
+            islands: &mut self.islands,
+            bodies: &mut self.bodies,
+            colliders: &mut self.colliders,
+            impulse_joints: &mut self.impulse_joints,
+            multibody_joints: &mut self.multibody_joints,
+        }
+    }
+
     pub fn step(&mut self) {
         self.pipeline.step(
             &self.gravity,
@@ -147,33 +197,57 @@ impl MachineRuntime {
         simulation: &mut RapierSimulation,
         envelope: SerializedMachineEnvelope,
     ) -> Result<Self, RuntimeBuildError> {
-        validate_machine_envelope(&envelope)?;
-        Self::from_plan(simulation, envelope.plan)
+        let mut world = simulation.world_mut();
+        Self::install_envelope(&mut world, envelope)
     }
 
     pub fn from_json_str(
         simulation: &mut RapierSimulation,
         json: &str,
     ) -> Result<Self, RuntimeBuildError> {
-        let envelope: SerializedMachineEnvelope = serde_json::from_str(json)?;
-        Self::from_envelope(simulation, envelope)
+        let mut world = simulation.world_mut();
+        Self::install_json_str(&mut world, json)
     }
 
     pub fn from_plan(
         simulation: &mut RapierSimulation,
         plan: MachinePlan,
     ) -> Result<Self, RuntimeBuildError> {
+        let mut world = simulation.world_mut();
+        Self::install_plan(&mut world, plan)
+    }
+
+    pub fn install_envelope(
+        world: &mut MachineWorldMut<'_>,
+        envelope: SerializedMachineEnvelope,
+    ) -> Result<Self, RuntimeBuildError> {
+        validate_machine_envelope(&envelope)?;
+        Self::install_plan(world, envelope.plan)
+    }
+
+    pub fn install_json_str(
+        world: &mut MachineWorldMut<'_>,
+        json: &str,
+    ) -> Result<Self, RuntimeBuildError> {
+        let envelope: SerializedMachineEnvelope = serde_json::from_str(json)?;
+        Self::install_envelope(world, envelope)
+    }
+
+    pub fn install_plan(
+        world: &mut MachineWorldMut<'_>,
+        plan: MachinePlan,
+    ) -> Result<Self, RuntimeBuildError> {
         let mut body_handles = HashMap::new();
         for body_plan in &plan.bodies {
-            let body = simulation.bodies.insert(create_rigid_body(body_plan));
+            let body = world.bodies.insert(create_rigid_body(body_plan));
             for collider in &body_plan.colliders {
                 let desc = create_collider(collider);
-                simulation
+                world
                     .colliders
-                    .insert_with_parent(desc, body, &mut simulation.bodies);
+                    .insert_with_parent(desc, body, world.bodies);
             }
-            if let Some(body_ref) = simulation.bodies.get_mut(body) {
-                body_ref.recompute_mass_properties_from_colliders(&simulation.colliders);
+            if let Some(body_ref) = world.bodies.get_mut(body) {
+                body_ref.recompute_mass_properties_from_colliders(world.colliders);
             }
             body_handles.insert(body_plan.id.clone(), body);
         }
@@ -186,10 +260,9 @@ impl MachineRuntime {
             let body_b = *body_handles
                 .get(&joint_plan.body_b_id)
                 .ok_or_else(|| RuntimeBuildError::MissingBody(joint_plan.body_b_id.clone()))?;
-            let handle =
-                simulation
-                    .impulse_joints
-                    .insert(body_a, body_b, create_joint(joint_plan), true);
+            let handle = world
+                .impulse_joints
+                .insert(body_a, body_b, create_joint(joint_plan), true);
             joint_handles.insert(joint_plan.id.clone(), handle);
         }
 
@@ -235,8 +308,17 @@ impl MachineRuntime {
         simulation: &RapierSimulation,
         body_id: &str,
     ) -> Option<Transform> {
+        let world = simulation.world_ref();
+        self.body_transform_in_world(&world, body_id)
+    }
+
+    pub fn body_transform_in_world(
+        &self,
+        world: &MachineWorldRef<'_>,
+        body_id: &str,
+    ) -> Option<Transform> {
         let handle = self.body_handles.get(body_id)?;
-        let body = simulation.bodies.get(*handle)?;
+        let body = world.bodies.get(*handle)?;
         Some(isometry_to_transform(body.position()))
     }
 
@@ -245,8 +327,17 @@ impl MachineRuntime {
         simulation: &RapierSimulation,
         mount_id: &str,
     ) -> Option<Transform> {
+        let world = simulation.world_ref();
+        self.mount_world_transform_in_world(&world, mount_id)
+    }
+
+    pub fn mount_world_transform_in_world(
+        &self,
+        world: &MachineWorldRef<'_>,
+        mount_id: &str,
+    ) -> Option<Transform> {
         let mount = self.mount_map.get(mount_id)?;
-        let body_transform = self.body_transform(simulation, &mount.body_id)?;
+        let body_transform = self.body_transform_in_world(world, &mount.body_id)?;
         Some(compose_transform(body_transform, mount.local_transform))
     }
 
@@ -261,6 +352,17 @@ impl MachineRuntime {
         dt_seconds: f32,
     ) {
         simulation.integration_parameters.dt = dt_seconds;
+        let mut world = simulation.world_mut();
+        self.update_in_world(&mut world, input, dt_seconds);
+    }
+
+    pub fn update_in_world(
+        &mut self,
+        world: &mut MachineWorldMut<'_>,
+        input: &RuntimeInputState,
+        dt_seconds: f32,
+    ) {
+        let _ = dt_seconds;
 
         for joint_plan in &self.plan.joints {
             let Some(motor) = &joint_plan.motor else {
@@ -269,7 +371,7 @@ impl MachineRuntime {
             let Some(handle) = self.joint_handles.get(&joint_plan.id) else {
                 continue;
             };
-            let Some(joint) = simulation.impulse_joints.get_mut(*handle, true) else {
+            let Some(joint) = world.impulse_joints.get_mut(*handle, true) else {
                 continue;
             };
 
@@ -344,7 +446,7 @@ impl MachineRuntime {
                     let Some(body_handle) = self.body_handles.get(&thruster.body_id) else {
                         continue;
                     };
-                    let Some(body) = simulation.bodies.get_mut(*body_handle) else {
+                    let Some(body) = world.bodies.get_mut(*body_handle) else {
                         continue;
                     };
 
@@ -362,6 +464,36 @@ impl MachineRuntime {
                 }
             }
         }
+    }
+
+    pub fn remove_from_world(
+        self,
+        world: &mut MachineWorldRemove<'_>,
+    ) -> Result<(), RuntimeRemoveError> {
+        for (joint_id, handle) in &self.joint_handles {
+            if world.impulse_joints.remove(*handle, true).is_none() {
+                return Err(RuntimeRemoveError::MissingJoint(joint_id.clone()));
+            }
+        }
+
+        for (body_id, handle) in &self.body_handles {
+            if world
+                .bodies
+                .remove(
+                    *handle,
+                    world.islands,
+                    world.colliders,
+                    world.impulse_joints,
+                    world.multibody_joints,
+                    true,
+                )
+                .is_none()
+            {
+                return Err(RuntimeRemoveError::MissingBody(body_id.clone()));
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -715,10 +847,11 @@ mod tests {
     use super::*;
     use crate::types::{
         ColliderKind, CompileDiagnostic, DiagnosticLevel, JointLimits, JointMotorMode::Velocity,
-        MachineBodyPlan, MachineControlProfile, MachineControlProfileKind, MachineControlTarget,
-        MachineControlTargetKind, MachineControls, MachineJointPlan, MachineKeyboardBinding,
-        MachineKeyboardKey, MachinePartMountPlan, MotorInputTarget, PlannedJointMotor,
-        SERIALIZED_MACHINE_SCHEMA_VERSION, SerializedMachineEnvelope, SourcePart,
+        MachineBindingScheme, MachineBodyPlan, MachineButtonPairBinding, MachineButtonSource,
+        MachineControlProfileKind, MachineControlScheme, MachineControllerScheme, MachineControls,
+        MachineInputBinding, MachineInputProfile, MachineJointPlan, MachinePartMountPlan,
+        MotorInputTarget, PlannedJointMotor, SERIALIZED_MACHINE_SCHEMA_VERSION,
+        SerializedMachineEnvelope, SourcePart,
     };
 
     fn identity_transform() -> Transform {
@@ -789,6 +922,140 @@ mod tests {
                 connection_id: None,
             }],
         }
+    }
+
+    fn empty_controller_scheme() -> MachineControllerScheme {
+        MachineControllerScheme {
+            default_profile_id: "controller.keyboard.default".into(),
+            commands: vec![],
+            profiles: vec![MachineInputProfile {
+                id: "controller.keyboard.default".into(),
+                kind: MachineControlProfileKind::Keyboard,
+                bindings: vec![],
+            }],
+            actuator_roles: vec![],
+            script: None,
+        }
+    }
+
+    struct RawWorld {
+        gravity: Vector<Real>,
+        integration_parameters: IntegrationParameters,
+        pipeline: PhysicsPipeline,
+        islands: IslandManager,
+        broad_phase: DefaultBroadPhase,
+        narrow_phase: NarrowPhase,
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+        impulse_joints: ImpulseJointSet,
+        multibody_joints: MultibodyJointSet,
+        ccd_solver: CCDSolver,
+    }
+
+    impl Default for RawWorld {
+        fn default() -> Self {
+            Self {
+                gravity: vector![0.0, -9.81, 0.0],
+                integration_parameters: IntegrationParameters::default(),
+                pipeline: PhysicsPipeline::new(),
+                islands: IslandManager::new(),
+                broad_phase: DefaultBroadPhase::new(),
+                narrow_phase: NarrowPhase::new(),
+                bodies: RigidBodySet::new(),
+                colliders: ColliderSet::new(),
+                impulse_joints: ImpulseJointSet::new(),
+                multibody_joints: MultibodyJointSet::new(),
+                ccd_solver: CCDSolver::new(),
+            }
+        }
+    }
+
+    impl RawWorld {
+        fn world_ref(&self) -> MachineWorldRef<'_> {
+            MachineWorldRef {
+                bodies: &self.bodies,
+            }
+        }
+
+        fn world_mut(&mut self) -> MachineWorldMut<'_> {
+            MachineWorldMut {
+                bodies: &mut self.bodies,
+                colliders: &mut self.colliders,
+                impulse_joints: &mut self.impulse_joints,
+            }
+        }
+
+        fn world_remove(&mut self) -> MachineWorldRemove<'_> {
+            MachineWorldRemove {
+                islands: &mut self.islands,
+                bodies: &mut self.bodies,
+                colliders: &mut self.colliders,
+                impulse_joints: &mut self.impulse_joints,
+                multibody_joints: &mut self.multibody_joints,
+            }
+        }
+
+        fn step(&mut self) {
+            self.pipeline.step(
+                &self.gravity,
+                &self.integration_parameters,
+                &mut self.islands,
+                &mut self.broad_phase,
+                &mut self.narrow_phase,
+                &mut self.bodies,
+                &mut self.colliders,
+                &mut self.impulse_joints,
+                &mut self.multibody_joints,
+                &mut self.ccd_solver,
+                None,
+                &(),
+                &(),
+            );
+        }
+
+        fn insert_host_ground(&mut self) -> RigidBodyHandle {
+            let body = self.bodies.insert(
+                RigidBodyBuilder::fixed()
+                    .translation(vector![0.0, -0.5, 0.0])
+                    .build(),
+            );
+            self.colliders.insert_with_parent(
+                ColliderBuilder::cuboid(50.0, 0.5, 50.0).build(),
+                body,
+                &mut self.bodies,
+            );
+            body
+        }
+    }
+
+    fn thruster_plan(action: &str, x_offset: f32) -> MachinePlan {
+        let mut plan = cube_plan();
+        plan.bodies[0].origin.position.x = x_offset;
+        plan.behaviors.push(MachineBehaviorPlan {
+            id: "behavior:thruster".into(),
+            block_id: "root".into(),
+            block_type_id: "utility.thruster.small".into(),
+            part_id: "main".into(),
+            body_id: "body:0".into(),
+            kind: "thruster".into(),
+            props: serde_json::json!({
+                "force": 10.0,
+                "localDirection": { "x": 1.0, "y": 0.0, "z": 0.0 },
+                "localPoint": { "x": 0.0, "y": 0.0, "z": 0.0 }
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+            input: Some(InputBinding {
+                action: action.into(),
+                scale: Some(1.0),
+                invert: None,
+                deadzone: None,
+                clamp: None,
+            }),
+            metadata: None,
+        });
+        plan
     }
 
     #[test]
@@ -912,23 +1179,24 @@ mod tests {
             catalog_version: "smcat1-test".into(),
             plan,
             controls: Some(MachineControls {
-                default_profile_id: "keyboard.default".into(),
-                profiles: vec![MachineControlProfile {
-                    id: "keyboard.default".into(),
-                    kind: MachineControlProfileKind::Keyboard,
-                    bindings: vec![MachineKeyboardBinding {
-                        target: MachineControlTarget {
-                            kind: MachineControlTargetKind::Behavior,
-                            id: "behavior:thruster".into(),
-                        },
-                        positive: MachineKeyboardKey {
-                            code: "Space".into(),
-                        },
-                        negative: None,
-                        enabled: true,
-                        scale: 1.0,
+                active_scheme: MachineControlScheme::Bindings,
+                bindings: MachineBindingScheme {
+                    default_profile_id: "keyboard.default".into(),
+                    profiles: vec![MachineInputProfile {
+                        id: "keyboard.default".into(),
+                        kind: MachineControlProfileKind::Keyboard,
+                        bindings: vec![MachineInputBinding::ButtonPair(MachineButtonPairBinding {
+                            target_id: "behavior:behavior:thruster".into(),
+                            positive: MachineButtonSource::Keyboard {
+                                code: "Space".into(),
+                            },
+                            negative: None,
+                            enabled: true,
+                            scale: 1.0,
+                        })],
                     }],
-                }],
+                },
+                controller: empty_controller_scheme(),
             }),
             metadata: None,
         };
@@ -1046,5 +1314,95 @@ mod tests {
 
         assert!(runtime.joint_handle("joint:h1").is_some());
         assert_eq!(simulation.impulse_joints.len(), 1);
+    }
+
+    #[test]
+    fn installs_machine_into_external_rapier_world() {
+        let mut world = RawWorld::default();
+        let host_ground = world.insert_host_ground();
+
+        let runtime = {
+            let mut install_world = world.world_mut();
+            MachineRuntime::install_plan(&mut install_world, cube_plan()).unwrap()
+        };
+
+        assert_eq!(world.bodies.len(), 2);
+        assert_eq!(world.colliders.len(), 2);
+        assert!(world.bodies.get(host_ground).is_some());
+
+        let world_ref = world.world_ref();
+        let mount = runtime
+            .mount_world_transform_in_world(&world_ref, "mount:root::main")
+            .unwrap();
+        assert_relative_eq!(mount.position.x, 0.0);
+    }
+
+    #[test]
+    fn shared_world_updates_are_scoped_per_machine() {
+        let mut world = RawWorld::default();
+        world.gravity = vector![0.0, 0.0, 0.0];
+
+        let mut machine_a = {
+            let mut install_world = world.world_mut();
+            MachineRuntime::install_plan(&mut install_world, thruster_plan("throttle", 0.0))
+                .unwrap()
+        };
+        let mut machine_b = {
+            let mut install_world = world.world_mut();
+            MachineRuntime::install_plan(&mut install_world, thruster_plan("throttle", 5.0))
+                .unwrap()
+        };
+
+        let mut input_a = RuntimeInputState::new();
+        input_a.insert("throttle".into(), RuntimeInputValue::Scalar(1.0));
+
+        {
+            let mut update_world = world.world_mut();
+            machine_a.update_in_world(&mut update_world, &input_a, 1.0 / 60.0);
+        }
+        {
+            let mut update_world = world.world_mut();
+            machine_b.update_in_world(&mut update_world, &RuntimeInputState::new(), 1.0 / 60.0);
+        }
+        world.step();
+
+        let body_a = world.bodies.get(machine_a.body_handle("body:0").unwrap()).unwrap();
+        let body_b = world.bodies.get(machine_b.body_handle("body:0").unwrap()).unwrap();
+        assert!(body_a.linvel().x > 0.0);
+        assert_relative_eq!(body_b.linvel().x, 0.0);
+    }
+
+    #[test]
+    fn removing_one_machine_preserves_other_world_content() {
+        let mut world = RawWorld::default();
+        let host_ground = world.insert_host_ground();
+
+        let machine_a = {
+            let mut install_world = world.world_mut();
+            MachineRuntime::install_plan(&mut install_world, thruster_plan("throttle", 0.0))
+                .unwrap()
+        };
+        let machine_b = {
+            let mut install_world = world.world_mut();
+            MachineRuntime::install_plan(&mut install_world, thruster_plan("throttle", 5.0))
+                .unwrap()
+        };
+
+        {
+            let mut remove_world = world.world_remove();
+            machine_a.remove_from_world(&mut remove_world).unwrap();
+        }
+
+        assert!(world.bodies.get(host_ground).is_some());
+        assert_eq!(world.bodies.len(), 2);
+        assert_eq!(world.colliders.len(), 2);
+
+        let world_ref = world.world_ref();
+        assert!(machine_b
+            .body_transform_in_world(&world_ref, "body:0")
+            .is_some());
+        assert!(machine_b
+            .mount_world_transform_in_world(&world_ref, "mount:root::main")
+            .is_some());
     }
 }
