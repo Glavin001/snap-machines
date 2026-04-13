@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use nalgebra::{Isometry3, Point3, Quaternion, Translation3, Unit, UnitQuaternion, Vector3};
+use ::nalgebra::{Isometry3, Point3, Quaternion, Translation3, Unit, UnitQuaternion, Vector3};
 use rapier3d::prelude::*;
 use serde_json::Value;
 use thiserror::Error;
@@ -163,7 +163,6 @@ impl RapierSimulation {
             &mut self.impulse_joints,
             &mut self.multibody_joints,
             &mut self.ccd_solver,
-            None,
             &(),
             &(),
         );
@@ -535,7 +534,7 @@ fn create_rigid_body(body: &crate::types::MachineBodyPlan) -> RigidBody {
         RigidBodyKind::KinematicVelocity => RigidBodyBuilder::kinematic_velocity_based(),
     };
 
-    builder.position(transform_to_isometry(body.origin)).build()
+    builder.pose(transform_to_isometry(body.origin)).build()
 }
 
 fn create_collider(collider: &PlannedCollider) -> Collider {
@@ -1007,7 +1006,6 @@ mod tests {
                 &mut self.impulse_joints,
                 &mut self.multibody_joints,
                 &mut self.ccd_solver,
-                None,
                 &(),
                 &(),
             );
