@@ -1,0 +1,3169 @@
+{
+  "schemaVersion": 2,
+  "catalogVersion": "smcat1-4e94718a6c1bce52",
+  "plan": {
+    "behaviors": [],
+    "bodies": [
+      {
+        "colliders": [
+          {
+            "blockId": "origin",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -7.930164461608261e-17,
+                "y": 0.121428571428571,
+                "z": -0.5
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:1",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -2.951168211093463e-17,
+                "y": 0.121428571428571,
+                "z": 0.5
+              },
+              "rotation": {
+                "w": 0.7071067811865475,
+                "x": 0,
+                "y": 0.7071067811865476,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:3",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.9999999999999999,
+                "y": 0.121428571428571,
+                "z": -0.5
+              },
+              "rotation": {
+                "w": 0,
+                "x": 0,
+                "y": 1,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:9",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -1,
+                "y": 0.121428571428571,
+                "z": -0.4999999999999998
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 2.220446049250313e-16,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:d",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -1.290916071212306e-16,
+                "y": 0.121428571428571,
+                "z": -1.5
+              },
+              "rotation": {
+                "w": -0.7071067811865476,
+                "x": 0,
+                "y": 0.7071067811865475,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:5",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.9999999999999999,
+                "y": 0.121428571428571,
+                "z": 0.49999999999999967
+              },
+              "rotation": {
+                "w": -2.220446049250313e-16,
+                "x": 0,
+                "y": 1,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:7",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -1,
+                "y": 0.121428571428571,
+                "z": 0.5000000000000002
+              },
+              "rotation": {
+                "w": -1,
+                "x": 0,
+                "y": -2.220446049250313e-16,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:h",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 3.533451877817603e-16,
+                "y": 0.121428571428571,
+                "z": 1.5
+              },
+              "rotation": {
+                "w": 0.7071067811865474,
+                "x": 0,
+                "y": 0.7071067811865477,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:b",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.9999999999999999,
+                "y": 0.121428571428571,
+                "z": -1.5
+              },
+              "rotation": {
+                "w": -0.7071067811865476,
+                "x": 0,
+                "y": 0.7071067811865475,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:f",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -1.0000000000000004,
+                "y": 0.121428571428571,
+                "z": -1.4999999999999998
+              },
+              "rotation": {
+                "w": -0.7071067811865477,
+                "x": 0,
+                "y": 0.7071067811865474,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:l",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 1.0000000000000004,
+                "y": 0.121428571428571,
+                "z": 1.4999999999999996
+              },
+              "rotation": {
+                "w": -0.7071067811865474,
+                "x": 0,
+                "y": -0.7071067811865477,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:j",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.9999999999999997,
+                "y": 0.121428571428571,
+                "z": 1.5
+              },
+              "rotation": {
+                "w": -0.7071067811865474,
+                "x": 0,
+                "y": -0.7071067811865477,
+                "z": 0
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:t",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.2,
+              "z": 0.15
+            },
+            "id": "compound.shock:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.9999999999999998,
+                "y": -0.5785714285714292,
+                "z": -1.5
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 0,
+                "z": 1.3973696289155642e-16
+              }
+            },
+            "mass": 0.5,
+            "partId": "upper",
+            "sensor": false
+          },
+          {
+            "blockId": "block:r",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.2,
+              "z": 0.15
+            },
+            "id": "compound.shock:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -1.0000000000000004,
+                "y": -0.5785714285714292,
+                "z": -1.4999999999999998
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 3.925231146709437e-17,
+                "z": 1.0048465142446203e-16
+              }
+            },
+            "mass": 0.5,
+            "partId": "upper",
+            "sensor": false
+          },
+          {
+            "blockId": "block:p",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.2,
+              "z": 0.15
+            },
+            "id": "compound.shock:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 1.0000000000000004,
+                "y": -0.5785714285714292,
+                "z": 1.4999999999999996
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 3.925231146709438e-17,
+                "z": 2.1980028490273284e-17
+              }
+            },
+            "mass": 0.5,
+            "partId": "upper",
+            "sensor": false
+          },
+          {
+            "blockId": "block:n",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.2,
+              "z": 0.15
+            },
+            "id": "compound.shock:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.9999999999999997,
+                "y": -0.5785714285714292,
+                "z": 1.5
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 3.925231146709438e-17,
+                "z": 2.1980028490273284e-17
+              }
+            },
+            "mass": 0.5,
+            "partId": "upper",
+            "sensor": false
+          }
+        ],
+        "id": "body:0",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": 7.930164461608261e-17,
+            "y": 3.3369047619047634,
+            "z": 0.5
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "origin",
+          "block:1",
+          "block:3",
+          "block:9",
+          "block:d",
+          "block:5",
+          "block:7",
+          "block:h",
+          "block:b",
+          "block:f",
+          "block:l",
+          "block:j",
+          "block:t",
+          "block:r",
+          "block:p",
+          "block:n"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "origin",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:1",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:3",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:9",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:d",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:5",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:7",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:h",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:b",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:f",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:l",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:j",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:t",
+            "partId": "upper"
+          },
+          {
+            "blockId": "block:r",
+            "partId": "upper"
+          },
+          {
+            "blockId": "block:p",
+            "partId": "upper"
+          },
+          {
+            "blockId": "block:n",
+            "partId": "upper"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "blockId": "block:n",
+            "halfExtents": {
+              "x": 0.125,
+              "y": 0.2,
+              "z": 0.125
+            },
+            "id": "compound.shock:collider:1",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.1625000000000001,
+                "y": 0.4874999999999998,
+                "z": 0
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 3.925231146709438e-17,
+                "z": 2.1980028490273284e-17
+              }
+            },
+            "mass": 0.5,
+            "partId": "lower",
+            "sensor": false
+          },
+          {
+            "blockId": "block:x",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.1625000000000001,
+                "y": -0.2124999999999999,
+                "z": 0
+              },
+              "rotation": {
+                "w": -0.5000000000000002,
+                "x": -0.49999999999999983,
+                "y": -0.5,
+                "z": -0.4999999999999999
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:17",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.15,
+              "z": 0.15
+            },
+            "id": "compound.wheel:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.4874999999999998,
+                "y": -0.2124999999999999,
+                "z": -2.220446049250313e-16
+              },
+              "rotation": {
+                "w": 0.7071067811865474,
+                "x": -1.6653345369377346e-16,
+                "y": -0.7071067811865476,
+                "z": 5.551115123125783e-17
+              }
+            },
+            "mass": 0.5,
+            "partId": "mount",
+            "sensor": false
+          }
+        ],
+        "id": "body:1",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": -1.1624999999999996,
+            "y": 1.9708333333333345,
+            "z": 2
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:n",
+          "block:x",
+          "block:17"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:n",
+            "partId": "lower"
+          },
+          {
+            "blockId": "block:x",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:17",
+            "partId": "mount"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "blockId": "block:p",
+            "halfExtents": {
+              "x": 0.125,
+              "y": 0.2,
+              "z": 0.125
+            },
+            "id": "compound.shock:collider:1",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.1625000000000001,
+                "y": 0.4874999999999998,
+                "z": -2.220446049250313e-16
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 3.925231146709438e-17,
+                "z": 2.1980028490273284e-17
+              }
+            },
+            "mass": 0.5,
+            "partId": "lower",
+            "sensor": false
+          },
+          {
+            "blockId": "block:z",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.1625000000000001,
+                "y": -0.2124999999999999,
+                "z": 0
+              },
+              "rotation": {
+                "w": -0.5000000000000002,
+                "x": -0.49999999999999983,
+                "y": -0.5,
+                "z": -0.4999999999999999
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:13",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.15,
+              "z": 0.15
+            },
+            "id": "compound.wheel:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.4874999999999998,
+                "y": -0.2124999999999999,
+                "z": 2.220446049250313e-16
+              },
+              "rotation": {
+                "w": -0.7071067811865476,
+                "x": 5.551115123125783e-17,
+                "y": -0.7071067811865474,
+                "z": 1.6653345369377346e-16
+              }
+            },
+            "mass": 0.5,
+            "partId": "mount",
+            "sensor": false
+          }
+        ],
+        "id": "body:2",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": 1.1625000000000005,
+            "y": 1.9708333333333345,
+            "z": 1.9999999999999998
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:p",
+          "block:z",
+          "block:13"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:p",
+            "partId": "lower"
+          },
+          {
+            "blockId": "block:z",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:13",
+            "partId": "mount"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "blockId": "block:r",
+            "halfExtents": {
+              "x": 0.125,
+              "y": 0.2,
+              "z": 0.125
+            },
+            "id": "compound.shock:collider:1",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.1625000000000001,
+                "y": 0.4874999999999998,
+                "z": -2.220446049250313e-16
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 3.925231146709437e-17,
+                "z": 1.0048465142446203e-16
+              }
+            },
+            "mass": 0.5,
+            "partId": "lower",
+            "sensor": false
+          },
+          {
+            "blockId": "block:v",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.1625000000000001,
+                "y": -0.2124999999999999,
+                "z": 1.1102230246251565e-16
+              },
+              "rotation": {
+                "w": -0.5000000000000002,
+                "x": -0.4999999999999999,
+                "y": -0.5,
+                "z": -0.49999999999999983
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:19",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.15,
+              "z": 0.15
+            },
+            "id": "compound.wheel:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.4874999999999998,
+                "y": -0.2124999999999999,
+                "z": 0
+              },
+              "rotation": {
+                "w": 0.7071067811865475,
+                "x": -2.220446049250313e-16,
+                "y": -0.7071067811865476,
+                "z": 1.359631073446891e-32
+              }
+            },
+            "mass": 0.5,
+            "partId": "mount",
+            "sensor": false
+          }
+        ],
+        "id": "body:3",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": -1.1625000000000005,
+            "y": 1.9708333333333345,
+            "z": -0.9999999999999996
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:r",
+          "block:v",
+          "block:19"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:r",
+            "partId": "lower"
+          },
+          {
+            "blockId": "block:v",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:19",
+            "partId": "mount"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "blockId": "block:t",
+            "halfExtents": {
+              "x": 0.125,
+              "y": 0.2,
+              "z": 0.125
+            },
+            "id": "compound.shock:collider:1",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.16249999999999976,
+                "y": 0.4874999999999998,
+                "z": -3.3306690738754696e-16
+              },
+              "rotation": {
+                "w": -1,
+                "x": 1.1102230246251568e-16,
+                "y": 0,
+                "z": 1.3973696289155642e-16
+              }
+            },
+            "mass": 0.5,
+            "partId": "lower",
+            "sensor": false
+          },
+          {
+            "blockId": "block:11",
+            "halfExtents": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "id": "frame.cube.1:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": -0.16249999999999998,
+                "y": -0.2124999999999999,
+                "z": 0
+              },
+              "rotation": {
+                "w": -0.5000000000000002,
+                "x": -0.49999999999999994,
+                "y": -0.5,
+                "z": -0.4999999999999998
+              }
+            },
+            "mass": 1,
+            "partId": "main",
+            "sensor": false
+          },
+          {
+            "blockId": "block:15",
+            "halfExtents": {
+              "x": 0.15,
+              "y": 0.15,
+              "z": 0.15
+            },
+            "id": "compound.wheel:collider:0",
+            "includeInMass": true,
+            "kind": "box",
+            "localTransform": {
+              "position": {
+                "x": 0.4874999999999998,
+                "y": -0.21250000000000036,
+                "z": 1.1102230246251565e-16
+              },
+              "rotation": {
+                "w": -0.7071067811865475,
+                "x": 1.699538841808614e-32,
+                "y": -0.7071067811865475,
+                "z": 2.7755575615628914e-16
+              }
+            },
+            "mass": 0.5,
+            "partId": "mount",
+            "sensor": false
+          }
+        ],
+        "id": "body:4",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": 1.1624999999999996,
+            "y": 1.9708333333333345,
+            "z": -0.9999999999999997
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:t",
+          "block:11",
+          "block:15"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:t",
+            "partId": "lower"
+          },
+          {
+            "blockId": "block:11",
+            "partId": "main"
+          },
+          {
+            "blockId": "block:15",
+            "partId": "mount"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "axis": "z",
+            "blockId": "block:13",
+            "friction": 2,
+            "halfHeight": 0.15,
+            "id": "compound.wheel:collider:1",
+            "includeInMass": true,
+            "kind": "cylinder",
+            "localTransform": {
+              "position": {
+                "x": 0.2999999999999998,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": -0.7071067811865476,
+                "x": 5.551115123125783e-17,
+                "y": -0.7071067811865474,
+                "z": 1.6653345369377346e-16
+              }
+            },
+            "mass": 1.5,
+            "partId": "wheel",
+            "radius": 0.8,
+            "sensor": false
+          }
+        ],
+        "id": "body:5",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": 1.6500000000000004,
+            "y": 1.7583333333333346,
+            "z": 2
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:13"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:13",
+            "partId": "wheel"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "axis": "z",
+            "blockId": "block:15",
+            "friction": 2,
+            "halfHeight": 0.15,
+            "id": "compound.wheel:collider:1",
+            "includeInMass": true,
+            "kind": "cylinder",
+            "localTransform": {
+              "position": {
+                "x": 0.2999999999999998,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": -0.7071067811865475,
+                "x": 1.699538841808614e-32,
+                "y": -0.7071067811865475,
+                "z": 2.7755575615628914e-16
+              }
+            },
+            "mass": 1.5,
+            "partId": "wheel",
+            "radius": 0.8,
+            "sensor": false
+          }
+        ],
+        "id": "body:6",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": 1.6499999999999995,
+            "y": 1.758333333333334,
+            "z": -0.9999999999999996
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:15"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:15",
+            "partId": "wheel"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "axis": "z",
+            "blockId": "block:17",
+            "friction": 2,
+            "halfHeight": 0.15,
+            "id": "compound.wheel:collider:1",
+            "includeInMass": true,
+            "kind": "cylinder",
+            "localTransform": {
+              "position": {
+                "x": -0.2999999999999998,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 0.7071067811865474,
+                "x": -1.6653345369377346e-16,
+                "y": -0.7071067811865476,
+                "z": 5.551115123125783e-17
+              }
+            },
+            "mass": 1.5,
+            "partId": "wheel",
+            "radius": 0.8,
+            "sensor": false
+          }
+        ],
+        "id": "body:7",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": -1.6499999999999995,
+            "y": 1.7583333333333346,
+            "z": 1.9999999999999998
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:17"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:17",
+            "partId": "wheel"
+          }
+        ]
+      },
+      {
+        "colliders": [
+          {
+            "axis": "z",
+            "blockId": "block:19",
+            "friction": 2,
+            "halfHeight": 0.15,
+            "id": "compound.wheel:collider:1",
+            "includeInMass": true,
+            "kind": "cylinder",
+            "localTransform": {
+              "position": {
+                "x": -0.30000000000000004,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 0.7071067811865475,
+                "x": -2.220446049250313e-16,
+                "y": -0.7071067811865476,
+                "z": 1.359631073446891e-32
+              }
+            },
+            "mass": 1.5,
+            "partId": "wheel",
+            "radius": 0.8,
+            "sensor": false
+          }
+        ],
+        "id": "body:8",
+        "kind": "dynamic",
+        "origin": {
+          "position": {
+            "x": -1.6500000000000004,
+            "y": 1.7583333333333346,
+            "z": -0.9999999999999996
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "sourceBlocks": [
+          "block:19"
+        ],
+        "sourceParts": [
+          {
+            "blockId": "block:19",
+            "partId": "wheel"
+          }
+        ]
+      }
+    ],
+    "diagnostics": [],
+    "joints": [
+      {
+        "blockId": "block:n",
+        "bodyAId": "body:0",
+        "bodyBId": "body:1",
+        "collideConnected": false,
+        "id": "joint:block:n",
+        "kind": "prismatic",
+        "limits": {
+          "max": 0.3,
+          "min": -0.3
+        },
+        "localAnchorA": {
+          "x": -0.9999999999999997,
+          "y": -0.7285714285714291,
+          "z": 1.5
+        },
+        "localAnchorB": {
+          "x": 0.1625000000000001,
+          "y": 0.6374999999999997,
+          "z": 0
+        },
+        "localAxisA": {
+          "x": 4.3960056980546575e-17,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localAxisB": {
+          "x": 4.3960056980546575e-17,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localFrameA": {
+          "w": -0.7071067811865477,
+          "x": -0.7071067811865474,
+          "y": 4.329780281177467e-17,
+          "z": -1.221334841948316e-17
+        },
+        "localFrameB": {
+          "w": -4.3297802811774664e-17,
+          "x": 1.2213348419483169e-17,
+          "y": -0.7071067811865476,
+          "z": -0.7071067811865475
+        },
+        "motor": {
+          "damping": 20,
+          "inputTarget": "velocity",
+          "maxForce": 500,
+          "mode": "position",
+          "stiffness": 200,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      },
+      {
+        "blockId": "block:p",
+        "bodyAId": "body:0",
+        "bodyBId": "body:2",
+        "collideConnected": false,
+        "id": "joint:block:p",
+        "kind": "prismatic",
+        "limits": {
+          "max": 0.3,
+          "min": -0.3
+        },
+        "localAnchorA": {
+          "x": 1.0000000000000004,
+          "y": -0.7285714285714291,
+          "z": 1.4999999999999996
+        },
+        "localAnchorB": {
+          "x": -0.1625000000000001,
+          "y": 0.6374999999999997,
+          "z": -2.220446049250313e-16
+        },
+        "localAxisA": {
+          "x": 4.3960056980546575e-17,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localAxisB": {
+          "x": 4.3960056980546575e-17,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localFrameA": {
+          "w": -0.7071067811865477,
+          "x": -0.7071067811865474,
+          "y": 4.329780281177467e-17,
+          "z": -1.221334841948316e-17
+        },
+        "localFrameB": {
+          "w": -4.3297802811774664e-17,
+          "x": 1.2213348419483169e-17,
+          "y": -0.7071067811865476,
+          "z": -0.7071067811865475
+        },
+        "motor": {
+          "damping": 20,
+          "inputTarget": "velocity",
+          "maxForce": 500,
+          "mode": "position",
+          "stiffness": 200,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      },
+      {
+        "blockId": "block:r",
+        "bodyAId": "body:0",
+        "bodyBId": "body:3",
+        "collideConnected": false,
+        "id": "joint:block:r",
+        "kind": "prismatic",
+        "limits": {
+          "max": 0.3,
+          "min": -0.3
+        },
+        "localAnchorA": {
+          "x": -1.0000000000000004,
+          "y": -0.7285714285714291,
+          "z": -1.4999999999999998
+        },
+        "localAnchorB": {
+          "x": 0.1625000000000001,
+          "y": 0.6374999999999997,
+          "z": -2.220446049250313e-16
+        },
+        "localAxisA": {
+          "x": 2.0096930284892407e-16,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localAxisB": {
+          "x": 2.0096930284892407e-16,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localFrameA": {
+          "w": -0.7071067811865477,
+          "x": -0.7071067811865474,
+          "y": 9.880895404303248e-17,
+          "z": 4.329780281177467e-17
+        },
+        "localFrameB": {
+          "w": -9.880895404303248e-17,
+          "x": -4.329780281177465e-17,
+          "y": -0.7071067811865476,
+          "z": -0.7071067811865475
+        },
+        "motor": {
+          "damping": 20,
+          "inputTarget": "velocity",
+          "maxForce": 500,
+          "mode": "position",
+          "stiffness": 200,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      },
+      {
+        "blockId": "block:t",
+        "bodyAId": "body:0",
+        "bodyBId": "body:4",
+        "collideConnected": false,
+        "id": "joint:block:t",
+        "kind": "prismatic",
+        "limits": {
+          "max": 0.3,
+          "min": -0.3
+        },
+        "localAnchorA": {
+          "x": 0.9999999999999998,
+          "y": -0.7285714285714291,
+          "z": -1.5
+        },
+        "localAnchorB": {
+          "x": -0.16249999999999976,
+          "y": 0.6374999999999997,
+          "z": -3.3306690738754696e-16
+        },
+        "localAxisA": {
+          "x": 2.7947392578311284e-16,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localAxisB": {
+          "x": 2.7947392578311284e-16,
+          "y": 1,
+          "z": -2.2204460492503136e-16
+        },
+        "localFrameA": {
+          "w": -0.7071067811865477,
+          "x": -0.7071067811865474,
+          "y": 9.880895404303249e-17,
+          "z": 9.88089540430325e-17
+        },
+        "localFrameB": {
+          "w": -9.88089540430325e-17,
+          "x": -9.880895404303249e-17,
+          "y": -0.7071067811865476,
+          "z": -0.7071067811865475
+        },
+        "motor": {
+          "damping": 20,
+          "inputTarget": "velocity",
+          "maxForce": 500,
+          "mode": "position",
+          "stiffness": 200,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      },
+      {
+        "blockId": "block:13",
+        "bodyAId": "body:2",
+        "bodyBId": "body:5",
+        "collideConnected": false,
+        "id": "joint:block:13",
+        "kind": "revolute",
+        "localAnchorA": {
+          "x": 0.6374999999999997,
+          "y": -0.2124999999999999,
+          "z": 2.220446049250313e-16
+        },
+        "localAnchorB": {
+          "x": 0.1499999999999999,
+          "y": 0,
+          "z": 0
+        },
+        "localAxisA": {
+          "x": 1,
+          "y": -1.5700924586837747e-16,
+          "z": 4.440892098500627e-16
+        },
+        "localAxisB": {
+          "x": 1,
+          "y": -1.5700924586837747e-16,
+          "z": 4.440892098500627e-16
+        },
+        "localFrameA": {
+          "w": -0.7071067811865476,
+          "x": 5.551115123125783e-17,
+          "y": -0.7071067811865474,
+          "z": 1.6653345369377346e-16
+        },
+        "localFrameB": {
+          "w": 0.7071067811865474,
+          "x": -1.6653345369377346e-16,
+          "y": -0.7071067811865476,
+          "z": 5.551115123125783e-17
+        },
+        "motor": {
+          "damping": 10,
+          "input": {
+            "action": "motorSpin",
+            "scale": 5
+          },
+          "inputTarget": "velocity",
+          "maxForce": 100,
+          "mode": "velocity",
+          "stiffness": 0,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      },
+      {
+        "blockId": "block:15",
+        "bodyAId": "body:4",
+        "bodyBId": "body:6",
+        "collideConnected": false,
+        "id": "joint:block:15",
+        "kind": "revolute",
+        "localAnchorA": {
+          "x": 0.6374999999999997,
+          "y": -0.21250000000000036,
+          "z": 1.1102230246251565e-16
+        },
+        "localAnchorB": {
+          "x": 0.1499999999999999,
+          "y": 2.220446049250313e-16,
+          "z": 0
+        },
+        "localAxisA": {
+          "x": 1,
+          "y": -3.9252311467094383e-16,
+          "z": 2.2204460492503136e-16
+        },
+        "localAxisB": {
+          "x": 1,
+          "y": -3.9252311467094383e-16,
+          "z": 2.2204460492503136e-16
+        },
+        "localFrameA": {
+          "w": -0.7071067811865475,
+          "x": 1.699538841808614e-32,
+          "y": -0.7071067811865475,
+          "z": 2.7755575615628914e-16
+        },
+        "localFrameB": {
+          "w": 0.7071067811865475,
+          "x": -2.7755575615628914e-16,
+          "y": -0.7071067811865475,
+          "z": 1.699538841808614e-32
+        },
+        "motor": {
+          "damping": 10,
+          "input": {
+            "action": "motorSpin",
+            "scale": 5
+          },
+          "inputTarget": "velocity",
+          "maxForce": 100,
+          "mode": "velocity",
+          "stiffness": 0,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      },
+      {
+        "blockId": "block:17",
+        "bodyAId": "body:1",
+        "bodyBId": "body:7",
+        "collideConnected": false,
+        "id": "joint:block:17",
+        "kind": "revolute",
+        "localAnchorA": {
+          "x": -0.6374999999999997,
+          "y": -0.2124999999999999,
+          "z": -2.220446049250313e-16
+        },
+        "localAnchorB": {
+          "x": -0.1499999999999999,
+          "y": 0,
+          "z": 0
+        },
+        "localAxisA": {
+          "x": -1,
+          "y": 1.5700924586837747e-16,
+          "z": -2.2204460492503136e-16
+        },
+        "localAxisB": {
+          "x": -1,
+          "y": 1.5700924586837747e-16,
+          "z": -2.2204460492503136e-16
+        },
+        "localFrameA": {
+          "w": 0.7071067811865474,
+          "x": -1.6653345369377346e-16,
+          "y": -0.7071067811865476,
+          "z": 5.551115123125783e-17
+        },
+        "localFrameB": {
+          "w": 0.7071067811865476,
+          "x": -5.551115123125783e-17,
+          "y": 0.7071067811865474,
+          "z": -1.6653345369377346e-16
+        },
+        "motor": {
+          "damping": 10,
+          "input": {
+            "action": "motorSpin",
+            "scale": 5
+          },
+          "inputTarget": "velocity",
+          "maxForce": 100,
+          "mode": "velocity",
+          "stiffness": 0,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      },
+      {
+        "blockId": "block:19",
+        "bodyAId": "body:3",
+        "bodyBId": "body:8",
+        "collideConnected": false,
+        "id": "joint:block:19",
+        "kind": "revolute",
+        "localAnchorA": {
+          "x": -0.6374999999999997,
+          "y": -0.2124999999999999,
+          "z": 0
+        },
+        "localAnchorB": {
+          "x": -0.1499999999999999,
+          "y": 0,
+          "z": 0
+        },
+        "localAxisA": {
+          "x": -1,
+          "y": 3.14018491736755e-16,
+          "z": -2.220446049250313e-16
+        },
+        "localAxisB": {
+          "x": -1,
+          "y": 3.14018491736755e-16,
+          "z": -2.220446049250313e-16
+        },
+        "localFrameA": {
+          "w": 0.7071067811865475,
+          "x": -2.220446049250313e-16,
+          "y": -0.7071067811865476,
+          "z": 1.359631073446891e-32
+        },
+        "localFrameB": {
+          "w": 0.7071067811865476,
+          "x": -1.359631073446891e-32,
+          "y": 0.7071067811865475,
+          "z": -2.220446049250313e-16
+        },
+        "motor": {
+          "damping": 10,
+          "input": {
+            "action": "motorSpin",
+            "scale": 5
+          },
+          "inputTarget": "velocity",
+          "maxForce": 100,
+          "mode": "velocity",
+          "stiffness": 0,
+          "targetPosition": 0,
+          "targetVelocity": 0
+        }
+      }
+    ],
+    "mounts": [
+      {
+        "blockId": "origin",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:origin::main",
+        "localTransform": {
+          "position": {
+            "x": -7.930164461608261e-17,
+            "y": 0.121428571428571,
+            "z": -0.5
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:1",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:1::main",
+        "localTransform": {
+          "position": {
+            "x": -2.951168211093463e-17,
+            "y": 0.121428571428571,
+            "z": 0.5
+          },
+          "rotation": {
+            "w": 0.7071067811865475,
+            "x": 0,
+            "y": 0.7071067811865476,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:3",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:3::main",
+        "localTransform": {
+          "position": {
+            "x": 0.9999999999999999,
+            "y": 0.121428571428571,
+            "z": -0.5
+          },
+          "rotation": {
+            "w": 0,
+            "x": 0,
+            "y": 1,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:5",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:5::main",
+        "localTransform": {
+          "position": {
+            "x": 0.9999999999999999,
+            "y": 0.121428571428571,
+            "z": 0.49999999999999967
+          },
+          "rotation": {
+            "w": -2.220446049250313e-16,
+            "x": 0,
+            "y": 1,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:7",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:7::main",
+        "localTransform": {
+          "position": {
+            "x": -1,
+            "y": 0.121428571428571,
+            "z": 0.5000000000000002
+          },
+          "rotation": {
+            "w": -1,
+            "x": 0,
+            "y": -2.220446049250313e-16,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:9",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:9::main",
+        "localTransform": {
+          "position": {
+            "x": -1,
+            "y": 0.121428571428571,
+            "z": -0.4999999999999998
+          },
+          "rotation": {
+            "w": 1,
+            "x": 0,
+            "y": 2.220446049250313e-16,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:b",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:b::main",
+        "localTransform": {
+          "position": {
+            "x": 0.9999999999999999,
+            "y": 0.121428571428571,
+            "z": -1.5
+          },
+          "rotation": {
+            "w": -0.7071067811865476,
+            "x": 0,
+            "y": 0.7071067811865475,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:d",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:d::main",
+        "localTransform": {
+          "position": {
+            "x": -1.290916071212306e-16,
+            "y": 0.121428571428571,
+            "z": -1.5
+          },
+          "rotation": {
+            "w": -0.7071067811865476,
+            "x": 0,
+            "y": 0.7071067811865475,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:f",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:f::main",
+        "localTransform": {
+          "position": {
+            "x": -1.0000000000000004,
+            "y": 0.121428571428571,
+            "z": -1.4999999999999998
+          },
+          "rotation": {
+            "w": -0.7071067811865477,
+            "x": 0,
+            "y": 0.7071067811865474,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:h",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:h::main",
+        "localTransform": {
+          "position": {
+            "x": 3.533451877817603e-16,
+            "y": 0.121428571428571,
+            "z": 1.5
+          },
+          "rotation": {
+            "w": 0.7071067811865474,
+            "x": 0,
+            "y": 0.7071067811865477,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:j",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:j::main",
+        "localTransform": {
+          "position": {
+            "x": -0.9999999999999997,
+            "y": 0.121428571428571,
+            "z": 1.5
+          },
+          "rotation": {
+            "w": -0.7071067811865474,
+            "x": 0,
+            "y": -0.7071067811865477,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:l",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:l::main",
+        "localTransform": {
+          "position": {
+            "x": 1.0000000000000004,
+            "y": 0.121428571428571,
+            "z": 1.4999999999999996
+          },
+          "rotation": {
+            "w": -0.7071067811865474,
+            "x": 0,
+            "y": -0.7071067811865477,
+            "z": 0
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:n",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:0",
+            "kind": "box",
+            "partId": "upper",
+            "size": {
+              "x": 0.3,
+              "y": 0.4,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:n::upper",
+        "localTransform": {
+          "position": {
+            "x": -0.9999999999999997,
+            "y": -0.7285714285714291,
+            "z": 1.5
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709438e-17,
+            "z": 2.1980028490273284e-17
+          }
+        },
+        "partId": "upper"
+      },
+      {
+        "blockId": "block:n",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:1",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:1",
+            "kind": "box",
+            "partId": "lower",
+            "size": {
+              "x": 0.25,
+              "y": 0.4,
+              "z": 0.25
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": -0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:n::lower",
+        "localTransform": {
+          "position": {
+            "x": 0.1625000000000001,
+            "y": 0.6374999999999997,
+            "z": 0
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709438e-17,
+            "z": 2.1980028490273284e-17
+          }
+        },
+        "partId": "lower"
+      },
+      {
+        "blockId": "block:p",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:0",
+            "kind": "box",
+            "partId": "upper",
+            "size": {
+              "x": 0.3,
+              "y": 0.4,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:p::upper",
+        "localTransform": {
+          "position": {
+            "x": 1.0000000000000004,
+            "y": -0.7285714285714291,
+            "z": 1.4999999999999996
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709438e-17,
+            "z": 2.1980028490273284e-17
+          }
+        },
+        "partId": "upper"
+      },
+      {
+        "blockId": "block:p",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:2",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:1",
+            "kind": "box",
+            "partId": "lower",
+            "size": {
+              "x": 0.25,
+              "y": 0.4,
+              "z": 0.25
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": -0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:p::lower",
+        "localTransform": {
+          "position": {
+            "x": -0.1625000000000001,
+            "y": 0.6374999999999997,
+            "z": -2.220446049250313e-16
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709438e-17,
+            "z": 2.1980028490273284e-17
+          }
+        },
+        "partId": "lower"
+      },
+      {
+        "blockId": "block:r",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:0",
+            "kind": "box",
+            "partId": "upper",
+            "size": {
+              "x": 0.3,
+              "y": 0.4,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:r::upper",
+        "localTransform": {
+          "position": {
+            "x": -1.0000000000000004,
+            "y": -0.7285714285714291,
+            "z": -1.4999999999999998
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709437e-17,
+            "z": 1.0048465142446203e-16
+          }
+        },
+        "partId": "upper"
+      },
+      {
+        "blockId": "block:r",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:3",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:1",
+            "kind": "box",
+            "partId": "lower",
+            "size": {
+              "x": 0.25,
+              "y": 0.4,
+              "z": 0.25
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": -0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:r::lower",
+        "localTransform": {
+          "position": {
+            "x": 0.1625000000000001,
+            "y": 0.6374999999999997,
+            "z": -2.220446049250313e-16
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709437e-17,
+            "z": 1.0048465142446203e-16
+          }
+        },
+        "partId": "lower"
+      },
+      {
+        "blockId": "block:t",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:0",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:0",
+            "kind": "box",
+            "partId": "upper",
+            "size": {
+              "x": 0.3,
+              "y": 0.4,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:t::upper",
+        "localTransform": {
+          "position": {
+            "x": 0.9999999999999998,
+            "y": -0.7285714285714291,
+            "z": -1.5
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 0,
+            "z": 1.3973696289155642e-16
+          }
+        },
+        "partId": "upper"
+      },
+      {
+        "blockId": "block:t",
+        "blockTypeId": "compound.shock",
+        "bodyId": "body:4",
+        "geometry": [
+          {
+            "id": "compound.shock:geometry:1",
+            "kind": "box",
+            "partId": "lower",
+            "size": {
+              "x": 0.25,
+              "y": 0.4,
+              "z": 0.25
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": -0.15,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:t::lower",
+        "localTransform": {
+          "position": {
+            "x": -0.16249999999999976,
+            "y": 0.6374999999999997,
+            "z": -3.3306690738754696e-16
+          },
+          "rotation": {
+            "w": -1,
+            "x": 1.1102230246251568e-16,
+            "y": 0,
+            "z": 1.3973696289155642e-16
+          }
+        },
+        "partId": "lower"
+      },
+      {
+        "blockId": "block:v",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:3",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:v::main",
+        "localTransform": {
+          "position": {
+            "x": 0.1625000000000001,
+            "y": -0.2124999999999999,
+            "z": 1.1102230246251565e-16
+          },
+          "rotation": {
+            "w": -0.5000000000000002,
+            "x": -0.4999999999999999,
+            "y": -0.5,
+            "z": -0.49999999999999983
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:x",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:1",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:x::main",
+        "localTransform": {
+          "position": {
+            "x": 0.1625000000000001,
+            "y": -0.2124999999999999,
+            "z": 0
+          },
+          "rotation": {
+            "w": -0.5000000000000002,
+            "x": -0.49999999999999983,
+            "y": -0.5,
+            "z": -0.4999999999999999
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:z",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:2",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:z::main",
+        "localTransform": {
+          "position": {
+            "x": -0.1625000000000001,
+            "y": -0.2124999999999999,
+            "z": 0
+          },
+          "rotation": {
+            "w": -0.5000000000000002,
+            "x": -0.49999999999999983,
+            "y": -0.5,
+            "z": -0.4999999999999999
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:11",
+        "blockTypeId": "frame.cube.1",
+        "bodyId": "body:4",
+        "geometry": [
+          {
+            "id": "frame.cube.1:geometry:0",
+            "kind": "box",
+            "partId": "main",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:11::main",
+        "localTransform": {
+          "position": {
+            "x": -0.16249999999999998,
+            "y": -0.2124999999999999,
+            "z": 0
+          },
+          "rotation": {
+            "w": -0.5000000000000002,
+            "x": -0.49999999999999994,
+            "y": -0.5,
+            "z": -0.4999999999999998
+          }
+        },
+        "partId": "main"
+      },
+      {
+        "blockId": "block:13",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:2",
+        "geometry": [
+          {
+            "id": "compound.wheel:geometry:0",
+            "kind": "box",
+            "partId": "mount",
+            "size": {
+              "x": 0.3,
+              "y": 0.3,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:13::mount",
+        "localTransform": {
+          "position": {
+            "x": 0.4874999999999998,
+            "y": -0.2124999999999999,
+            "z": 2.220446049250313e-16
+          },
+          "rotation": {
+            "w": -0.7071067811865476,
+            "x": 5.551115123125783e-17,
+            "y": -0.7071067811865474,
+            "z": 1.6653345369377346e-16
+          }
+        },
+        "partId": "mount"
+      },
+      {
+        "blockId": "block:13",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:5",
+        "geometry": [
+          {
+            "axis": "z",
+            "halfHeight": 0.15,
+            "id": "compound.wheel:geometry:1",
+            "kind": "cylinder",
+            "partId": "wheel",
+            "radius": 0.8,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0.3
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:13::wheel",
+        "localTransform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "w": -0.7071067811865476,
+            "x": 5.551115123125783e-17,
+            "y": -0.7071067811865474,
+            "z": 1.6653345369377346e-16
+          }
+        },
+        "partId": "wheel"
+      },
+      {
+        "blockId": "block:15",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:4",
+        "geometry": [
+          {
+            "id": "compound.wheel:geometry:0",
+            "kind": "box",
+            "partId": "mount",
+            "size": {
+              "x": 0.3,
+              "y": 0.3,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:15::mount",
+        "localTransform": {
+          "position": {
+            "x": 0.4874999999999998,
+            "y": -0.21250000000000036,
+            "z": 1.1102230246251565e-16
+          },
+          "rotation": {
+            "w": -0.7071067811865475,
+            "x": 1.699538841808614e-32,
+            "y": -0.7071067811865475,
+            "z": 2.7755575615628914e-16
+          }
+        },
+        "partId": "mount"
+      },
+      {
+        "blockId": "block:15",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:6",
+        "geometry": [
+          {
+            "axis": "z",
+            "halfHeight": 0.15,
+            "id": "compound.wheel:geometry:1",
+            "kind": "cylinder",
+            "partId": "wheel",
+            "radius": 0.8,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0.3
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:15::wheel",
+        "localTransform": {
+          "position": {
+            "x": 0,
+            "y": 2.220446049250313e-16,
+            "z": 0
+          },
+          "rotation": {
+            "w": -0.7071067811865475,
+            "x": 1.699538841808614e-32,
+            "y": -0.7071067811865475,
+            "z": 2.7755575615628914e-16
+          }
+        },
+        "partId": "wheel"
+      },
+      {
+        "blockId": "block:17",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:1",
+        "geometry": [
+          {
+            "id": "compound.wheel:geometry:0",
+            "kind": "box",
+            "partId": "mount",
+            "size": {
+              "x": 0.3,
+              "y": 0.3,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:17::mount",
+        "localTransform": {
+          "position": {
+            "x": -0.4874999999999998,
+            "y": -0.2124999999999999,
+            "z": -2.220446049250313e-16
+          },
+          "rotation": {
+            "w": 0.7071067811865474,
+            "x": -1.6653345369377346e-16,
+            "y": -0.7071067811865476,
+            "z": 5.551115123125783e-17
+          }
+        },
+        "partId": "mount"
+      },
+      {
+        "blockId": "block:17",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:7",
+        "geometry": [
+          {
+            "axis": "z",
+            "halfHeight": 0.15,
+            "id": "compound.wheel:geometry:1",
+            "kind": "cylinder",
+            "partId": "wheel",
+            "radius": 0.8,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0.3
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:17::wheel",
+        "localTransform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "w": 0.7071067811865474,
+            "x": -1.6653345369377346e-16,
+            "y": -0.7071067811865476,
+            "z": 5.551115123125783e-17
+          }
+        },
+        "partId": "wheel"
+      },
+      {
+        "blockId": "block:19",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:3",
+        "geometry": [
+          {
+            "id": "compound.wheel:geometry:0",
+            "kind": "box",
+            "partId": "mount",
+            "size": {
+              "x": 0.3,
+              "y": 0.3,
+              "z": 0.3
+            },
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:19::mount",
+        "localTransform": {
+          "position": {
+            "x": -0.4874999999999998,
+            "y": -0.2124999999999999,
+            "z": 0
+          },
+          "rotation": {
+            "w": 0.7071067811865475,
+            "x": -2.220446049250313e-16,
+            "y": -0.7071067811865476,
+            "z": 1.359631073446891e-32
+          }
+        },
+        "partId": "mount"
+      },
+      {
+        "blockId": "block:19",
+        "blockTypeId": "compound.wheel",
+        "bodyId": "body:8",
+        "geometry": [
+          {
+            "axis": "z",
+            "halfHeight": 0.15,
+            "id": "compound.wheel:geometry:1",
+            "kind": "cylinder",
+            "partId": "wheel",
+            "radius": 0.8,
+            "transform": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0.3
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
+            }
+          }
+        ],
+        "id": "mount:block:19::wheel",
+        "localTransform": {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "w": 0.7071067811865475,
+            "x": -2.220446049250313e-16,
+            "y": -0.7071067811865476,
+            "z": 1.359631073446891e-32
+          }
+        },
+        "partId": "wheel"
+      }
+    ]
+  },
+  "controls": {
+    "defaultProfileId": "keyboard.default",
+    "profiles": [
+      {
+        "bindings": [
+          {
+            "enabled": true,
+            "negative": {
+              "code": "KeyA"
+            },
+            "positive": {
+              "code": "KeyS"
+            },
+            "scale": -40,
+            "target": {
+              "id": "joint:block:13",
+              "kind": "joint"
+            }
+          },
+          {
+            "enabled": true,
+            "negative": {
+              "code": "KeyA"
+            },
+            "positive": {
+              "code": "KeyS"
+            },
+            "scale": -40,
+            "target": {
+              "id": "joint:block:15",
+              "kind": "joint"
+            }
+          },
+          {
+            "enabled": true,
+            "negative": {
+              "code": "KeyS"
+            },
+            "positive": {
+              "code": "KeyD"
+            },
+            "scale": -40,
+            "target": {
+              "id": "joint:block:17",
+              "kind": "joint"
+            }
+          },
+          {
+            "enabled": true,
+            "negative": {
+              "code": "KeyS"
+            },
+            "positive": {
+              "code": "KeyD"
+            },
+            "scale": -40,
+            "target": {
+              "id": "joint:block:19",
+              "kind": "joint"
+            }
+          }
+        ],
+        "id": "keyboard.default",
+        "kind": "keyboard"
+      }
+    ]
+  },
+  "metadata": {
+    "builder": "snap-machines-demo",
+    "mode": "build",
+    "presetName": null
+  }
+}

@@ -1,0 +1,669 @@
+{
+    "version": 1,
+    "nodes": [
+      {
+        "id": "origin",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 3.4583333333333344,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          }
+        }
+      },
+      {
+        "id": "block:1",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 4.978996250514798e-17,
+            "y": 3.4583333333333344,
+            "z": 1
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0.7071067811865476,
+            "z": 0,
+            "w": 0.7071067811865475
+          }
+        }
+      },
+      {
+        "id": "block:3",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 1,
+            "y": 3.4583333333333344,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1,
+            "z": 0,
+            "w": 0
+          }
+        }
+      },
+      {
+        "id": "block:5",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 1,
+            "y": 3.4583333333333344,
+            "z": 0.9999999999999997
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1,
+            "z": 0,
+            "w": -2.220446049250313e-16
+          }
+        }
+      },
+      {
+        "id": "block:7",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": -1,
+            "y": 3.4583333333333344,
+            "z": 1.0000000000000002
+          },
+          "rotation": {
+            "x": 0,
+            "y": -2.220446049250313e-16,
+            "z": 0,
+            "w": -1
+          }
+        }
+      },
+      {
+        "id": "block:9",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": -1,
+            "y": 3.4583333333333344,
+            "z": 2.220446049250313e-16
+          },
+          "rotation": {
+            "x": 0,
+            "y": 2.220446049250313e-16,
+            "z": 0,
+            "w": 1
+          }
+        }
+      },
+      {
+        "id": "block:b",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 1,
+            "y": 3.4583333333333344,
+            "z": -1
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0.7071067811865475,
+            "z": 0,
+            "w": -0.7071067811865476
+          }
+        }
+      },
+      {
+        "id": "block:d",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": -4.9789962505147994e-17,
+            "y": 3.4583333333333344,
+            "z": -1
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0.7071067811865475,
+            "z": 0,
+            "w": -0.7071067811865476
+          }
+        }
+      },
+      {
+        "id": "block:f",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": -1.0000000000000004,
+            "y": 3.4583333333333344,
+            "z": -0.9999999999999998
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0.7071067811865474,
+            "z": 0,
+            "w": -0.7071067811865477
+          }
+        }
+      },
+      {
+        "id": "block:h",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 4.3264683239784292e-16,
+            "y": 3.4583333333333344,
+            "z": 2
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0.7071067811865477,
+            "z": 0,
+            "w": 0.7071067811865474
+          }
+        }
+      },
+      {
+        "id": "block:j",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": -0.9999999999999996,
+            "y": 3.4583333333333344,
+            "z": 2
+          },
+          "rotation": {
+            "x": 0,
+            "y": -0.7071067811865477,
+            "z": 0,
+            "w": -0.7071067811865474
+          }
+        }
+      },
+      {
+        "id": "block:l",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 1.0000000000000004,
+            "y": 3.4583333333333344,
+            "z": 1.9999999999999996
+          },
+          "rotation": {
+            "x": 0,
+            "y": -0.7071067811865477,
+            "z": 0,
+            "w": -0.7071067811865474
+          }
+        }
+      },
+      {
+        "id": "block:n",
+        "typeId": "compound.shock",
+        "transform": {
+          "position": {
+            "x": -0.9999999999999996,
+            "y": 2.6083333333333343,
+            "z": 2
+          },
+          "rotation": {
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709438e-17,
+            "z": 2.1980028490273284e-17,
+            "w": -1
+          }
+        }
+      },
+      {
+        "id": "block:p",
+        "typeId": "compound.shock",
+        "transform": {
+          "position": {
+            "x": 1.0000000000000004,
+            "y": 2.6083333333333343,
+            "z": 1.9999999999999996
+          },
+          "rotation": {
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709438e-17,
+            "z": 2.1980028490273284e-17,
+            "w": -1
+          }
+        }
+      },
+      {
+        "id": "block:r",
+        "typeId": "compound.shock",
+        "transform": {
+          "position": {
+            "x": -1.0000000000000004,
+            "y": 2.6083333333333343,
+            "z": -0.9999999999999998
+          },
+          "rotation": {
+            "x": 1.1102230246251568e-16,
+            "y": 3.925231146709437e-17,
+            "z": 1.0048465142446203e-16,
+            "w": -1
+          }
+        }
+      },
+      {
+        "id": "block:t",
+        "typeId": "compound.shock",
+        "transform": {
+          "position": {
+            "x": 0.9999999999999999,
+            "y": 2.6083333333333343,
+            "z": -1
+          },
+          "rotation": {
+            "x": 1.1102230246251568e-16,
+            "y": 0,
+            "z": 1.3973696289155642e-16,
+            "w": -1
+          }
+        }
+      },
+      {
+        "id": "block:v",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": -1.0000000000000004,
+            "y": 1.7583333333333346,
+            "z": -0.9999999999999994
+          },
+          "rotation": {
+            "x": -0.4999999999999999,
+            "y": -0.5,
+            "z": -0.49999999999999983,
+            "w": -0.5000000000000002
+          }
+        }
+      },
+      {
+        "id": "block:x",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": -0.9999999999999996,
+            "y": 1.7583333333333346,
+            "z": 2
+          },
+          "rotation": {
+            "x": -0.49999999999999983,
+            "y": -0.5,
+            "z": -0.4999999999999999,
+            "w": -0.5000000000000002
+          }
+        }
+      },
+      {
+        "id": "block:z",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 1.0000000000000004,
+            "y": 1.7583333333333346,
+            "z": 1.9999999999999998
+          },
+          "rotation": {
+            "x": -0.49999999999999983,
+            "y": -0.5,
+            "z": -0.4999999999999999,
+            "w": -0.5000000000000002
+          }
+        }
+      },
+      {
+        "id": "block:11",
+        "typeId": "frame.cube.1",
+        "transform": {
+          "position": {
+            "x": 0.9999999999999997,
+            "y": 1.7583333333333346,
+            "z": -0.9999999999999997
+          },
+          "rotation": {
+            "x": -0.49999999999999994,
+            "y": -0.5,
+            "z": -0.4999999999999998,
+            "w": -0.5000000000000002
+          }
+        }
+      },
+      {
+        "id": "block:13",
+        "typeId": "compound.wheel",
+        "transform": {
+          "position": {
+            "x": 1.6500000000000004,
+            "y": 1.7583333333333346,
+            "z": 2
+          },
+          "rotation": {
+            "x": 5.551115123125783e-17,
+            "y": -0.7071067811865474,
+            "z": 1.6653345369377346e-16,
+            "w": -0.7071067811865476
+          }
+        }
+      },
+      {
+        "id": "block:15",
+        "typeId": "compound.wheel",
+        "transform": {
+          "position": {
+            "x": 1.6499999999999995,
+            "y": 1.7583333333333342,
+            "z": -0.9999999999999996
+          },
+          "rotation": {
+            "x": 1.699538841808614e-32,
+            "y": -0.7071067811865475,
+            "z": 2.7755575615628914e-16,
+            "w": -0.7071067811865475
+          }
+        }
+      },
+      {
+        "id": "block:17",
+        "typeId": "compound.wheel",
+        "transform": {
+          "position": {
+            "x": -1.6499999999999995,
+            "y": 1.7583333333333346,
+            "z": 1.9999999999999998
+          },
+          "rotation": {
+            "x": -1.6653345369377346e-16,
+            "y": -0.7071067811865476,
+            "z": 5.551115123125783e-17,
+            "w": 0.7071067811865474
+          }
+        }
+      },
+      {
+        "id": "block:19",
+        "typeId": "compound.wheel",
+        "transform": {
+          "position": {
+            "x": -1.6500000000000004,
+            "y": 1.7583333333333346,
+            "z": -0.9999999999999996
+          },
+          "rotation": {
+            "x": -2.220446049250313e-16,
+            "y": -0.7071067811865476,
+            "z": 1.359631073446891e-32,
+            "w": 0.7071067811865475
+          }
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn:2",
+        "a": {
+          "blockId": "origin",
+          "anchorId": "zp"
+        },
+        "b": {
+          "blockId": "block:1",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:4",
+        "a": {
+          "blockId": "origin",
+          "anchorId": "xp"
+        },
+        "b": {
+          "blockId": "block:3",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:6",
+        "a": {
+          "blockId": "block:1",
+          "anchorId": "zp"
+        },
+        "b": {
+          "blockId": "block:5",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:8",
+        "a": {
+          "blockId": "block:1",
+          "anchorId": "zn"
+        },
+        "b": {
+          "blockId": "block:7",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:a",
+        "a": {
+          "blockId": "origin",
+          "anchorId": "xn"
+        },
+        "b": {
+          "blockId": "block:9",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:c",
+        "a": {
+          "blockId": "block:3",
+          "anchorId": "zp"
+        },
+        "b": {
+          "blockId": "block:b",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:e",
+        "a": {
+          "blockId": "origin",
+          "anchorId": "zn"
+        },
+        "b": {
+          "blockId": "block:d",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:g",
+        "a": {
+          "blockId": "block:9",
+          "anchorId": "zn"
+        },
+        "b": {
+          "blockId": "block:f",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:i",
+        "a": {
+          "blockId": "block:1",
+          "anchorId": "xn"
+        },
+        "b": {
+          "blockId": "block:h",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:k",
+        "a": {
+          "blockId": "block:7",
+          "anchorId": "zp"
+        },
+        "b": {
+          "blockId": "block:j",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:m",
+        "a": {
+          "blockId": "block:5",
+          "anchorId": "zn"
+        },
+        "b": {
+          "blockId": "block:l",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:o",
+        "a": {
+          "blockId": "block:j",
+          "anchorId": "yn"
+        },
+        "b": {
+          "blockId": "block:n",
+          "anchorId": "upper.attach"
+        }
+      },
+      {
+        "id": "conn:q",
+        "a": {
+          "blockId": "block:l",
+          "anchorId": "yn"
+        },
+        "b": {
+          "blockId": "block:p",
+          "anchorId": "upper.attach"
+        }
+      },
+      {
+        "id": "conn:s",
+        "a": {
+          "blockId": "block:f",
+          "anchorId": "yn"
+        },
+        "b": {
+          "blockId": "block:r",
+          "anchorId": "upper.attach"
+        }
+      },
+      {
+        "id": "conn:u",
+        "a": {
+          "blockId": "block:b",
+          "anchorId": "yn"
+        },
+        "b": {
+          "blockId": "block:t",
+          "anchorId": "upper.attach"
+        }
+      },
+      {
+        "id": "conn:w",
+        "a": {
+          "blockId": "block:r",
+          "anchorId": "lower.attach"
+        },
+        "b": {
+          "blockId": "block:v",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:y",
+        "a": {
+          "blockId": "block:n",
+          "anchorId": "lower.attach"
+        },
+        "b": {
+          "blockId": "block:x",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:10",
+        "a": {
+          "blockId": "block:p",
+          "anchorId": "lower.attach"
+        },
+        "b": {
+          "blockId": "block:z",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:12",
+        "a": {
+          "blockId": "block:t",
+          "anchorId": "lower.attach"
+        },
+        "b": {
+          "blockId": "block:11",
+          "anchorId": "xp"
+        }
+      },
+      {
+        "id": "conn:14",
+        "a": {
+          "blockId": "block:z",
+          "anchorId": "zp"
+        },
+        "b": {
+          "blockId": "block:13",
+          "anchorId": "mount.attach"
+        }
+      },
+      {
+        "id": "conn:16",
+        "a": {
+          "blockId": "block:11",
+          "anchorId": "zp"
+        },
+        "b": {
+          "blockId": "block:15",
+          "anchorId": "mount.attach"
+        }
+      },
+      {
+        "id": "conn:18",
+        "a": {
+          "blockId": "block:x",
+          "anchorId": "zn"
+        },
+        "b": {
+          "blockId": "block:17",
+          "anchorId": "mount.attach"
+        }
+      },
+      {
+        "id": "conn:1a",
+        "a": {
+          "blockId": "block:v",
+          "anchorId": "zn"
+        },
+        "b": {
+          "blockId": "block:19",
+          "anchorId": "mount.attach"
+        }
+      }
+    ],
+    "metadata": {}
+  }
