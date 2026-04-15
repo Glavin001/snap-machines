@@ -19,6 +19,7 @@ import {
   VEC3_Y,
   placeCompound,
   suspensionStrutTemplate,
+  multiFloorBuildingTemplate,
 } from "@snap-machines/core";
 
 export interface MachinePreset {
@@ -713,6 +714,20 @@ function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
+// 10. Concrete Building — Multi-story structure with pillars, floors, stairs
+// ---------------------------------------------------------------------------
+
+function buildConcreteBuilding(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Place the 4-story building template at ground level
+  const buildingTemplate = multiFloorBuildingTemplate(4);
+  placeCompound(g, catalog, buildingTemplate, "", "", "building/");
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Export gallery
 // ---------------------------------------------------------------------------
 
@@ -780,5 +795,13 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     build: buildSuspendedCar,
     autoInput: { motorSpin: 1 },
     cameraPosition: [10, 6, 10],
+  },
+  {
+    name: "Concrete Building Under Construction",
+    description: "A 4-story concrete building with pillars, floors, and stairs. Demonstrates hierarchical compound composition with structural load-bearing.",
+    build: buildConcreteBuilding,
+    autoInput: {},
+    cameraPosition: [25, 15, 25],
+    gravity: 9.81,
   },
 ];
