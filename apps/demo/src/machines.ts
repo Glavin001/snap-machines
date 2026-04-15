@@ -718,11 +718,30 @@ function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
 // ---------------------------------------------------------------------------
 
 function buildConcreteBuilding(catalog: BlockCatalog): BlockGraph {
-  const g = new BlockGraph();
-
-  // Place the 4-story building template at ground level
+  // Build the 4-story building template directly
   const buildingTemplate = multiFloorBuildingTemplate(4);
-  placeCompound(g, catalog, buildingTemplate, "", "", "building/");
+  const result = buildingTemplate.build(catalog);
+
+  // Merge the template's graph into a new graph with ID prefixing
+  const g = new BlockGraph();
+  const prefix = "building/";
+
+  // Add all nodes from the template with ID prefix
+  for (const node of result.graph.listNodes()) {
+    g.addNode({
+      id: prefix + node.id,
+      typeId: node.typeId,
+      transform: node.transform,
+    });
+  }
+
+  // Add all connections with ID prefix
+  for (const conn of result.graph.listConnections()) {
+    g.addConnection({
+      a: { blockId: prefix + conn.a.blockId, anchorId: conn.a.anchorId },
+      b: { blockId: prefix + conn.b.blockId, anchorId: conn.b.anchorId },
+    });
+  }
 
   return g;
 }
