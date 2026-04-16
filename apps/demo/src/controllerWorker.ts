@@ -58,20 +58,32 @@ let controllerGlobals: ConfigMessage["globals"] = {
   config: {},
 };
 
+// These worker-scope globals are shadowed with undefined so user-supplied
+// controller scripts cannot reach outside the intended helper/command API.
+const BLOCKED_GLOBALS = [
+  "self", "globalThis", "global", "window",
+  "fetch", "XMLHttpRequest", "WebSocket",
+  "importScripts", "postMessage", "close",
+  "addEventListener", "removeEventListener",
+  "eval", "setTimeout", "setInterval", "clearTimeout", "clearInterval",
+] as const;
+
 function compileController(source: string, globals: ConfigMessage["globals"]): ControllerModule {
   const factory = new Function(
     "helpers",
     "commands",
     "actuators",
     "config",
+    ...BLOCKED_GLOBALS,
     `"use strict";\n${source}\nreturn { init: typeof init === "function" ? init : undefined, step: typeof step === "function" ? step : undefined };`,
-  ) as (
-    helpers: typeof helperApi,
-    commands: ConfigMessage["globals"]["commands"],
-    actuators: ConfigMessage["globals"]["actuators"],
-    config: ConfigMessage["globals"]["config"],
-  ) => { init?: ControllerModule["init"]; step?: ControllerModule["step"] };
-  const result = factory(helperApi, globals.commands, globals.actuators, globals.config);
+  );
+  const result = factory(
+    helperApi,
+    globals.commands,
+    globals.actuators,
+    globals.config,
+    ...BLOCKED_GLOBALS.map(() => undefined),
+  ) as { init?: ControllerModule["init"]; step?: ControllerModule["step"] };
   if (typeof result.step !== "function") {
     throw new Error("Controller script must define a step(frame, state) function.");
   }
