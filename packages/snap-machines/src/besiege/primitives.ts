@@ -399,29 +399,29 @@ export const floorSlabPrimitive: BlockDefinition = {
   ],
 };
 
-/** Concrete stairs — stepped profile with 3 steps, 1.5m wide. */
+/** Concrete stairs — ramp structure connecting floors, 1.5m wide × 3.0m tall. */
 export const stairsConcretePrimitive: BlockDefinition = {
   id: "primitive.stairs.concrete",
   name: "Concrete Stairs",
   category: "structural",
-  mass: 12.0,
+  mass: 20.0,
   geometry: [
-    // Visual representation: 3 stepped boxes
-    { kind: "box", size: vec3(1.5, 0.5, 0.5), transform: { position: vec3(-0.5, 0.25, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
-    { kind: "box", size: vec3(1.5, 0.5, 0.5), transform: { position: vec3(0, 0.75, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
-    { kind: "box", size: vec3(1.5, 0.5, 0.5), transform: { position: vec3(0.5, 1.25, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
+    // Large angled ramp from bottom-left to top-right
+    // Represents a sloped staircase spanning the full floor-to-floor height
+    { kind: "box", size: vec3(1.5, 3.0, 0.5), transform: { position: vec3(0, 1.5, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
   ],
   colliders: [
-    // Stepped colliders for realistic physics
-    { kind: "box", halfExtents: vec3(0.75, 0.25, 0.25), transform: { position: vec3(-0.5, 0.25, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
-    { kind: "box", halfExtents: vec3(0.75, 0.25, 0.25), transform: { position: vec3(0, 0.75, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
-    { kind: "box", halfExtents: vec3(0.75, 0.25, 0.25), transform: { position: vec3(0.5, 1.25, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
+    // Single angled box collider for the ramp
+    { kind: "box", halfExtents: vec3(0.75, 1.5, 0.25), transform: { position: vec3(0, 1.5, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
   ],
   anchors: [
+    // Bottom anchor: connects to lower floor
     sideAnchor("bottom", vec3(-0.75, 0, 0), vec3(0, -1, 0)),
-    sideAnchor("top", vec3(0.75, 1.5, 0), vec3(0, 1, 0)),
-    sideAnchor("side.left", vec3(0, 0.75, -0.75), vec3(0, 0, -1)),
-    sideAnchor("side.right", vec3(0, 0.75, 0.75), vec3(0, 0, 1)),
+    // Top anchor: connects to upper floor
+    sideAnchor("top", vec3(0.75, 3.0, 0), vec3(0, 1, 0)),
+    // Side anchors for optional railings
+    sideAnchor("side.left", vec3(0, 1.5, -0.75), vec3(0, 0, -1)),
+    sideAnchor("side.right", vec3(0, 1.5, 0.75), vec3(0, 0, 1)),
   ],
 };
 

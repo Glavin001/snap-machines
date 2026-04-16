@@ -371,13 +371,14 @@ export const multiFloorBuildingTemplate = (floorCount: number = 4): CompoundTemp
       }
 
       // Add stairs to next floor (if not the last floor)
+      // Stairs connect from top of current floor to top of next floor
+      // Center position: between current and next floor levels
       if (i < floorCount) {
-        snapBlockInGraph(g, catalog, {
+        const stairsY = (i * 3.0 + (i + 1) * 3.0) / 2; // Midpoint between floor levels
+        g.addNode({
           id: `stairs-l${i}-l${i + 1}`,
           typeId: "primitive.stairs.concrete",
-          targetBlockId: floorId,
-          targetAnchorId: "stairs.front",
-          sourceAnchorId: "bottom",
+          transform: { position: vec3(0, stairsY, 5), rotation: QUAT_IDENTITY },
         });
       }
     }
