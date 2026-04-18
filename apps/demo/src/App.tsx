@@ -43,6 +43,8 @@ import { ControlPanel } from "./ControlPanel.js";
 import { ControllerPanel } from "./ControllerPanel.js";
 import { ControllerRuntimePanel } from "./ControllerRuntimePanel.js";
 import { MACHINE_PRESETS, MachinePreset } from "./machines.js";
+import { AiChatPanel, type AiChatPanelHandle } from "./AiChatPanel.js";
+import type { SnapAccessors, SnapMode } from "./ai/snapToolHelpers.js";
 
 type Mode = "gallery" | "build" | "play";
 type BuilderTool = "place" | "select" | "move" | "rotate";
@@ -158,6 +160,55 @@ function createFreshGraph(): BlockGraph {
   return g;
 }
 
+function summarizeGraphDiff(previous: BlockGraph, next: BlockGraph): string | null {
+  const prevNodes = new Map(previous.listNodes().map((n) => [n.id, n.typeId] as const));
+  const nextNodes = new Map(next.listNodes().map((n) => [n.id, n.typeId] as const));
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const [id, typeId] of nextNodes) {
+    if (!prevNodes.has(id)) added.push(typeId);
+  }
+  for (const [id, typeId] of prevNodes) {
+    if (!nextNodes.has(id)) removed.push(typeId);
+  }
+  let moved = 0;
+  for (const [id, typeId] of nextNodes) {
+    if (!prevNodes.has(id)) continue;
+    const before = previous.getNode(id)!;
+    const after = next.getNode(id)!;
+    if (
+      before.transform.position.x !== after.transform.position.x ||
+      before.transform.position.y !== after.transform.position.y ||
+      before.transform.position.z !== after.transform.position.z ||
+      before.transform.rotation.x !== after.transform.rotation.x ||
+      before.transform.rotation.y !== after.transform.rotation.y ||
+      before.transform.rotation.z !== after.transform.rotation.z ||
+      before.transform.rotation.w !== after.transform.rotation.w
+    ) {
+      moved += 1;
+    }
+    void typeId;
+  }
+  const prevConns = previous.listConnections().length;
+  const nextConns = next.listConnections().length;
+  const connDelta = nextConns - prevConns;
+
+  const parts: string[] = [];
+  if (added.length > 0) {
+    const sample = added.slice(0, 4).join(", ");
+    parts.push(`added ${added.length} block${added.length === 1 ? "" : "s"} (${sample}${added.length > 4 ? ", …" : ""})`);
+  }
+  if (removed.length > 0) {
+    const sample = removed.slice(0, 4).join(", ");
+    parts.push(`removed ${removed.length} block${removed.length === 1 ? "" : "s"} (${sample}${removed.length > 4 ? ", …" : ""})`);
+  }
+  if (moved > 0) parts.push(`moved ${moved} block${moved === 1 ? "" : "s"}`);
+  if (connDelta > 0) parts.push(`+${connDelta} connection${connDelta === 1 ? "" : "s"}`);
+  else if (connDelta < 0) parts.push(`-${-connDelta} connection${connDelta === -1 ? "" : "s"}`);
+
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
 function clearPersistedBuilderDraft() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(BUILDER_DRAFT_STORAGE_KEY);
@@ -235,6 +286,11 @@ export function App() {
   const [graph, setGraph] = useState(() => createFreshGraph());
   const graphRef = useRef(graph);
   graphRef.current = graph;
+  const modeRef = useRef<Mode>(mode);
+  modeRef.current = mode;
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const aiChatRef = useRef<AiChatPanelHandle>(null);
+  const isAiEditRef = useRef(false);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.Camera | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -695,6 +751,13 @@ export function App() {
         setRedoStack([]);
       }
 
+      if (!isAiEditRef.current) {
+        const summary = summarizeGraphDiff(current, nextGraph);
+        if (summary) {
+          aiChatRef.current?.pushHumanEdit(summary);
+        }
+      }
+
       setGraph(nextGraph);
       setSnapResult(null);
       setJsonError(null);
@@ -751,6 +814,77 @@ export function App() {
   const handleNewBuild = useCallback(() => {
     resetBuildState(createFreshGraph(), null);
   }, [resetBuildState]);
+
+  const aiAccessors = useMemo<SnapAccessors>(
+    () => ({
+      getGraph: () => graphRef.current,
+      getCatalog: () => catalog,
+      getMode: () => modeRef.current as SnapMode,
+      getSelectedNodeIds: () => [...selectedNodeIdsRef.current],
+      listPresets: () =>
+        MACHINE_PRESETS.map((p) => ({ name: p.name, description: p.description })),
+      commitEdit: (updater, options) => {
+        const previous = isAiEditRef.current;
+        if (options?.isAiEdit) isAiEditRef.current = true;
+        try {
+          const next = updater(graphRef.current.clone());
+          const applyOptions: Parameters<typeof applyBuildGraph>[1] = {};
+          if (options && options.selectionIds !== undefined) {
+            applyOptions.selectionIds = options.selectionIds;
+          }
+          applyBuildGraph(next, applyOptions);
+          return true;
+        } catch (err) {
+          console.error("[ai] commitEdit failed", err);
+          return false;
+        } finally {
+          isAiEditRef.current = previous;
+        }
+      },
+      setSelection: (ids) => {
+        setSelectedNodeIds(ids.filter((id) => graphRef.current.getNode(id)));
+      },
+      setMode: (next) => {
+        if (next === "play" && modeRef.current !== "play") {
+          setPlayGraph(graphRef.current.clone());
+          setPhysicsReady(false);
+          setFirstPerson(false);
+          setInputsEnabled(true);
+          setControlMap(null);
+          setControllerError(null);
+          setShowControls(true);
+        } else if (next !== "play") {
+          setPlayGraph(null);
+          setPhysicsReady(false);
+          setFirstPerson(false);
+          setControlMap(null);
+        }
+        setMode(next);
+      },
+      loadPreset: (name) => {
+        const preset = MACHINE_PRESETS.find((p) => p.name === name);
+        if (!preset) return false;
+        const previous = isAiEditRef.current;
+        isAiEditRef.current = true;
+        try {
+          resetBuildState(preset.build(catalog), preset);
+        } finally {
+          isAiEditRef.current = previous;
+        }
+        return true;
+      },
+      clearGraph: () => {
+        const previous = isAiEditRef.current;
+        isAiEditRef.current = true;
+        try {
+          resetBuildState(createFreshGraph(), null);
+        } finally {
+          isAiEditRef.current = previous;
+        }
+      },
+    }),
+    [applyBuildGraph, catalog, resetBuildState],
+  );
 
   const startPlaySession = useCallback(() => {
     setPlayGraph(graph.clone());
@@ -1741,6 +1875,17 @@ export function App() {
               >
                 {showJson ? "Hide JSON" : "JSON"}
               </button>
+              <button
+                onClick={() => setAiChatOpen((value) => !value)}
+                style={{
+                  ...toolbarActionButton(true),
+                  background: aiChatOpen ? "rgba(14,165,233,0.22)" : "rgba(14,165,233,0.12)",
+                  borderColor: "rgba(14,165,233,0.35)",
+                  color: "#bae8ff",
+                }}
+              >
+                {aiChatOpen ? "Hide AI" : "AI Chat"}
+              </button>
             </div>
 
             {showMirrorSettings && (
@@ -2598,6 +2743,33 @@ export function App() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {aiChatOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            right: jsonPanelVisible ? 452 : 16,
+            bottom: 16,
+            width: 400,
+            zIndex: 11,
+            color: "#e0e0e0",
+            background: "rgba(4, 8, 16, 0.92)",
+            borderRadius: 16,
+            backdropFilter: "blur(16px)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <AiChatPanel
+            ref={aiChatRef}
+            accessors={aiAccessors}
+            onClose={() => setAiChatOpen(false)}
+          />
         </div>
       )}
 
