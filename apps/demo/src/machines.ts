@@ -713,106 +713,210 @@ function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
-// 10. Dune Buggy — Suspended chassis + welded tubular roll cage
+// 10. Dune Buggy — Full-width 4-post roll cage on twin-beam chassis
 //
-// Baja-style off-road buggy. Reuses the suspension strut compound for 4
-// independent wheels, then welds a rectangular roll cage on top of the chassis
-// out of small primitive tubes (`primitive.block.2x1`) and corner junction
-// cubes (`primitive.block.1x1`). The cage is assembled as 7 separate pieces
-// connected at matching anchors so the compiler merges them into a single
-// compound rigid body (cage + chassis together).
+// Baja-style off-road buggy. Built from ~25 small connected pieces to approach
+// the look of real tubular space-frames:
+//
+//   • Twin parallel 5x1 chassis beams at z=±1, joined by 3 cross-braces.
+//     Having two beams gives the cage four proper corner-top anchors instead
+//     of a single centreline one.
+//   • 4 independent suspension struts extend outboard from the beams' inner
+//     Z faces, so the wheels sit clear of the chassis with horizontal axles.
+//   • Full 4-post roll cage: 4 pillars, 2 long side rails, 2 front/rear
+//     hoops, 3 roof cross-members, 4 corner top cubes, 4 bottom junctions.
+//
+// All cage pieces are structural primitives (`primitive.block.1x1`,
+// `primitive.block.2x1`, `frame.plank.3x1`). Every anchor-to-anchor
+// connection is coincident in world space, so `compileMachinePlan` merges
+// the entire cage + chassis into a single compound rigid body.
 // ---------------------------------------------------------------------------
 
 function buildDuneBuggy(catalog: BlockCatalog): BlockGraph {
   const g = new BlockGraph();
 
-  // Chassis beam (5x1) at riding height 2.5 — matches the suspended car so the
-  // same suspension compound lands wheels with ground clearance.
+  // -- Chassis ---------------------------------------------------------------
+  // Two parallel 5x1 beams at z=-1 and z=+1 (1-unit gap between them), joined
+  // by three 1x1 cross-braces at x = -2, 0, +2 in that gap. Each beam is 1
+  // unit tall and wide; the two beams together span z=[-1.5, +1.5], a
+  // 3-unit-wide chassis — proper truck proportions.
   g.addNode({
-    id: "chassis",
+    id: "chassis-l",
     typeId: "frame.beam.5x1",
-    transform: { position: vec3(0, 2.5, 0), rotation: QUAT_IDENTITY },
+    transform: { position: vec3(0, 2.5, -1), rotation: QUAT_IDENTITY },
+  });
+  g.addNode({
+    id: "chassis-r",
+    typeId: "frame.beam.5x1",
+    transform: { position: vec3(0, 2.5, 1), rotation: QUAT_IDENTITY },
   });
 
-  // 4 independent suspension struts (shock + motor wheel) at the chassis corners.
-  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zp.l", "fl/");
-  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zp.r", "fr/");
-  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zn.l", "rl/");
-  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zn.r", "rr/");
+  // Cross-braces between the two beams at front, middle, rear.
+  g.addNode({
+    id: "cross-f",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(-2, 2.5, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addNode({
+    id: "cross-m",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(0, 2.5, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addNode({
+    id: "cross-r",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(2, 2.5, 0), rotation: QUAT_IDENTITY },
+  });
+  // Weld each cross-brace between the beams' inner Z faces.
+  connectBlocks(g, "chassis-l", "zp.l", "cross-f", "zn");
+  connectBlocks(g, "chassis-r", "zn.l", "cross-f", "zp");
+  connectBlocks(g, "chassis-l", "zp",   "cross-m", "zn");
+  connectBlocks(g, "chassis-r", "zn",   "cross-m", "zp");
+  connectBlocks(g, "chassis-l", "zp.r", "cross-r", "zn");
+  connectBlocks(g, "chassis-r", "zn.r", "cross-r", "zp");
 
-  // --- Roll cage -----------------------------------------------------------
+  // -- Suspension ------------------------------------------------------------
+  // 4 independent struts. Mount points are on each beam's INNER Z face (zp on
+  // chassis-l, zn on chassis-r) so the shocks extend OUTWARD in world Z and
+  // the wheel axles end up horizontal (verified: axle +Z = world ±Z).
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis-l", "zn.l", "fl/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis-l", "zn.r", "rl/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis-r", "zp.l", "fr/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis-r", "zp.r", "rr/");
+
+  // -- Roll cage ------------------------------------------------------------
+  // Four-post layout. The two beams' top-face endpoint anchors (yp.l/yp.r on
+  // each beam, at world (±2, 3, ±1)) anchor the 4 corner junctions and 4
+  // pillars. Roof rails run along X above each beam; front and rear hoops run
+  // along Z between opposite pillars; three short roof cross-members tie the
+  // two side rails together across Z.
   //
-  // All pieces live in the chassis centreline plane (z=0). Each piece is a
-  // small primitive block with face anchors that coincide exactly with its
-  // neighbour's anchor after placement, so `addConnection` welds them into
-  // one compound rigid body with the chassis.
+  // Layout in 3D (looking down -Y onto the roof, +X to the right, +Z out of page):
   //
-  // Layout (viewed from +Z):
+  //   top-fl─────rail-l────────top-rl     z=-1 (left side roof)
+  //     │                         │
+  //   end-rail-f     +          end-rail-r
+  //     │                         │
+  //   top-fr─────rail-r────────top-rr     z=+1 (right side roof)
   //
-  //   (-2,6)───rail-l──(0,6)──rail-r──(2,6)      roof
-  //      │                                │
-  //   pillar-f (vertical 2x1)      pillar-r (vertical 2x1)
-  //      │                                │
-  //   jct-fl──── chassis top ────jct-fr           y=3.5
-  //      └────── chassis beam ─────┘              y=2.5
-  //
-  // Vertical pillars are `primitive.block.2x1` rotated +π/2 around Z so their
-  // local +X axis (xp anchor) points up in world space.
+  //   (roof cross-members at z=0 tie rail-l and rail-r at x=-1, 0, +1)
 
   const vertical = quatFromAxisAngle(VEC3_Z, Math.PI / 2);
 
-  // Corner junctions on top of the chassis beam.
+  // 4 bottom junction cubes on top of each beam corner.
   snapBlock(g, catalog, {
-    id: "jct-fl",
-    typeId: "primitive.block.1x1",
-    targetBlockId: "chassis",
-    targetAnchorId: "yp.l",
-    sourceAnchorId: "yn",
+    id: "jct-fl", typeId: "primitive.block.1x1",
+    targetBlockId: "chassis-l", targetAnchorId: "yp.l", sourceAnchorId: "yn",
   });
   snapBlock(g, catalog, {
-    id: "jct-fr",
-    typeId: "primitive.block.1x1",
-    targetBlockId: "chassis",
-    targetAnchorId: "yp.r",
-    sourceAnchorId: "yn",
+    id: "jct-rl", typeId: "primitive.block.1x1",
+    targetBlockId: "chassis-l", targetAnchorId: "yp.r", sourceAnchorId: "yn",
+  });
+  snapBlock(g, catalog, {
+    id: "jct-fr", typeId: "primitive.block.1x1",
+    targetBlockId: "chassis-r", targetAnchorId: "yp.l", sourceAnchorId: "yn",
+  });
+  snapBlock(g, catalog, {
+    id: "jct-rr", typeId: "primitive.block.1x1",
+    targetBlockId: "chassis-r", targetAnchorId: "yp.r", sourceAnchorId: "yn",
   });
 
-  // Vertical pillars. Placed by explicit transform because snapBlock can't
-  // emit the +90° roll the 2x1's face anchors need to stand up vertically.
-  // After rotation, pillar.xn is at world (cx, cy-1, cz) and pillar.xp at
-  // (cx, cy+1, cz). Centres at y=5 make xn meet jct.yp (y=4) and xp meet the
-  // rail xn (y=6).
-  g.addNode({
-    id: "pillar-f",
-    typeId: "primitive.block.2x1",
-    transform: { position: vec3(-2, 5, 0), rotation: vertical },
-  });
-  g.addNode({
-    id: "pillar-r",
-    typeId: "primitive.block.2x1",
-    transform: { position: vec3(2, 5, 0), rotation: vertical },
-  });
+  // 4 vertical pillars at chassis-top corners. 2x1 blocks rotated +π/2 around
+  // Z so their local +X axis points up; centre at y=5 so xn meets the
+  // junction's yp (y=4) and xp meets the corner-cube yn (y=6).
+  for (const [id, x, z] of [
+    ["pillar-fl", -2, -1],
+    ["pillar-rl",  2, -1],
+    ["pillar-fr", -2,  1],
+    ["pillar-rr",  2,  1],
+  ] as const) {
+    g.addNode({
+      id,
+      typeId: "primitive.block.2x1",
+      transform: { position: vec3(x, 5, z), rotation: vertical },
+    });
+  }
+  connectBlocks(g, "jct-fl", "yp", "pillar-fl", "xn");
+  connectBlocks(g, "jct-rl", "yp", "pillar-rl", "xn");
+  connectBlocks(g, "jct-fr", "yp", "pillar-fr", "xn");
+  connectBlocks(g, "jct-rr", "yp", "pillar-rr", "xn");
 
-  // Top rails meeting end-to-end at (0, 6, 0).
+  // 4 corner cubes at the top of each pillar (y=6.5).
+  for (const [id, x, z] of [
+    ["top-fl", -2, -1],
+    ["top-rl",  2, -1],
+    ["top-fr", -2,  1],
+    ["top-rr",  2,  1],
+  ] as const) {
+    g.addNode({
+      id,
+      typeId: "primitive.block.1x1",
+      transform: { position: vec3(x, 6.5, z), rotation: QUAT_IDENTITY },
+    });
+  }
+  connectBlocks(g, "pillar-fl", "xp", "top-fl", "yn");
+  connectBlocks(g, "pillar-rl", "xp", "top-rl", "yn");
+  connectBlocks(g, "pillar-fr", "xp", "top-fr", "yn");
+  connectBlocks(g, "pillar-rr", "xp", "top-rr", "yn");
+
+  // Two long side rails (3x1 planks) running along X between the front/rear
+  // top cubes. Rail at z=-1 connects top-fl.xp ↔ top-rl.xn (span x=-1.5..1.5).
   g.addNode({
     id: "rail-l",
-    typeId: "primitive.block.2x1",
-    transform: { position: vec3(-1, 6, 0), rotation: QUAT_IDENTITY },
+    typeId: "frame.plank.3x1",
+    transform: { position: vec3(0, 6.5, -1), rotation: QUAT_IDENTITY },
   });
   g.addNode({
     id: "rail-r",
-    typeId: "primitive.block.2x1",
-    transform: { position: vec3(1, 6, 0), rotation: QUAT_IDENTITY },
+    typeId: "frame.plank.3x1",
+    transform: { position: vec3(0, 6.5, 1), rotation: QUAT_IDENTITY },
   });
+  connectBlocks(g, "top-fl", "xp", "rail-l", "xn");
+  connectBlocks(g, "rail-l", "xp", "top-rl", "xn");
+  connectBlocks(g, "top-fr", "xp", "rail-r", "xn");
+  connectBlocks(g, "rail-r", "xp", "top-rr", "xn");
 
-  // Weld the cage together. snapBlock already added the junction-to-chassis
-  // connections; the remaining structural connections tie the tubes into one
-  // rigid body.
-  connectBlocks(g, "jct-fl", "yp", "pillar-f", "xn");
-  connectBlocks(g, "jct-fr", "yp", "pillar-r", "xn");
-  connectBlocks(g, "pillar-f", "xp", "rail-l", "xn");
-  connectBlocks(g, "pillar-r", "xp", "rail-r", "xp");
-  connectBlocks(g, "rail-l", "xp", "rail-r", "xn");
+  // Front and rear end-rails (1x1 cubes) between the left/right top corners.
+  // The cubes' zn/zp faces meet the corner cubes' zp/zn faces at z=±0.5.
+  g.addNode({
+    id: "end-rail-f",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(-2, 6.5, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addNode({
+    id: "end-rail-r",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(2, 6.5, 0), rotation: QUAT_IDENTITY },
+  });
+  connectBlocks(g, "top-fl", "zp", "end-rail-f", "zn");
+  connectBlocks(g, "end-rail-f", "zp", "top-fr", "zn");
+  connectBlocks(g, "top-rl", "zp", "end-rail-r", "zn");
+  connectBlocks(g, "end-rail-r", "zp", "top-rr", "zn");
+
+  // Three roof cross-members (1x1 cubes) tying the two side rails together
+  // at x=-1, 0, +1 (plank `zp` centerline anchor + `zp.l`/`zp.r` endpoint
+  // anchors at x=±1).
+  g.addNode({
+    id: "roof-f",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(-1, 6.5, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addNode({
+    id: "roof-m",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(0, 6.5, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addNode({
+    id: "roof-r",
+    typeId: "primitive.block.1x1",
+    transform: { position: vec3(1, 6.5, 0), rotation: QUAT_IDENTITY },
+  });
+  connectBlocks(g, "rail-l", "zp.l", "roof-f", "zn");
+  connectBlocks(g, "roof-f", "zp", "rail-r", "zn.l");
+  connectBlocks(g, "rail-l", "zp",   "roof-m", "zn");
+  connectBlocks(g, "roof-m", "zp",   "rail-r", "zn");
+  connectBlocks(g, "rail-l", "zp.r", "roof-r", "zn");
+  connectBlocks(g, "roof-r", "zp",   "rail-r", "zn.r");
 
   return g;
 }
@@ -888,9 +992,9 @@ export const MACHINE_PRESETS: MachinePreset[] = [
   },
   {
     name: "Dune Buggy",
-    description: "Off-road buggy: beam chassis, 4 independent suspension struts, and a welded tubular roll cage.",
+    description: "Off-road buggy: twin-beam chassis with cross-braces, 4 independent suspension struts, and a 25-piece welded 4-post roll cage.",
     build: buildDuneBuggy,
     autoInput: { motorSpin: 1 },
-    cameraPosition: [10, 6, 10],
+    cameraPosition: [14, 8, 14],
   },
 ];
