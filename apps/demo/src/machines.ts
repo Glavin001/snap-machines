@@ -713,6 +713,111 @@ function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
+// 10. Dune Buggy — Suspended chassis + welded tubular roll cage
+//
+// Baja-style off-road buggy. Reuses the suspension strut compound for 4
+// independent wheels, then welds a rectangular roll cage on top of the chassis
+// out of small primitive tubes (`primitive.block.2x1`) and corner junction
+// cubes (`primitive.block.1x1`). The cage is assembled as 7 separate pieces
+// connected at matching anchors so the compiler merges them into a single
+// compound rigid body (cage + chassis together).
+// ---------------------------------------------------------------------------
+
+function buildDuneBuggy(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Chassis beam (5x1) at riding height 2.5 — matches the suspended car so the
+  // same suspension compound lands wheels with ground clearance.
+  g.addNode({
+    id: "chassis",
+    typeId: "frame.beam.5x1",
+    transform: { position: vec3(0, 2.5, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // 4 independent suspension struts (shock + motor wheel) at the chassis corners.
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zp.l", "fl/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zp.r", "fr/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zn.l", "rl/");
+  placeCompound(g, catalog, suspensionStrutTemplate, "chassis", "zn.r", "rr/");
+
+  // --- Roll cage -----------------------------------------------------------
+  //
+  // All pieces live in the chassis centreline plane (z=0). Each piece is a
+  // small primitive block with face anchors that coincide exactly with its
+  // neighbour's anchor after placement, so `addConnection` welds them into
+  // one compound rigid body with the chassis.
+  //
+  // Layout (viewed from +Z):
+  //
+  //   (-2,6)───rail-l──(0,6)──rail-r──(2,6)      roof
+  //      │                                │
+  //   pillar-f (vertical 2x1)      pillar-r (vertical 2x1)
+  //      │                                │
+  //   jct-fl──── chassis top ────jct-fr           y=3.5
+  //      └────── chassis beam ─────┘              y=2.5
+  //
+  // Vertical pillars are `primitive.block.2x1` rotated +π/2 around Z so their
+  // local +X axis (xp anchor) points up in world space.
+
+  const vertical = quatFromAxisAngle(VEC3_Z, Math.PI / 2);
+
+  // Corner junctions on top of the chassis beam.
+  snapBlock(g, catalog, {
+    id: "jct-fl",
+    typeId: "primitive.block.1x1",
+    targetBlockId: "chassis",
+    targetAnchorId: "yp.l",
+    sourceAnchorId: "yn",
+  });
+  snapBlock(g, catalog, {
+    id: "jct-fr",
+    typeId: "primitive.block.1x1",
+    targetBlockId: "chassis",
+    targetAnchorId: "yp.r",
+    sourceAnchorId: "yn",
+  });
+
+  // Vertical pillars. Placed by explicit transform because snapBlock can't
+  // emit the +90° roll the 2x1's face anchors need to stand up vertically.
+  // After rotation, pillar.xn is at world (cx, cy-1, cz) and pillar.xp at
+  // (cx, cy+1, cz). Centres at y=5 make xn meet jct.yp (y=4) and xp meet the
+  // rail xn (y=6).
+  g.addNode({
+    id: "pillar-f",
+    typeId: "primitive.block.2x1",
+    transform: { position: vec3(-2, 5, 0), rotation: vertical },
+  });
+  g.addNode({
+    id: "pillar-r",
+    typeId: "primitive.block.2x1",
+    transform: { position: vec3(2, 5, 0), rotation: vertical },
+  });
+
+  // Top rails meeting end-to-end at (0, 6, 0).
+  g.addNode({
+    id: "rail-l",
+    typeId: "primitive.block.2x1",
+    transform: { position: vec3(-1, 6, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addNode({
+    id: "rail-r",
+    typeId: "primitive.block.2x1",
+    transform: { position: vec3(1, 6, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Weld the cage together. snapBlock already added the junction-to-chassis
+  // connections; the remaining structural connections tie the tubes into one
+  // rigid body.
+  connectBlocks(g, "jct-fl", "yp", "pillar-f", "xn");
+  connectBlocks(g, "jct-fr", "yp", "pillar-r", "xn");
+  connectBlocks(g, "pillar-f", "xp", "rail-l", "xn");
+  connectBlocks(g, "pillar-r", "xp", "rail-r", "xp");
+  connectBlocks(g, "rail-l", "xp", "rail-r", "xn");
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Export gallery
 // ---------------------------------------------------------------------------
 
@@ -778,6 +883,13 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     name: "Suspended Car",
     description: "A beam chassis with 4 suspension struts (shock absorbers + wheels). Uses the compound template system.",
     build: buildSuspendedCar,
+    autoInput: { motorSpin: 1 },
+    cameraPosition: [10, 6, 10],
+  },
+  {
+    name: "Dune Buggy",
+    description: "Off-road buggy: beam chassis, 4 independent suspension struts, and a welded tubular roll cage.",
+    build: buildDuneBuggy,
     autoInput: { motorSpin: 1 },
     cameraPosition: [10, 6, 10],
   },
