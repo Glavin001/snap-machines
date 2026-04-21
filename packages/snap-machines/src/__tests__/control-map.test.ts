@@ -332,7 +332,7 @@ describe("updateControlMapInput", () => {
   it("produces velocity input from key state", () => {
     const map: ControlMap = [
       {
-        id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
+        id: "j1", targetId: "j1", targetKind: "joint", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
         positiveKey: "KeyE", negativeKey: "KeyQ", scale: 5,
         enabled: true,
@@ -360,7 +360,7 @@ describe("updateControlMapInput", () => {
   it("accumulates position target over time", () => {
     const map: ControlMap = [
       {
-        id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
+        id: "j1", targetId: "j1", targetKind: "joint", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "KeyW", negativeKey: "KeyS", scale: 2,
         enabled: true,
@@ -392,7 +392,7 @@ describe("updateControlMapInput", () => {
   it("clamps position target to joint limits", () => {
     const map: ControlMap = [
       {
-        id: "j1", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
+        id: "j1", targetId: "j1", targetKind: "joint", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "KeyW", negativeKey: "KeyS", scale: 10,
         enabled: true,
@@ -413,7 +413,7 @@ describe("updateControlMapInput", () => {
   it("produces trigger input from key state", () => {
     const map: ControlMap = [
       {
-        id: "b1", label: "Thruster (t1)", blockId: "t1", blockName: "Thruster",
+        id: "b1", targetId: "b1", targetKind: "behavior", label: "Thruster (t1)", blockId: "t1", blockName: "Thruster",
         actuatorType: "trigger", actionName: "ctrl:behavior:b1",
         positiveKey: "Space", negativeKey: "", scale: 1,
         enabled: true,
@@ -431,7 +431,7 @@ describe("updateControlMapInput", () => {
   it("handles negative scale (flipped direction)", () => {
     const map: ControlMap = [
       {
-        id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
+        id: "j1", targetId: "j1", targetKind: "joint", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
         positiveKey: "KeyE", negativeKey: "KeyQ", scale: -5,
         enabled: true,
@@ -446,14 +446,14 @@ describe("updateControlMapInput", () => {
   it("ignores disabled actuators and resets disabled position targets", () => {
     const map: ControlMap = [
       {
-        id: "j1", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
+        id: "j1", targetId: "j1", targetKind: "joint", label: "Hinge (h1)", blockId: "h1", blockName: "Hinge",
         actuatorType: "velocity", actionName: "ctrl:joint:j1",
         positiveKey: "KeyE", negativeKey: "KeyQ", scale: 5,
         enabled: false,
         currentTarget: 0, actualPosition: 0, originalAction: "hingeSpin", originalScale: 5,
       },
       {
-        id: "j2", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
+        id: "j2", targetId: "j2", targetKind: "joint", label: "Arm (a1)", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j2",
         positiveKey: "KeyW", negativeKey: "KeyS", scale: 2,
         enabled: false,
@@ -473,7 +473,7 @@ describe("resetControlMapState", () => {
   it("resets position accumulators to their default target", () => {
     const map: ControlMap = [
       {
-        id: "j1", label: "Arm", blockId: "a1", blockName: "Arm",
+        id: "j1", targetId: "j1", targetKind: "joint", label: "Arm", blockId: "a1", blockName: "Arm",
         actuatorType: "position", actionName: "ctrl:joint:j1",
         positiveKey: "KeyW", negativeKey: "KeyS", scale: 2,
         enabled: true,
