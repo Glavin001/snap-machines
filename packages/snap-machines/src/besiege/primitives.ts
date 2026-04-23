@@ -346,6 +346,104 @@ export const passiveHingePrimitive: BlockDefinition = {
 };
 
 // ---------------------------------------------------------------------------
+// Concrete Building Primitives
+// ---------------------------------------------------------------------------
+
+/** Concrete pillar — vertical support column, 0.5m diameter, 3.0m tall. */
+export const pillarConcretePrimitive: BlockDefinition = {
+  id: "primitive.pillar.concrete",
+  name: "Concrete Pillar",
+  category: "structural",
+  mass: 7.0,
+  geometry: [{
+    kind: "cylinder",
+    radius: 0.25,
+    halfHeight: 1.5,
+    axis: "y",
+  }],
+  colliders: [{
+    kind: "cylinder",
+    radius: 0.25,
+    halfHeight: 1.5,
+    axis: "y",
+  }],
+  anchors: [
+    sideAnchor("yp", vec3(0, 1.5, 0), vec3(0, 1, 0)),
+    sideAnchor("yn", vec3(0, -1.5, 0), vec3(0, -1, 0)),
+    sideAnchor("xp", vec3(0.25, 0, 0), vec3(1, 0, 0)),
+    sideAnchor("xn", vec3(-0.25, 0, 0), vec3(-1, 0, 0)),
+    sideAnchor("zp", vec3(0, 0, 0.25), vec3(0, 0, 1)),
+    sideAnchor("zn", vec3(0, 0, -0.25), vec3(0, 0, -1)),
+  ],
+};
+
+/** Concrete floor slab — 10m × 10m × 0.5m platform. */
+export const floorSlabPrimitive: BlockDefinition = {
+  id: "primitive.floor.slab.10x10",
+  name: "Floor Slab 10×10",
+  category: "structural",
+  mass: 50.0,
+  geometry: [{ kind: "box", size: vec3(10, 0.5, 10) }],
+  colliders: [{ kind: "box", halfExtents: vec3(5, 0.25, 5) }],
+  anchors: [
+    // Top corner anchors for pillar mounting
+    sideAnchor("corner.xp.zp", vec3(5, 0.25, 5), vec3(0, 1, 0)),
+    sideAnchor("corner.xp.zn", vec3(5, 0.25, -5), vec3(0, 1, 0)),
+    sideAnchor("corner.xn.zp", vec3(-5, 0.25, 5), vec3(0, 1, 0)),
+    sideAnchor("corner.xn.zn", vec3(-5, 0.25, -5), vec3(0, 1, 0)),
+    // Bottom center for vertical stacking
+    sideAnchor("bottom.center", vec3(0, -0.25, 0), vec3(0, -1, 0)),
+    // Stairs connections (front and back)
+    sideAnchor("stairs.front", vec3(0, 0.25, 5), vec3(0, 0, 1)),
+    sideAnchor("stairs.back", vec3(0, 0.25, -5), vec3(0, 0, -1)),
+  ],
+};
+
+/** Concrete stairs — ramp structure connecting floors, 1.5m wide × 3.0m tall. */
+export const stairsConcretePrimitive: BlockDefinition = {
+  id: "primitive.stairs.concrete",
+  name: "Concrete Stairs",
+  category: "structural",
+  mass: 20.0,
+  geometry: [
+    // Large angled ramp from bottom-left to top-right
+    // Represents a sloped staircase spanning the full floor-to-floor height
+    { kind: "box", size: vec3(1.5, 3.0, 0.5), transform: { position: vec3(0, 1.5, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
+  ],
+  colliders: [
+    // Single angled box collider for the ramp
+    { kind: "box", halfExtents: vec3(0.75, 1.5, 0.25), transform: { position: vec3(0, 1.5, 0), rotation: lookRotation(vec3(0, 0, 1), VEC3_Y) } },
+  ],
+  anchors: [
+    // Bottom anchor: connects to lower floor
+    sideAnchor("bottom", vec3(-0.75, 0, 0), vec3(0, -1, 0)),
+    // Top anchor: connects to upper floor
+    sideAnchor("top", vec3(0.75, 3.0, 0), vec3(0, 1, 0)),
+    // Side anchors for optional railings
+    sideAnchor("side.left", vec3(0, 1.5, -0.75), vec3(0, 0, -1)),
+    sideAnchor("side.right", vec3(0, 1.5, 0.75), vec3(0, 0, 1)),
+  ],
+};
+
+/** Concrete wall panel — 2.0m × 2.5m × 0.2m thick infill panel. */
+export const wallPanelPrimitive: BlockDefinition = {
+  id: "primitive.wall.panel.concrete",
+  name: "Wall Panel",
+  category: "structural",
+  mass: 5.0,
+  geometry: [{ kind: "box", size: vec3(2, 2.5, 0.2) }],
+  colliders: [{ kind: "box", halfExtents: vec3(1, 1.25, 0.1) }],
+  anchors: [
+    sideAnchor("back", vec3(0, 0, -0.1), vec3(0, 0, -1)),
+    sideAnchor("front", vec3(0, 0, 0.1), vec3(0, 0, 1)),
+    sideAnchor("top", vec3(0, 1.25, 0), vec3(0, 1, 0)),
+    sideAnchor("bottom", vec3(0, -1.25, 0), vec3(0, -1, 0)),
+    sideAnchor("left", vec3(-1, 0, 0), vec3(-1, 0, 0)),
+    sideAnchor("right", vec3(1, 0, 0), vec3(1, 0, 0)),
+  ],
+};
+
+// ---------------------------------------------------------------------------
 // Export all primitives
 // ---------------------------------------------------------------------------
 
@@ -356,6 +454,11 @@ export const besiegePrimitives: BlockDefinition[] = [
   platePrimitive,
   cylinderPrimitive,
   spherePrimitive,
+  // Concrete building
+  pillarConcretePrimitive,
+  floorSlabPrimitive,
+  stairsConcretePrimitive,
+  wallPanelPrimitive,
   // Joints
   fixedJointPrimitive,
   sliderJointPrimitive,

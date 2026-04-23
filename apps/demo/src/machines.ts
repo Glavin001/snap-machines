@@ -19,6 +19,7 @@ import {
   VEC3_Y,
   placeCompound,
   suspensionStrutTemplate,
+  multiFloorBuildingTemplate,
 } from "@snap-machines/core";
 
 export interface MachinePreset {
@@ -713,6 +714,39 @@ function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
+// 10. Concrete Building — Multi-story structure with pillars, floors, stairs
+// ---------------------------------------------------------------------------
+
+function buildConcreteBuilding(catalog: BlockCatalog): BlockGraph {
+  // Build the 4-story building template directly
+  const buildingTemplate = multiFloorBuildingTemplate(4);
+  const result = buildingTemplate.build(catalog);
+
+  // Merge the template's graph into a new graph with ID prefixing
+  const g = new BlockGraph();
+  const prefix = "building/";
+
+  // Add all nodes from the template with ID prefix
+  for (const node of result.graph.listNodes()) {
+    g.addNode({
+      id: prefix + node.id,
+      typeId: node.typeId,
+      transform: node.transform,
+    });
+  }
+
+  // Add all connections with ID prefix
+  for (const conn of result.graph.listConnections()) {
+    g.addConnection({
+      a: { blockId: prefix + conn.a.blockId, anchorId: conn.a.anchorId },
+      b: { blockId: prefix + conn.b.blockId, anchorId: conn.b.anchorId },
+    });
+  }
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Export gallery
 // ---------------------------------------------------------------------------
 
@@ -780,5 +814,13 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     build: buildSuspendedCar,
     autoInput: { motorSpin: 1 },
     cameraPosition: [10, 6, 10],
+  },
+  {
+    name: "Concrete Building Under Construction",
+    description: "A 4-story concrete building with pillars, floors, and stairs. Demonstrates hierarchical compound composition with structural load-bearing.",
+    build: buildConcreteBuilding,
+    autoInput: {},
+    cameraPosition: [25, 15, 25],
+    gravity: 9.81,
   },
 ];
