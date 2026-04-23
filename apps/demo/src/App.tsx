@@ -168,6 +168,18 @@ function getPresetByName(name: string | null): MachinePreset | null {
   return MACHINE_PRESETS.find((preset) => preset.name === name) ?? null;
 }
 
+function useViewport() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false
+  );
+  useEffect(() => {
+    const listener = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", listener);
+    return () => window.removeEventListener("resize", listener);
+  }, []);
+  return { isMobile };
+}
+
 export function App() {
   const [selectedType, setSelectedType] = useState("frame.cube.1");
   const [mode, setMode] = useState<Mode>("gallery");
@@ -215,6 +227,10 @@ export function App() {
   const [isTransformDragging, setIsTransformDragging] = useState(false);
   const [isMarqueeGestureActive, setIsMarqueeGestureActive] = useState(false);
   const [hasPersistedDraft, setHasPersistedDraft] = useState(false);
+
+  const { isMobile } = useViewport();
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
 
   const catalog = useMemo(() => {
     const c = new BlockCatalog();
@@ -459,6 +475,22 @@ export function App() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (isMobile && mode === "build") {
+      if (selectedNodeId !== null) {
+        setMobileInspectorOpen(true);
+        setMobileDrawerOpen(false);
+      } else {
+        setMobileInspectorOpen(false);
+      }
+    }
+  }, [isMobile, mode, selectedNodeId]);
+
+  useEffect(() => {
+    if (isMobile && (mode === "play" || mode === "gallery")) setMobileDrawerOpen(true);
+    if (isMobile && mode === "build") setMobileDrawerOpen(false);
+  }, [isMobile, mode]);
 
   useEffect(() => {
     if (builderDraftHydratedRef.current) return;
@@ -1597,7 +1629,29 @@ export function App() {
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <div
-        style={{
+        style={isMobile ? {
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 30,
+          color: "#eef2ff",
+          background: "rgba(8, 12, 20, 0.96)",
+          padding: "0 14px 20px",
+          borderRadius: "20px 20px 0 0",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(125, 211, 252, 0.18)",
+          borderBottom: "none",
+          maxHeight: "85dvh",
+          overflow: "hidden",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.5)",
+          display: "flex",
+          flexDirection: "column",
+          transition: "transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)",
+          transform: mobileDrawerOpen ? "translateY(0)" : "translateY(100%)",
+          visibility: mobileDrawerOpen ? "visible" : "hidden",
+          pointerEvents: mobileDrawerOpen ? "auto" : "none",
+        } : {
           position: "absolute",
           top: 12,
           left: 12,
@@ -1617,6 +1671,11 @@ export function App() {
           flexDirection: "column",
         }}
       >
+        {isMobile && (
+          <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 6px", cursor: "grab" }}>
+            <div style={{ width: 40, height: 4, background: "rgba(255,255,255,0.28)", borderRadius: 2 }} />
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
           <h2 style={{ margin: 0, fontSize: mode === "gallery" ? 18 : 15, color: "#ffffff", letterSpacing: 0.2 }}>
             {mode === "gallery" ? "Snap Machines" : "Builder"}
@@ -2266,7 +2325,26 @@ export function App() {
 
       {mode === "build" && !jsonPanelVisible && (
         <div
-          style={{
+          style={isMobile ? {
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 30,
+            color: "#eef2ff",
+            background: "rgba(8, 12, 20, 0.96)",
+            borderRadius: "20px 20px 0 0",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(244, 114, 182, 0.14)",
+            borderBottom: "none",
+            maxHeight: "60dvh",
+            overflowY: "auto",
+            boxShadow: "0 -8px 40px rgba(0,0,0,0.5)",
+            transition: "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)",
+            transform: mobileInspectorOpen ? "translateY(0)" : "translateY(100%)",
+            visibility: mobileInspectorOpen ? "visible" : "hidden",
+            pointerEvents: mobileInspectorOpen ? "auto" : "none",
+          } : {
             position: "absolute",
             top: 16,
             right: 16,
@@ -2281,6 +2359,11 @@ export function App() {
             overflow: "hidden",
           }}
         >
+          {isMobile && (
+            <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 6px", cursor: "grab" }}>
+              <div style={{ width: 40, height: 4, background: "rgba(255,255,255,0.28)", borderRadius: 2 }} />
+            </div>
+          )}
           <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, opacity: 0.58 }}>
               Inspector
@@ -2603,7 +2686,19 @@ export function App() {
 
       {jsonPanelVisible && (
         <div
-          style={{
+          style={isMobile ? {
+            position: "fixed",
+            inset: 0,
+            zIndex: 40,
+            color: "#e0e0e0",
+            background: "rgba(4, 8, 16, 0.97)",
+            borderRadius: 0,
+            backdropFilter: "blur(16px)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "none",
+          } : {
             position: "absolute",
             top: 16,
             right: 16,
@@ -2620,13 +2715,23 @@ export function App() {
             border: "1px solid rgba(255,255,255,0.08)",
           }}
         >
-          <div style={{ padding: "12px 16px 8px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Machine Graph JSON</div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>
-              {mode === "build"
-                ? "Edit the graph and apply it back into the builder."
-                : "Edit the graph and restart the current simulation."}
+          <div style={{ padding: isMobile ? "60px 16px 8px" : "12px 16px 8px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Machine Graph JSON</div>
+              <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>
+                {mode === "build"
+                  ? "Edit the graph and apply it back into the builder."
+                  : "Edit the graph and restart the current simulation."}
+              </div>
             </div>
+            {isMobile && (
+              <button
+                onClick={() => setShowJson(false)}
+                style={{ ...secondaryButtonStyle, padding: "6px 12px", fontSize: 13, flexShrink: 0 }}
+              >
+                Done
+              </button>
+            )}
           </div>
           <textarea
             value={jsonText}
@@ -2679,7 +2784,7 @@ export function App() {
         </div>
       )}
 
-      {!jsonPanelVisible && (
+      {!jsonPanelVisible && !isMobile && (
         <div
           style={{
             position: "absolute",
@@ -2703,6 +2808,104 @@ export function App() {
         >
           {mode === "gallery" ? "GALLERY" : mode === "build" ? "BUILD MODE" : "PLAY MODE"}
         </div>
+      )}
+
+      {isMobile && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            height: 48,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 12px",
+            background: "rgba(8,12,20,0.82)",
+            backdropFilter: "blur(12px)",
+            borderBottom: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          <div style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 0.8,
+            color: mode === "gallery" ? "#d1d5db" : mode === "build" ? "#7dd3fc" : "#86efac",
+          }}>
+            {mode === "gallery" ? "GALLERY" : mode === "build" ? "BUILD" : "PLAY"}
+          </div>
+          {mode === "build" && (
+            <div style={{ fontSize: 11, opacity: 0.6, color: "#eef2ff" }}>
+              {blockCount} blocks
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 6 }}>
+            {mode === "build" && (
+              <>
+                <button
+                  onClick={handleUndo}
+                  disabled={undoStack.length === 0}
+                  style={{ ...toolbarActionButton(undoStack.length > 0), minWidth: 44, minHeight: 44, padding: "0 8px", fontSize: 16 }}
+                >
+                  ↩
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={redoStack.length === 0}
+                  style={{ ...toolbarActionButton(redoStack.length > 0), minWidth: 44, minHeight: 44, padding: "0 8px", fontSize: 16 }}
+                >
+                  ↪
+                </button>
+              </>
+            )}
+            {mode === "play" && (
+              <button
+                onClick={handleStop}
+                style={{ ...primaryButtonStyle, background: "#dc2626", padding: "6px 14px", fontSize: 12, minHeight: 44 }}
+              >
+                Stop
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isMobile && (mobileDrawerOpen || mobileInspectorOpen) && (
+        <div
+          onClick={() => { setMobileDrawerOpen(false); setMobileInspectorOpen(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 25, background: "rgba(0,0,0,0.45)" }}
+        />
+      )}
+
+      {isMobile && !mobileDrawerOpen && (
+        <button
+          onClick={() => setMobileDrawerOpen(true)}
+          aria-label="Open panel"
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 20,
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            border: "1px solid rgba(56,189,248,0.4)",
+            background: "linear-gradient(135deg, rgba(14,165,233,0.9) 0%, rgba(37,99,235,0.9) 100%)",
+            color: "#fff",
+            fontSize: 24,
+            cursor: "pointer",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          ☰
+        </button>
       )}
 
       {mode === "play" && firstPerson && (
