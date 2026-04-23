@@ -440,6 +440,8 @@ export const walkerMotorBlock: BlockDefinition = {
   },
 };
 
+import { trebuchetBlocks } from "./trebuchet-blocks.js";
+
 /** All demo blocks: core + extended + besiege primitives/compounds */
 export const demoCatalog: BlockDefinition[] = [
   ...exampleCatalog,
@@ -456,4 +458,5 @@ export const demoCatalog: BlockDefinition[] = [
   walkerBarHorizBlock,
   walkerPivotBlock,
   walkerMotorBlock,
+  ...trebuchetBlocks,
 ];

@@ -713,6 +713,132 @@ function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
+// 10. Trebuchet — gravity-powered counterweight siege engine
+//
+// Physics bodies:
+//   1. Fixed body  = frame + pivot.base         (rigidBodyKind: "fixed")
+//   2. Arm body    = pivot.rotor + arm beam +
+//                   cw-joint.arm-side + sling1.arm-side
+//   3. CW body     = cw-joint.free-side + counterweight (80 kg)
+//   4. Sling-mid   = sling1.free-side + sling2.arm-side
+//   5. Projectile  = sling2.free-side + projectile sphere (5 kg)
+//
+// Joints:
+//   Revolute (Z-axis, motor)  body1 ↔ body2  (arm pivot — motor for reload)
+//   Spherical                 body2 ↔ body3  (counterweight swings freely)
+//   Spherical                 body2 ↔ body4  (sling link 1)
+//   Spherical                 body4 ↔ body5  (sling link 2 + projectile)
+//
+// Hold W to wind/reload (motor pulls long arm down). Release → fires.
+// ---------------------------------------------------------------------------
+
+function buildTrebuchet(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Height of the arm pivot above the ground plane (frame top)
+  const PIVOT_Y = 6.1;
+
+  // Arm geometry: 9 units long, pivot.attach anchor at x=-1.5 local.
+  // So when arm center is at x=ARM_CENTER, the pivot lands at x=ARM_CENTER-1.5.
+  // We want pivot at world x=0 → ARM_CENTER = 1.5.
+  const ARM_CENTER_X = 1.5;
+
+  // Short side: from pivot (x=0) to short end (x=-3.0 world)
+  const SHORT_END_X = ARM_CENTER_X - 4.5; // = -3.0
+
+  // Long side: from pivot (x=0) to long end (x=+6.0 world)
+  const LONG_END_X = ARM_CENTER_X + 4.5;  // = +6.0
+
+  // ── Frame (fixed A-frame, base at y=0, pivot anchor at y=PIVOT_Y) ──────
+  g.addNode({
+    id: "frame",
+    typeId: "trebuchet.frame",
+    transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // ── Pivot motor (at top of frame, world position = pivot point) ─────────
+  g.addNode({
+    id: "pivot",
+    typeId: "trebuchet.pivot",
+    transform: { position: vec3(0, PIVOT_Y, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addConnection({
+    a: { blockId: "frame", anchorId: "pivot.top" },
+    b: { blockId: "pivot", anchorId: "base.mount" },
+  });
+
+  // ── Arm (horizontal, center at x=ARM_CENTER_X so pivot.attach is at x=0) ─
+  g.addNode({
+    id: "arm",
+    typeId: "trebuchet.arm",
+    transform: { position: vec3(ARM_CENTER_X, PIVOT_Y, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addConnection({
+    a: { blockId: "pivot", anchorId: "rotor.mount" },
+    b: { blockId: "arm", anchorId: "pivot.attach" },
+  });
+
+  // ── Counterweight chain ─────────────────────────────────────────────────
+  // Ball joint merges arm-side with arm body; free-side hangs below.
+  g.addNode({
+    id: "cw-joint",
+    typeId: "trebuchet.ball.joint",
+    transform: { position: vec3(SHORT_END_X, PIVOT_Y, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addConnection({
+    a: { blockId: "arm", anchorId: "short.end" },
+    b: { blockId: "cw-joint", anchorId: "arm.mount" },
+  });
+
+  // Counterweight hangs 1.5 units below the joint (starts just below, then swings)
+  g.addNode({
+    id: "counterweight",
+    typeId: "trebuchet.counterweight",
+    transform: { position: vec3(SHORT_END_X, PIVOT_Y - 1.5, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addConnection({
+    a: { blockId: "cw-joint", anchorId: "free.mount" },
+    b: { blockId: "counterweight", anchorId: "attach" },
+  });
+
+  // ── Sling chain (2 ball joints + projectile) ────────────────────────────
+  // Sling link 1: arm-side merges with arm body, creating the first flex point
+  g.addNode({
+    id: "sling1",
+    typeId: "trebuchet.ball.joint",
+    transform: { position: vec3(LONG_END_X, PIVOT_Y, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addConnection({
+    a: { blockId: "arm", anchorId: "long.end" },
+    b: { blockId: "sling1", anchorId: "arm.mount" },
+  });
+
+  // Sling link 2: arm-side merges with sling1's free-side, creating second flex point
+  g.addNode({
+    id: "sling2",
+    typeId: "trebuchet.ball.joint",
+    transform: { position: vec3(LONG_END_X, PIVOT_Y - 2.0, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addConnection({
+    a: { blockId: "sling1", anchorId: "free.mount" },
+    b: { blockId: "sling2", anchorId: "arm.mount" },
+  });
+
+  // Projectile at the end of the sling, ~4 units below arm tip
+  g.addNode({
+    id: "projectile",
+    typeId: "trebuchet.projectile",
+    transform: { position: vec3(LONG_END_X, PIVOT_Y - 4.0, 0), rotation: QUAT_IDENTITY },
+  });
+  g.addConnection({
+    a: { blockId: "sling2", anchorId: "free.mount" },
+    b: { blockId: "projectile", anchorId: "attach" },
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Export gallery
 // ---------------------------------------------------------------------------
 
@@ -780,5 +906,12 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     build: buildSuspendedCar,
     autoInput: { motorSpin: 1 },
     cameraPosition: [10, 6, 10],
+  },
+  {
+    name: "Trebuchet",
+    description: "Gravity-powered counterweight trebuchet. Fires automatically! Hold W to reload (wind arm back), release to fire.",
+    build: buildTrebuchet,
+    autoInput: {},
+    cameraPosition: [18, 10, 18],
   },
 ];
