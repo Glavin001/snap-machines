@@ -713,6 +713,587 @@ function buildSuspendedCar(catalog: BlockCatalog): BlockGraph {
 }
 
 // ---------------------------------------------------------------------------
+// 10. Medieval Fortress — Small 4-wall fort with corner towers
+// ---------------------------------------------------------------------------
+
+function buildFortressSmall(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Foundation platform (large, stable base)
+  g.addNode({
+    id: "foundation",
+    typeId: "foundation.platform.large",
+    transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Build 4 walls on the foundation (north, south, east, west)
+  // North wall
+  snapBlock(g, catalog, {
+    id: "wall-north-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "north",
+    sourceAnchorId: "bottom",
+  });
+
+  // South wall
+  snapBlock(g, catalog, {
+    id: "wall-south-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "south",
+    sourceAnchorId: "bottom",
+  });
+
+  // East wall
+  snapBlock(g, catalog, {
+    id: "wall-east-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "east",
+    sourceAnchorId: "bottom",
+  });
+
+  // West wall
+  snapBlock(g, catalog, {
+    id: "wall-west-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "west",
+    sourceAnchorId: "bottom",
+  });
+
+  // Add corner towers (square towers at corners)
+  // Northeast corner
+  snapBlock(g, catalog, {
+    id: "tower-ne",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "ne",
+    sourceAnchorId: "bottom",
+  });
+
+  // Northwest corner
+  snapBlock(g, catalog, {
+    id: "tower-nw",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "nw",
+    sourceAnchorId: "bottom",
+  });
+
+  // Southeast corner
+  snapBlock(g, catalog, {
+    id: "tower-se",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "se",
+    sourceAnchorId: "bottom",
+  });
+
+  // Southwest corner
+  snapBlock(g, catalog, {
+    id: "tower-sw",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "sw",
+    sourceAnchorId: "bottom",
+  });
+
+  // Add crenellations on top of walls
+  snapBlock(g, catalog, {
+    id: "cren-north",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-north-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-south",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-south-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-east",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-east-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-west",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-west-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// 11. Medieval Fortress — Large with Extended Walls & Towers
+// ---------------------------------------------------------------------------
+
+function buildFortressLarge(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Foundation
+  g.addNode({
+    id: "foundation",
+    typeId: "foundation.platform.large",
+    transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Build perimeter walls (extended for larger fortress)
+  // North wall (2 segments)
+  snapBlock(g, catalog, {
+    id: "wall-north-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "north",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-north-2",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "wall-north-1",
+    targetAnchorId: "right",
+    sourceAnchorId: "left",
+  });
+
+  // South wall (2 segments)
+  snapBlock(g, catalog, {
+    id: "wall-south-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "south",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-south-2",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "wall-south-1",
+    targetAnchorId: "right",
+    sourceAnchorId: "left",
+  });
+
+  // East wall
+  snapBlock(g, catalog, {
+    id: "wall-east-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "east",
+    sourceAnchorId: "bottom",
+  });
+
+  // West wall
+  snapBlock(g, catalog, {
+    id: "wall-west-1",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "west",
+    sourceAnchorId: "bottom",
+  });
+
+  // Central rampart tower (use center anchor)
+  snapBlock(g, catalog, {
+    id: "rampart-center",
+    typeId: "structure.rampart.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
+  // Tall gatehouse tower - attach to wall-north-2 (on top of it)
+  snapBlock(g, catalog, {
+    id: "gatehouse",
+    typeId: "tower.gatehouse.3x3",
+    targetBlockId: "wall-north-2",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  // Corner towers
+  snapBlock(g, catalog, {
+    id: "tower-ne",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "ne",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-nw",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "nw",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-se",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "se",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-sw",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "sw",
+    sourceAnchorId: "bottom",
+  });
+
+  // Crenellations on walls for authentic castle look
+  snapBlock(g, catalog, {
+    id: "cren-north-1",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-north-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-north-2",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-north-2",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-south-1",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-south-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-south-2",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-south-2",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-east",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-east-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-west",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-west-1",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// 12. Medieval Fortress — Complete with Drawbridge & Portcullis (Animated!)
+// ---------------------------------------------------------------------------
+
+function buildFortressComplete(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Foundation
+  g.addNode({
+    id: "foundation",
+    typeId: "foundation.platform.large",
+    transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Perimeter walls
+  snapBlock(g, catalog, {
+    id: "wall-north",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "north",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-south",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "south",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-east",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "east",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-west",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "west",
+    sourceAnchorId: "bottom",
+  });
+
+  // Central rampart (use center anchor)
+  snapBlock(g, catalog, {
+    id: "rampart-center",
+    typeId: "structure.rampart.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
+  // Gatehouse tower - the centerpiece with animated gates
+  // Attach to wall-north instead of foundation to avoid anchor conflict
+  snapBlock(g, catalog, {
+    id: "gatehouse",
+    typeId: "tower.gatehouse.3x3",
+    targetBlockId: "wall-north",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  // Attach DRAWBRIDGE to gatehouse (animated - swings up to let traffic through!)
+  snapBlock(g, catalog, {
+    id: "drawbridge",
+    typeId: "gate.drawbridge.3x1",
+    targetBlockId: "gatehouse",
+    targetAnchorId: "gate.drawbridge",
+    sourceAnchorId: "base.mount",
+  });
+
+  // Attach PORTCULLIS to gatehouse (animated - slides down as secondary defense!)
+  snapBlock(g, catalog, {
+    id: "portcullis",
+    typeId: "gate.portcullis.3x2",
+    targetBlockId: "gatehouse",
+    targetAnchorId: "gate.portcullis",
+    sourceAnchorId: "frame.mount",
+  });
+
+  // Corner towers for defense
+  snapBlock(g, catalog, {
+    id: "tower-ne",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "ne",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-nw",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "nw",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-se",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "se",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-sw",
+    typeId: "tower.round.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "sw",
+    sourceAnchorId: "bottom",
+  });
+
+  // Crenellations for battlement defense
+  snapBlock(g, catalog, {
+    id: "cren-north",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-north",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-south",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-south",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-east",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-east",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-west",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-west",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// 13. Medieval Fortress — With Access Stairs and Ramparts
+// ---------------------------------------------------------------------------
+
+function buildFortressWithAccess(catalog: BlockCatalog): BlockGraph {
+  const g = new BlockGraph();
+
+  // Foundation
+  g.addNode({
+    id: "foundation",
+    typeId: "foundation.platform.large",
+    transform: { position: vec3(0, 0, 0), rotation: QUAT_IDENTITY },
+  });
+
+  // Simple perimeter walls
+  snapBlock(g, catalog, {
+    id: "wall-north",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "north",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-south",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "south",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-east",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "east",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "wall-west",
+    typeId: "wall.segment.straight.3x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "west",
+    sourceAnchorId: "bottom",
+  });
+
+  // Central rampart tower (CREATE BEFORE stairs!)
+  snapBlock(g, catalog, {
+    id: "rampart-center",
+    typeId: "structure.rampart.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "center",
+    sourceAnchorId: "bottom",
+  });
+
+  // Add stairs at center for interior access (NOW snap to rampart)
+  snapBlock(g, catalog, {
+    id: "stairs-center",
+    typeId: "access.stairs.2x1",
+    targetBlockId: "rampart-center",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  // Corner towers
+  snapBlock(g, catalog, {
+    id: "tower-ne",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "ne",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-nw",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "nw",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-se",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "se",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "tower-sw",
+    typeId: "tower.square.tall.2x2",
+    targetBlockId: "foundation",
+    targetAnchorId: "sw",
+    sourceAnchorId: "bottom",
+  });
+
+  // Crenellations on walls
+  snapBlock(g, catalog, {
+    id: "cren-north",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-north",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-south",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-south",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-east",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-east",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  snapBlock(g, catalog, {
+    id: "cren-west",
+    typeId: "crenellation.top.3x1",
+    targetBlockId: "wall-west",
+    targetAnchorId: "top",
+    sourceAnchorId: "bottom",
+  });
+
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Export gallery
 // ---------------------------------------------------------------------------
 
@@ -780,5 +1361,33 @@ export const MACHINE_PRESETS: MachinePreset[] = [
     build: buildSuspendedCar,
     autoInput: { motorSpin: 1 },
     cameraPosition: [10, 6, 10],
+  },
+  {
+    name: "Medieval Fortress (Small)",
+    description: "A simple 4-wall fortress with corner towers and crenellations. Demonstrates brick-by-brick stone composability.",
+    build: buildFortressSmall,
+    autoInput: {},
+    cameraPosition: [15, 8, 15],
+  },
+  {
+    name: "Medieval Fortress (Large)",
+    description: "An impressive larger fortress with extended walls, corner round towers, and rampart bastion.",
+    build: buildFortressLarge,
+    autoInput: {},
+    cameraPosition: [20, 10, 20],
+  },
+  {
+    name: "Medieval Fortress (Complete with Gates)",
+    description: "A fully-featured fortress with gatehouse, ANIMATED DRAWBRIDGE (press 'Q'/'E' in play), and ANIMATED PORTCULLIS (press 'Q'/'E' in play). Try controlling the gates!",
+    build: buildFortressComplete,
+    autoInput: {},
+    cameraPosition: [15, 8, 15],
+  },
+  {
+    name: "Medieval Fortress (With Stairs)",
+    description: "A fortress featuring interior access stairs and central rampart. Demonstrates multi-level fortress construction.",
+    build: buildFortressWithAccess,
+    autoInput: {},
+    cameraPosition: [15, 8, 15],
   },
 ];
